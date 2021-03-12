@@ -1,0 +1,75 @@
+#
+# Copyright (C) 2021 diva.exchange
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+#
+
+version: "3.7"
+services:
+  n1.i2p.testnet.diva.i2p:
+    container_name: n1.i2p.testnet.diva.i2p
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_TUNNELS: 1
+    volumes:
+      - ./tunnels.conf.d/n1:/home/i2pd/tunnels.source.conf.d/
+      - n1.i2p.testnet.diva.i2p:/home/i2pd/data/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.201
+
+  n2.i2p.testnet.diva.i2p:
+    container_name: n2.i2p.testnet.diva.i2p
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_TUNNELS: 1
+    volumes:
+      - ./tunnels.conf.d/n2:/home/i2pd/tunnels.source.conf.d/
+      - n2.i2p.testnet.diva.i2p:/home/i2pd/data/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.202
+
+  n3.i2p.testnet.diva.i2p:
+    container_name: n3.i2p.testnet.diva.i2p
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_TUNNELS: 1
+    volumes:
+      - ./tunnels.conf.d/n3:/home/i2pd/tunnels.source.conf.d/
+      - n3.i2p.testnet.diva.i2p:/home/i2pd/data/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.203
+
+networks:
+  network.testnet.diva.i2p:
+    name: network.testnet.diva.i2p
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.101.0/24
+
+volumes:
+  n1.i2p.testnet.diva.i2p:
+    name: n1.i2p.testnet.diva.i2p
+  n2.i2p.testnet.diva.i2p:
+    name: n2.i2p.testnet.diva.i2p
+  n3.i2p.testnet.diva.i2p:
+    name: n3.i2p.testnet.diva.i2p

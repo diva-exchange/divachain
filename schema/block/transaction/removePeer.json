@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/block/transaction/removePeer.json",
+
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-_]{25}$"
+    },
+    "command": {
+      "type": "string",
+      "pattern": "^removePeer$"
+    },
+    "publicKey": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "command",
+    "publicKey"
+  ]
+}

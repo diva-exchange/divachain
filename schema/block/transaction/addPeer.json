@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/block/transaction/addPeer.json",
+
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-_]{25}$"
+    },
+    "command": {
+      "type": "string",
+      "pattern": "^addPeer$"
+    },
+    "host": {
+      "type": "string",
+      "pattern": "^[a-z2-7]{52}\\.b32\\.i2p$"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 49151
+    },
+    "publicKey": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "command",
+    "host",
+    "port",
+    "publicKey"
+  ]
+}
