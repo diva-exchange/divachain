@@ -7,7 +7,7 @@ This is a very lightweight, fast and permissionless blockchain.
 ## How to Start the Local Testnet
 
 ```
-sudo docker-compose -f docker-compose/i2p-testnet.yml -d up
+sudo docker-compose -f docker-compose/i2p-testnet.yml up -d
 ```
 
 ## How to Stop the Local Testnet
