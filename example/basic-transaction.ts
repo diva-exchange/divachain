@@ -17,8 +17,8 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Network } from '../p2p/network';
-import { Transaction } from '../p2p/message/transaction';
+import { Network } from '../src/p2p/network';
+import { Transaction } from '../src/p2p/message/transaction';
 
 const ip = process.env.IP || '172.20.101.1';
 const port = Number(process.env.PORT) || 17168;
@@ -27,17 +27,33 @@ const n = new Network({
   ip: ip,
   port: port,
   networkPeers: {
-    f08a248862163b5b59bf74931c4442d15ab7fa86ced2e0672a1f54bd528e4a57: {
+    '8IokiGIWO1tZv3STHERC0Vq3+obO0uBnKh9UvVKOSlc': {
       host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
       port: 17168,
     },
-    '1c94fda18a0d3bd37f2b4a4e42902e57c281e266c54cc71ca8e7faf33ac0185c': {
+    'HJT9oYoNO9N/K0pOQpAuV8KB4mbFTMccqOf68zrAGFw': {
       host: 'o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p',
       port: 17268,
     },
-    '1ca069278f1afa34d0aee82c9c71c34ee68c266388cdccff1dc57d2ae9ac43a0': {
+    'HKBpJ48a+jTQrugsnHHDTuaMJmOIzcz/HcV9KumsQ6A': {
       host: 'yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p',
       port: 17368,
+    },
+    '2c3oqISpJzXDjdMqLZHJZ0l+gfMY/jsL8OzYKbbL+Xw': {
+      host: 'xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p',
+      port: 17468,
+    },
+    'onOB79NAtZxjBdjt6Ea9kuXviJL31lQ7jG2DA+2WCbs': {
+      host: '2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p',
+      port: 17568,
+    },
+    'ncCsviOQEaimSMeOxAhvj5tx09g5lHzEo4I+odliVX8': {
+      host: 'lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p',
+      port: 17668,
+    },
+    'jPbhjJUVAs6h0JyILk5nwfdWsPHB/FsU6hPn/LpQuXY': {
+      host: '6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p',
+      port: 17768,
     },
   },
 });
@@ -46,9 +62,9 @@ setInterval(() => {
   n.broadcast(
     new Transaction().create({
       id: '1',
-      publicKey: 'gah',
+      publicKey: 'foo',
       input: `FROM: ${ip}:${port} @${Date.now()}`,
-      signature: 'gah',
+      signature: 'bar',
     })
   );
 }, 100);
