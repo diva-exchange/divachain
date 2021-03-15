@@ -5,24 +5,52 @@
   "hash": "1234567890123456789012345678901234567890123456789012345678901234",
   "transactions": [
     {
-      "id": "1234567890123456789012345",
+      "id": "genesis-1",
       "command": "addPeer",
       "host": "47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p",
       "port": 17168,
       "publicKey": "aa8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
     },
     {
-      "id": "1234567890123456789012345",
+      "id": "genesis-2",
       "command": "addPeer",
       "host": "o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p",
       "port": 17268,
       "publicKey": "bb8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
     },
     {
-      "id": "1234567890123456789012345",
+      "id": "genesis-3",
       "command": "addPeer",
       "host": "yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p",
       "port": 17368,
+      "publicKey": "cc8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
+    },
+    {
+      "id": "genesis-4",
+      "command": "addPeer",
+      "host": ".b32.i2p",
+      "port": 17468,
+      "publicKey": "cc8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
+    },
+    {
+      "id": "genesis-5",
+      "command": "addPeer",
+      "host": ".b32.i2p",
+      "port": 17568,
+      "publicKey": "cc8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
+    },
+    {
+      "id": "genesis-6",
+      "command": "addPeer",
+      "host": ".b32.i2p",
+      "port": 17668,
+      "publicKey": "cc8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
+    },
+    {
+      "id": "genesis-7",
+      "command": "addPeer",
+      "host": ".b32.i2p",
+      "port": 17768,
       "publicKey": "cc8713ae3fd3e7681f1d1b55572f5cd2e4e0f87b3f0cec70a1af9c9e875fa83a"
     }
   ],

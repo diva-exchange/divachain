@@ -1,5 +1,22 @@
 # DIVA Blockchain
 
+A blockchain implementation using PBFT (practical byzantine fault tolerance) as a consensus algorithm.
+
+This is a very lightweight, fast and permissionless blockchain.
+
+## How to Start a Local Testnet
+
+```
+sudo docker-compose -f docker-compose/i2p-testnet.yml
+```
+
+## How to Start the Blockchain
+
+To start the blockchain application in verbose developer mode, use:
+```
+npm run start-dev-trace
+```
+
 ## Contact the Developers
 
 On [DIVA.EXCHANGE](https://www.diva.exchange) you'll find various options to get in touch with the team.
