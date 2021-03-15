@@ -17,6 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import base64url from 'base64-url';
 import zlib from 'zlib';
 
 export type MessageStruct = {
@@ -30,10 +31,10 @@ export type MessageStruct = {
 export class Message {
 
   static readonly VERSION_1 = 1; // string representation of object data
-  static readonly VERSION_2 = 2; // base64 encoded object data
-  static readonly VERSION_3 = 3; // base64 encoded zlib-deflated object data
+  static readonly VERSION_2 = 2; // base64url encoded object data
+  static readonly VERSION_3 = 3; // base64url encoded zlib-deflated object data
 
-  static readonly VERSION = Message.VERSION_1;
+  static readonly VERSION = Message.VERSION_2;
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;
@@ -98,9 +99,11 @@ export class Message {
       case Message.VERSION_1:
         return version + ';' + JSON.stringify(this.message);
       case Message.VERSION_2:
-        return version + ';' + Buffer.from(JSON.stringify(this.message)).toString('base64');
+        return version + ';' +
+          base64url.encode(JSON.stringify(this.message));
       case Message.VERSION_3:
-        return version + ';' + zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message))).toString('base64');
+        return version + ';' +
+          base64url.encode(zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message))).toString());
     }
     throw new Error('Message.pack(): unsupported data version');
   }
@@ -119,10 +122,10 @@ export class Message {
         this.message = JSON.parse(message);
         break;
       case Message.VERSION_2:
-        this.message = JSON.parse(Buffer.from(message, 'base64').toString());
+        this.message = JSON.parse(base64url.decode(message));
         break;
       case Message.VERSION_3:
-        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(message, 'base64')).toString());
+        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(base64url.decode(message))).toString());
         break;
       default:
         throw new Error(`Message.unpack(): unsupported data version ${version}`);

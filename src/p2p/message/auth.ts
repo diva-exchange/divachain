@@ -17,8 +17,9 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import base64url from 'base64-url';
 import { Message } from './message';
-import * as sodium from 'sodium-native';
+import sodium from 'sodium-native';
 
 export class Auth extends Message {
 
@@ -31,15 +32,15 @@ export class Auth extends Message {
     sodium.crypto_sign_detached(bufferSignature, Buffer.from(challenge), secretKey);
 
     this.message.type = Message.TYPE_AUTH;
-    this.message.data = bufferSignature.toString('base64');
+    this.message.data = base64url.escape(bufferSignature.toString('base64'));
     return this;
   }
 
   verify(challenge: string, publicKey: string): boolean {
     return this.message.type === Message.TYPE_AUTH && sodium.crypto_sign_verify_detached(
-      Buffer.from(this.message.data, 'base64'),
+      Buffer.from(base64url.decode(this.message.data)),
       Buffer.from(challenge),
-      Buffer.from(publicKey, 'base64')
+      Buffer.from(base64url.decode(publicKey))
     );
   }
 

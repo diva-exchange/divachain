@@ -25,6 +25,6 @@ export const P2P_PORT = Number(process.env.P2P_PORT) || 17168;
 
 export const TRANSACTION_THRESHOLD = 1;
 
-export const NUMBER_OF_NODES = 3;
+export const NUMBER_OF_NODES = 7;
 
 export const MIN_APPROVALS = 2 * (NUMBER_OF_NODES / 3) + 1; // PBFT

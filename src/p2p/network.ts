@@ -17,14 +17,15 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import { Auth } from './message/auth';
+import base64url from 'base64-url';
+import { Challenge } from './message/challenge';
+import { Logger } from '../logger';
+import { Message } from './message/message';
+import { nanoid } from 'nanoid';
+import sodium from 'sodium-native';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
-import { Logger } from '../logger';
-import { nanoid } from 'nanoid';
-import * as sodium from 'sodium-native';
-import { Auth } from './message/auth';
-import { Challenge } from './message/challenge';
-import { Message } from './message/message';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.17.0.2';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -86,7 +87,7 @@ export class Network {
 
     sodium.crypto_sign_seed_keypair(this.publicKey, this.secretKey, bufferSeed);
 
-    this.identity = this.publicKey.toString('base64');
+    this.identity = base64url.escape(this.publicKey.toString('base64'));
     if (!this.networkPeers[this.identity]) {
       throw new Error(`Invalid identity ${this.identity}`);
     }

@@ -17,14 +17,15 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import base64url from 'base64-url';
+import { Block } from '../blockchain/block';
+import { Commit } from '../p2p/message/commit';
+import { Logger } from '../logger';
+import { nanoid } from 'nanoid';
+import { Proposal } from '../p2p/message/proposal';
 import sodium from 'sodium-native';
 import { Transaction } from '../p2p/message/transaction';
-import { nanoid } from 'nanoid';
-import { Block } from '../blockchain/block';
-import { Proposal } from '../p2p/message/proposal';
 import { Vote } from '../p2p/message/vote';
-import { Logger } from '../logger';
-import { Commit } from '../p2p/message/commit';
 
 export class Wallet {
   publicKey: Buffer;
@@ -51,12 +52,12 @@ export class Wallet {
    * @returns {string}
    */
   toString(): string {
-    return `Wallet - publicKey: ${this.publicKey.toString('base64')}`;
+    return `Wallet - publicKey: ${base64url.escape(this.publicKey.toString('base64'))}`;
   }
 
   /**
    * @param data {string}
-   * @returns {string}
+   * @returns {string} - base64url encoded signature
    */
   sign(data: string): string {
     const bufferSignature: Buffer = sodium.sodium_malloc(sodium.crypto_sign_BYTES);
@@ -64,7 +65,7 @@ export class Wallet {
 
     sodium.crypto_sign_detached(bufferSignature, bufferDataHash, this.secretKey);
 
-    return bufferSignature.toString('base64');
+    return base64url.escape(bufferSignature.toString('base64'));
   }
 
   createTransaction(data: any): Transaction {
@@ -109,9 +110,9 @@ export class Wallet {
   }
 
   /**
-   * @returns {string}
+   * @returns {string} - base64url encoded
    */
   getPublicKey(): string {
-    return this.publicKey.toString('base64');
+    return base64url.escape(this.publicKey.toString('base64'));
   }
 }
