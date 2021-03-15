@@ -4,10 +4,16 @@ A blockchain implementation using PBFT (practical byzantine fault tolerance) as 
 
 This is a very lightweight, fast and permissionless blockchain.
 
-## How to Start a Local Testnet
+## How to Start the Local Testnet
 
 ```
-sudo docker-compose -f docker-compose/i2p-testnet.yml
+sudo docker-compose -f docker-compose/i2p-testnet.yml -d up
+```
+
+## How to Stop the Local Testnet
+
+```
+sudo docker-compose -f docker-compose/i2p-testnet.yml down
 ```
 
 ## How to Start the Blockchain
