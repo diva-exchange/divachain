@@ -17,7 +17,16 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { NUMBER_OF_NODES, HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK, P2P_MIN_HEALTH, MIN_APPROVALS } from '../config';
+import {
+  NUMBER_OF_NODES,
+  HTTP_IP,
+  HTTP_PORT,
+  P2P_IP,
+  P2P_PORT,
+  P2P_NETWORK,
+  P2P_MIN_HEALTH,
+  MIN_APPROVALS,
+} from '../config';
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 

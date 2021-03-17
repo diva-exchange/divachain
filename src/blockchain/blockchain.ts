@@ -46,8 +46,9 @@ export class Blockchain {
   }
 
   async init(): Promise<void> {
-    return new Promise(((resolve, reject) => {
-      this.db.get(1)
+    return new Promise((resolve, reject) => {
+      this.db
+        .get(1)
         .catch((error) => {
           //@FIXME logging
           Logger.trace(error);
@@ -55,14 +56,15 @@ export class Blockchain {
           this.db.put(1, Block.genesis());
         })
         .finally(() => {
-          this.db.createReadStream()
+          this.db
+            .createReadStream()
             .on('data', (data) => {
               this.chain[data.key] = data.value;
             })
             .on('end', resolve)
             .on('error', reject);
         });
-    }));
+    });
   }
 
   // wrapper function to create blocks
