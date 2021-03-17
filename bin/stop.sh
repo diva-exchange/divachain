@@ -17,19 +17,18 @@
 #
 # Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
 #
-# -e  Exit immediately if a simple command exits with a non-zero status
-set -e
 
 PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
+echo -n "Terminating "`pgrep -f "^node .*${PROJECT_PATH}dist/main.js$" | wc -l`" processes..."
+
 pkill -SIGTERM -f "^node .*${PROJECT_PATH}dist/main.js$"
 
-echo -n "Terminating..."
 while [[ `pgrep -f "^node .*${PROJECT_PATH}dist/main.js$"` ]]
 do
-  echo -n "."
-  sleep 2
+  echo -n `pgrep -f "^node .*${PROJECT_PATH}dist/main.js$" | wc -l`"*"
+  sleep 3
 done
-echo "Done"
+echo "...done"

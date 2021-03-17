@@ -26,14 +26,43 @@ import { CommitPool } from '../pool/commit-pool';
 import { Logger } from '../logger';
 import { VotePool } from '../pool/vote-pool';
 import { TransactionStruct } from '../p2p/message/transaction';
+import LevelUp from 'levelup';
+import LevelDown from 'leveldown';
+import path from 'path';
 
 export class Blockchain {
   validatorList: Array<string>;
-  chain: Array<Block>;
+  chain: Array<Block> = [];
+  private db: InstanceType<typeof LevelUp>;
 
-  constructor() {
+  constructor(publicKey: string) {
     this.validatorList = Validators.generateAddresses(NUMBER_OF_NODES);
-    this.chain = [Block.genesis()];
+    this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', publicKey)), {
+      createIfMissing: true,
+      errorIfExists: false,
+      compression: true,
+      cacheSize: 2 * 1024 * 1024, // 2 MB
+    });
+  }
+
+  async init(): Promise<void> {
+    return new Promise(((resolve, reject) => {
+      this.db.get(1)
+        .catch((error) => {
+          //@FIXME logging
+          Logger.trace(error);
+
+          this.db.put(1, Block.genesis());
+        })
+        .finally(() => {
+          this.db.createReadStream()
+            .on('data', (data) => {
+              this.chain[data.key] = data.value;
+            })
+            .on('end', resolve)
+            .on('error', reject);
+        });
+    }));
   }
 
   // wrapper function to create blocks
@@ -74,6 +103,8 @@ export class Blockchain {
     const block = blockPool.getBlock(hash);
     block.votes = votePool.list[hash] || [];
     block.commits = commitPool.list[hash] || [];
-    this.chain.push(block);
+    this.db.put(block.height, block).then(() => {
+      this.chain.push(block);
+    });
   }
 }

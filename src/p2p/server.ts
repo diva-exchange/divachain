@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK, P2P_MIN_HEALTH, MIN_APPROVALS } from '../config';
+import { NUMBER_OF_NODES, HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK, P2P_MIN_HEALTH, MIN_APPROVALS } from '../config';
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 
@@ -39,36 +39,27 @@ import { Commit } from './message/commit';
 const VERSION = '0.1.0';
 
 export class Server {
-  private network: Network;
-  private blockchain: Blockchain;
+  private readonly network: Network;
+  private readonly blockchain: Blockchain;
   private readonly transactionPool: TransactionPool;
   private readonly wallet: Wallet;
   private readonly blockPool: BlockPool;
   private readonly votePool: VotePool;
   private readonly commitPool: CommitPool;
-  private messagePool: MessagePool;
-  private validators: Validators;
+  private readonly messagePool: MessagePool;
+  private readonly validators: Validators;
 
   private readonly httpServer: Hapi.Server;
 
-  constructor(
-    blockchain: Blockchain,
-    transactionPool: TransactionPool,
-    wallet: Wallet,
-    blockPool: BlockPool,
-    votePool: VotePool,
-    commitPool: CommitPool,
-    messagePool: MessagePool,
-    validators: Validators
-  ) {
-    this.blockchain = blockchain;
-    this.transactionPool = transactionPool;
-    this.wallet = wallet;
-    this.blockPool = blockPool;
-    this.votePool = votePool;
-    this.commitPool = commitPool;
-    this.messagePool = messagePool;
-    this.validators = validators;
+  constructor() {
+    this.wallet = new Wallet(process.env.SECRET || '');
+    this.blockchain = new Blockchain(this.wallet.getPublicKey());
+    this.transactionPool = new TransactionPool();
+    this.blockPool = new BlockPool();
+    this.votePool = new VotePool();
+    this.commitPool = new CommitPool();
+    this.messagePool = new MessagePool();
+    this.validators = new Validators(NUMBER_OF_NODES);
 
     this.network = new Network({
       ip: P2P_IP,
@@ -86,6 +77,10 @@ export class Server {
   }
 
   async listen(): Promise<void> {
+    await this.blockchain.init();
+    //@FIXME logging
+    Logger.trace(this.blockchain.chain);
+
     // catch all
     this.httpServer.route({
       method: '*',

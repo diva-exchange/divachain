@@ -17,38 +17,10 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { NUMBER_OF_NODES } from './config';
 import { Server } from './p2p/server';
-
-import { TransactionPool } from './pool/transaction-pool';
-import { Validators } from './transaction/validators';
-import { Blockchain } from './blockchain/blockchain';
-import { BlockPool } from './pool/block-pool';
-import { CommitPool } from './pool/commit-pool';
-import { VotePool } from './pool/vote-pool';
-import { MessagePool } from './pool/message-pool';
-import { Wallet } from './transaction/wallet';
 import { Logger } from './logger';
 
-const wallet = new Wallet(process.env.SECRET || '');
-const transactionPool = new TransactionPool();
-const validators = new Validators(NUMBER_OF_NODES);
-const blockchain = new Blockchain();
-const blockPool = new BlockPool();
-const votePool = new VotePool();
-const commitPool = new CommitPool();
-const messagePool = new MessagePool();
-
-const server = new Server(
-  blockchain,
-  transactionPool,
-  wallet,
-  blockPool,
-  votePool,
-  commitPool,
-  messagePool,
-  validators
-);
+const server = new Server();
 
 server.listen().then(() => {
   process.on('unhandledRejection', (error: Error) => {
