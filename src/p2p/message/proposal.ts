@@ -18,25 +18,23 @@
  */
 
 import { Message } from './message';
-import {Block} from '../../blockchain/block';
+import { Block } from '../../blockchain/block';
 
 export type ProposalStruct = {
-  id: string,
-  publicKey: string,
-  block: Block,
-}
+  id: string;
+  publicKey: string;
+  block: Block;
+};
 
 export class Proposal extends Message {
-
   constructor(message?: Buffer | string) {
     super(message);
   }
 
   create(proposal: ProposalStruct): Proposal {
     this.message.type = Message.TYPE_PROPOSAL;
-    this.message.data = proposal;
+    this.message.data = JSON.stringify(proposal);
     this.message.isBroadcast = true;
     return this;
   }
-
 }

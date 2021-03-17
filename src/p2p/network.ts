@@ -26,6 +26,7 @@ import { nanoid } from 'nanoid';
 import sodium from 'sodium-native';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
+import { Ack } from './message/ack';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.17.0.2';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -61,8 +62,9 @@ export class Network {
 
   private readonly wss: WebSocket.Server;
 
-  peersIn: { [publicKey: string]: Peer } = {};
-  peersOut: { [publicKey: string]: Peer } = {};
+  private peersIn: { [publicKey: string]: Peer } = {};
+  private peersOut: { [publicKey: string]: Peer } = {};
+  private ack: { [publicKey: string]: Array<string> } = {};
 
   private readonly publicKey: Buffer;
   private readonly secretKey: Buffer;
@@ -124,15 +126,9 @@ export class Network {
       Logger.info('P2P WebSocket Server closed');
     });
 
-    setTimeout(async () => {
-      await this.refresh();
-    }, REFRESH_INTERVAL_MS);
-    setTimeout(() => {
-      this.ping();
-    }, PING_INTERVAL_MS);
-    setTimeout(() => {
-      this.cleanNetwork();
-    }, CLEAN_INTERVAL_MS);
+    setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
+    setTimeout(() => this.ping(), PING_INTERVAL_MS);
+    setTimeout(() => this.cleanNetwork(), CLEAN_INTERVAL_MS);
   }
 
   async shutdown(): Promise<void> {
@@ -147,6 +143,25 @@ export class Network {
         this.wss.close(resolve);
       });
     }
+  }
+
+  health() {
+    const lIn = Object.keys(this.peersIn).length;
+    const lOut = Object.keys(this.peersOut).length;
+    const lN = [...new Set([...Object.keys(this.peersIn), ...Object.keys(this.peersOut)])].length;
+    const lC = Object.keys(this.networkPeers).length - 1; // -1: exclude self
+    return { in: lIn / lC, out: lOut / lC, total: lN / lC };
+  }
+
+  peers() {
+    const peers: { in: Array<object>; out: Array<object> } = { in: [], out: [] };
+    Object.keys(this.peersIn).forEach((p) => {
+      peers.in.push({ publicKey: p, address: this.peersIn[p].address, alive: this.peersIn[p].alive });
+    });
+    Object.keys(this.peersOut).forEach((p) => {
+      peers.out.push({ publicKey: p, address: this.peersOut[p].address, alive: this.peersOut[p].alive });
+    });
+    return peers;
   }
 
   /*
@@ -171,13 +186,17 @@ export class Network {
   */
   broadcast(message: Message) {
     if (message.isBroadcast()) {
-      Object.keys(this.peersOut)
-        .filter((publicKey) => !message.hasTrail(publicKey))
+      const peers = { ...this.peersIn, ...this.peersOut };
+
+      Object.keys(peers)
+        .filter((publicKey) => !this.ack[publicKey] || this.ack[publicKey].indexOf(message.id()) === -1)
         .forEach(async (publicKey) => {
           try {
-            if (this.peersOut[publicKey] && this.peersOut[publicKey].ws.readyState === 1) {
-              const s = message.pack(this.identity);
-              await this.peersOut[publicKey].ws.send(s);
+            if (peers[publicKey].ws.readyState === 1) {
+              //@FIXME logging
+              Logger.trace(`Broadcasting Message Type "${message.type()}" to ${publicKey}`);
+
+              await peers[publicKey].ws.send(message.pack());
             }
           } catch (error) {
             //@FIXME why is the websocket throwing an Exception?
@@ -215,7 +234,23 @@ export class Network {
 
       ws.on('message', (message: Buffer) => {
         this.peersIn[publicKey] && (this.peersIn[publicKey].alive = Date.now());
-        this._onMessage && this._onMessage(message);
+
+        try {
+          const m = new Message(message);
+          const id = m.id();
+          if (!this.ack[publicKey]) {
+            this.ack[publicKey] = [];
+          }
+          this.ack[publicKey].indexOf(id) === -1 && this.ack[publicKey].push(id);
+
+          if (m.type() !== Message.TYPE_ACK) {
+            ws.send(new Ack().create(id).pack());
+            this._onMessage && this._onMessage(m);
+          }
+        } catch (error) {
+          //@FIXME logging
+          Logger.trace(error);
+        }
       });
       ws.on('error', () => {
         ws.close();
@@ -237,9 +272,7 @@ export class Network {
         await this.connect(publicKey);
       }
     }
-    setTimeout(async () => {
-      await this.refresh();
-    }, REFRESH_INTERVAL_MS);
+    setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
   }
 
   private cleanNetwork() {
@@ -257,9 +290,7 @@ export class Network {
       }
     }
 
-    setTimeout(() => {
-      this.cleanNetwork();
-    }, CLEAN_INTERVAL_MS);
+    setTimeout(() => this.cleanNetwork(), CLEAN_INTERVAL_MS);
   }
 
   private connect(publicKey: string): Promise<void> {
@@ -301,7 +332,22 @@ export class Network {
 
         ws.on('message', (message: Buffer) => {
           this.peersOut[publicKey] && (this.peersOut[publicKey].alive = Date.now());
-          this._onMessage && this._onMessage(message);
+          try {
+            const m = new Message(message);
+            const id = m.id();
+            if (!this.ack[publicKey]) {
+              this.ack[publicKey] = [];
+            }
+            this.ack[publicKey].indexOf(id) === -1 && this.ack[publicKey].push(id);
+
+            if (m.type() !== Message.TYPE_ACK) {
+              ws.send(new Ack().create(id).pack());
+              this._onMessage && this._onMessage(m);
+            }
+          } catch (error) {
+            //@FIXME logging
+            Logger.trace(error);
+          }
         });
         ws.on('pong', () => {
           this.peersOut[publicKey] &&
@@ -325,8 +371,6 @@ export class Network {
         this.peersOut[publicKey].ws.ping();
     }
 
-    setTimeout(() => {
-      this.ping();
-    }, PING_INTERVAL_MS);
+    setTimeout(() => this.ping(), PING_INTERVAL_MS);
   }
 }

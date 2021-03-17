@@ -17,10 +17,17 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import Pino from 'pino';
+import { Message } from './message';
 
-export const Logger = Pino(
-  process.env.NODE_ENV === 'development'
-    ? { level: process.env.LOG_LEVEL || 'info', prettyPrint: { translateTime: true } }
-    : { level: process.env.LOG_LEVEL || 'warn' }
-);
+export class Ack extends Message {
+  constructor(message?: Buffer | string) {
+    super(message);
+  }
+
+  create(id: string): Ack {
+    this.message.id = id;
+    this.message.type = Message.TYPE_ACK;
+    this.message.isBroadcast = false;
+    return this;
+  }
+}

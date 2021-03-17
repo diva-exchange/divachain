@@ -20,23 +20,21 @@
 import { Message } from './message';
 
 export type TransactionStruct = {
-  id: string,
-  publicKey: string,
-  input: any,
-  signature: string
-}
+  id: string;
+  publicKey: string;
+  input: any;
+  signature: string;
+};
 
 export class Transaction extends Message {
-
   constructor(message?: Buffer | string) {
     super(message);
   }
 
   create(transaction: TransactionStruct): Transaction {
     this.message.type = Message.TYPE_TRANSACTION;
-    this.message.data = transaction;
+    this.message.data = JSON.stringify(transaction);
     this.message.isBroadcast = true;
     return this;
   }
-
 }

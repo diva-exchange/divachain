@@ -18,18 +18,18 @@
  */
 
 import base64url from 'base64-url';
+import { nanoid } from 'nanoid';
 import zlib from 'zlib';
 
 export type MessageStruct = {
-    timestamp: number,
-    type: number,
-    data: any,
-    trail: Array<string>,
-    isBroadcast: boolean,
-  };
+  id: string;
+  timestamp: number;
+  type: number;
+  data: string;
+  isBroadcast: boolean;
+};
 
 export class Message {
-
   static readonly VERSION_1 = 1; // string representation of object data
   static readonly VERSION_2 = 2; // base64url encoded object data
   static readonly VERSION_3 = 3; // base64url encoded zlib-deflated object data
@@ -43,12 +43,13 @@ export class Message {
   static readonly TYPE_VOTE = 5;
   static readonly TYPE_COMMIT = 6;
   static readonly TYPE_ROUND_CHANGE = 7;
+  static readonly TYPE_ACK = 9;
 
   protected message: MessageStruct = {
+    id: '',
     timestamp: 0,
     type: 0,
-    data: null,
-    trail: [],
+    data: '',
     isBroadcast: false,
   };
 
@@ -56,10 +57,14 @@ export class Message {
    * @param {Buffer|string} message
    * @throws {Error}
    */
-  constructor (message?: Buffer | string) {
+  constructor(message?: Buffer | string) {
     if (message) {
       this._unpack(message);
     }
+  }
+
+  id(): string {
+    return this.message.id;
   }
 
   type(): number {
@@ -74,24 +79,19 @@ export class Message {
     return this.message;
   }
 
+  getData(): any {
+    return JSON.parse(this.message.data);
+  }
+
   /**
-   * @param {string} origin
    * @param {number} version
    * @return {string}
    * @throws {Error}
    */
-  pack(origin?: string, version?: number): string {
-    this.message.timestamp = Date.now();
-    this.message.isBroadcast && origin && !this.hasTrail(origin) && this.message.trail.push(origin);
+  pack(version?: number): string {
+    this.message.id = this.message.id || nanoid();
+    this.message.timestamp = this.message.timestamp || Date.now();
     return this._pack(version);
-  }
-
-  /**
-   * @param {string} origin
-   * @return {boolean}
-   */
-  hasTrail(origin: string): boolean {
-    return this.message.trail.indexOf(origin) > -1;
   }
 
   protected _pack(version: number = Message.VERSION): string {
@@ -99,11 +99,11 @@ export class Message {
       case Message.VERSION_1:
         return version + ';' + JSON.stringify(this.message);
       case Message.VERSION_2:
-        return version + ';' +
-          base64url.encode(JSON.stringify(this.message));
+        return version + ';' + base64url.encode(JSON.stringify(this.message));
       case Message.VERSION_3:
-        return version + ';' +
-          base64url.encode(zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message))).toString());
+        return (
+          version + ';' + base64url.encode(zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message))).toString())
+        );
     }
     throw new Error('Message.pack(): unsupported data version');
   }
@@ -125,7 +125,7 @@ export class Message {
         this.message = JSON.parse(base64url.decode(message));
         break;
       case Message.VERSION_3:
-        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(base64url.decode(message))).toString());
+        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(base64url.unescape(message), 'base64')).toString());
         break;
       default:
         throw new Error(`Message.unpack(): unsupported data version ${version}`);

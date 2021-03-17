@@ -39,6 +39,10 @@ export class TransactionPool {
     return !!this.transactions.find((_t) => _t.id === t.id);
   }
 
+  clear(): void {
+    this.transactions = [];
+  }
+
   static verify(t: TransactionStruct): boolean {
     return ChainUtil.verifySignature(t.publicKey, t.signature, t.id + JSON.stringify(t.input));
   }

@@ -25,10 +25,11 @@ import path from 'path';
 import { VoteStruct } from '../p2p/message/vote';
 
 export class Block {
+  readonly version: number;
   readonly created: number;
   readonly previousHash: string;
   readonly hash: string; // hash
-  readonly transactions: unknown;
+  readonly transactions: Array<object>; //@FIXME
   readonly proposer: string;
   readonly signature: string;
   readonly height: number;
@@ -44,6 +45,7 @@ export class Block {
     signature: string,
     height: number
   ) {
+    this.version = 1; //@FIXME
     this.created = created;
     this.previousHash = previousHash;
     this.hash = hash;
@@ -58,6 +60,7 @@ export class Block {
 
   toString(): string {
     return `
+      Version        : ${this.version}
       Created        : ${this.created}
       Previous Hash  : ${this.previousHash}
       Hash           : ${this.hash}

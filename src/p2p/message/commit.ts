@@ -20,23 +20,21 @@
 import { Message } from './message';
 
 export type CommitStruct = {
-  id: string,
-  publicKey: string,
-  hash: string,
-  signature: string
-}
+  id: string;
+  publicKey: string;
+  hash: string;
+  signature: string;
+};
 
 export class Commit extends Message {
-
   constructor(message?: Buffer | string) {
     super(message);
   }
 
   create(commit: CommitStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
-    this.message.data = commit;
+    this.message.data = JSON.stringify(commit);
     this.message.isBroadcast = true;
     return this;
   }
-
 }

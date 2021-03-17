@@ -22,7 +22,6 @@ import { Message } from './message';
 import sodium from 'sodium-native';
 
 export class Auth extends Message {
-
   constructor(message?: Buffer | string) {
     super(message);
   }
@@ -37,11 +36,13 @@ export class Auth extends Message {
   }
 
   verify(challenge: string, publicKey: string): boolean {
-    return this.message.type === Message.TYPE_AUTH && sodium.crypto_sign_verify_detached(
-      Buffer.from(base64url.decode(this.message.data)),
-      Buffer.from(challenge),
-      Buffer.from(base64url.decode(publicKey))
+    return (
+      this.message.type === Message.TYPE_AUTH &&
+      sodium.crypto_sign_verify_detached(
+        Buffer.from(base64url.unescape(this.message.data), 'base64'),
+        Buffer.from(challenge),
+        Buffer.from(base64url.unescape(publicKey), 'base64')
+      )
     );
   }
-
 }

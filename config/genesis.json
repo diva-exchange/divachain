@@ -1,8 +1,8 @@
 {
   "version": 1,
   "created": 88355100000,
-  "previousHash": "",
-  "hash": "0",
+  "previousHash": "1234567890123456789012345678901234567890123",
+  "hash": "1234567890123456789012345678901234567890123",
   "transactions": [
     {
       "id": "genesis-1",
@@ -55,6 +55,6 @@
     }
   ],
   "proposer": "8IokiGIWO1tZv3STHERC0Vq3-obO0uBnKh9UvVKOSlc",
-  "signature": "0",
+  "signature": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456",
   "height": 1
 }

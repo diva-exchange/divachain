@@ -41,7 +41,7 @@ export class Blockchain {
     return Block.createBlock(this.chain[this.chain.length - 1], transactions, wallet);
   }
 
-  // @FIXME genesis has a hash of '000...', so the first proposer is always known
+  // @FIXME genesis has a fixed hash, so the first proposer is always known
   getProposer(): string {
     //const index = this.chain[this.chain.length - 1].hash[0].charCodeAt(0) % NUMBER_OF_NODES;
     return this.validatorList[0];

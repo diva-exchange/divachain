@@ -20,23 +20,21 @@
 import { Message } from './message';
 
 export type VoteStruct = {
-  id: string,
-  publicKey: string,
-  hash: string,
-  signature: string
-}
+  id: string;
+  publicKey: string;
+  hash: string;
+  signature: string;
+};
 
 export class Vote extends Message {
-
   constructor(message?: Buffer | string) {
     super(message);
   }
 
   create(vote: VoteStruct): Vote {
     this.message.type = Message.TYPE_VOTE;
-    this.message.data = vote;
+    this.message.data = JSON.stringify(vote);
     this.message.isBroadcast = true;
     return this;
   }
-
 }

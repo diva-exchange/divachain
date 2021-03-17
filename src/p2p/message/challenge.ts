@@ -21,7 +21,6 @@ import { Message } from './message';
 import { nanoid } from 'nanoid';
 
 export class Challenge extends Message {
-
   constructor(message?: Buffer | string) {
     super(message);
   }
@@ -39,5 +38,4 @@ export class Challenge extends Message {
   verify(): boolean {
     return this.message.type === Message.TYPE_CHALLENGE;
   }
-
 }

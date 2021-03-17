@@ -31,7 +31,7 @@ export class Validators {
   // @FIXME
   static generateAddresses(numberOfValidators: number): Array<string> {
     const list = [];
-    for (let i = 0; i < numberOfValidators; i++) {
+    for (let i = 1; i <= numberOfValidators; i++) {
       list.push(new Wallet('NODE' + i).getPublicKey());
     }
     return list;

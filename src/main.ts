@@ -61,4 +61,9 @@ server.listen().then(() => {
       process.exit(0);
     });
   });
+  process.once('SIGTERM', () => {
+    server.shutdown().then(() => {
+      process.exit(0);
+    });
+  });
 });
