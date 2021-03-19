@@ -36,6 +36,8 @@ const TIMEOUT_AUTH_MS = REFRESH_INTERVAL_MS * 10;
 const PING_INTERVAL_MS = REFRESH_INTERVAL_MS * 10;
 const CLEAN_INTERVAL_MS = REFRESH_INTERVAL_MS * 15;
 
+const BROADCAST_RETRY_MS = 1000; // 1 sec
+
 type NetworkPeer = {
   host: string;
   port: number;
@@ -133,24 +135,31 @@ export class Network {
 
   async shutdown(): Promise<void> {
     if (typeof this.wss !== 'undefined' && this.wss) {
-      await new Promise((resolve) => {
-        Object.values(this.peersOut).forEach((peer) => {
+      Object.values(this.peersOut)
+        .concat(Object.values(this.peersIn))
+        .forEach((peer) => {
           peer.ws.close(1000, 'Bye');
         });
-        Object.values(this.peersIn).forEach((peer) => {
-          peer.ws.close(1000, 'Bye');
+
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          this.wss.close();
+          resolve();
+        }, 30000);
+        this.wss.close(() => {
+          clearTimeout(timeout);
+          resolve();
         });
-        this.wss.close(resolve);
       });
     }
   }
 
   health() {
-    const lIn = Object.keys(this.peersIn).length;
-    const lOut = Object.keys(this.peersOut).length;
-    const lN = [...new Set([...Object.keys(this.peersIn), ...Object.keys(this.peersOut)])].length;
+    const arrayIn = Object.keys(this.peersIn);
+    const arrayOut = Object.keys(this.peersOut);
+    const lN = [...new Set(arrayIn.concat(arrayOut))].length;
     const lC = Object.keys(this.networkPeers).length - 1; // -1: exclude self
-    return { in: lIn / lC, out: lOut / lC, total: lN / lC };
+    return { in: arrayIn.length / lC, out: arrayOut.length / lC, total: lN / lC };
   }
 
   peers() {
@@ -162,6 +171,10 @@ export class Network {
       peers.out.push({ publicKey: p, address: this.peersOut[p].address, alive: this.peersOut[p].alive });
     });
     return peers;
+  }
+
+  acknowledge() {
+    return this.ack;
   }
 
   /*
@@ -184,26 +197,35 @@ export class Network {
     return this;
   }
   */
-  broadcast(message: Message) {
+  broadcast(message: Message, retry: number = BROADCAST_RETRY_MS) {
     if (message.isBroadcast()) {
-      const peers = { ...this.peersIn, ...this.peersOut };
+      retry = retry > 0 ? retry : BROADCAST_RETRY_MS;
+      let doRetry = false;
 
-      Object.keys(peers)
-        .filter((publicKey) => !this.ack[publicKey] || this.ack[publicKey].indexOf(message.id()) === -1)
+      Object.keys(this.networkPeers)
+        .filter((publicKey) => {
+          return publicKey !== this.identity &&
+            (!this.ack[publicKey] || this.ack[publicKey].indexOf(message.ident()) === -1);
+        })
         .forEach(async (publicKey) => {
+          doRetry = true;
           try {
-            if (peers[publicKey].ws.readyState === 1) {
-              //@FIXME logging
-              Logger.trace(`Broadcasting Message Type "${message.type()}" to ${publicKey}`);
-
-              await peers[publicKey].ws.send(message.pack());
-            }
+            (this.peersOut[publicKey] &&
+              this.peersOut[publicKey].ws.readyState === 1 &&
+              await this.peersOut[publicKey].ws.send(message.pack())) ||
+            (this.peersIn[publicKey] &&
+              this.peersIn[publicKey].ws.readyState === 1 &&
+              await this.peersIn[publicKey].ws.send(message.pack()));
           } catch (error) {
-            //@FIXME why is the websocket throwing an Exception?
             Logger.warn('broadcast(): Websocket Error');
             Logger.trace(JSON.stringify(error));
           }
         });
+      if (doRetry) {
+        setTimeout(() => {
+          this.broadcast(message, retry < 60000 ? retry * 1.1 : retry); // max every ~minute
+        }, retry);
+      }
     }
   }
 
@@ -231,20 +253,21 @@ export class Network {
         alive: Date.now(),
         ws: ws,
       };
+      if (!this.ack[publicKey]) {
+        this.ack[publicKey] = [];
+      }
 
       ws.on('message', (message: Buffer) => {
         this.peersIn[publicKey] && (this.peersIn[publicKey].alive = Date.now());
 
         try {
           const m = new Message(message);
-          const id = m.id();
-          if (!this.ack[publicKey]) {
-            this.ack[publicKey] = [];
-          }
-          this.ack[publicKey].indexOf(id) === -1 && this.ack[publicKey].push(id);
+          const ident = m.ident();
 
-          if (m.type() !== Message.TYPE_ACK) {
-            ws.send(new Ack().create(id).pack());
+          if (m.type() === Message.TYPE_ACK) {
+            this.ack[publicKey].indexOf(ident) === -1 && this.ack[publicKey].push(ident);
+          } else {
+            ws.send(new Ack().create(m).pack());
             this._onMessage && this._onMessage(m);
           }
         } catch (error) {
@@ -312,6 +335,9 @@ export class Network {
         alive: Date.now(),
         ws: ws,
       };
+      if (!this.ack[publicKey]) {
+        this.ack[publicKey] = [];
+      }
 
       ws.on('open', () => {
         resolve();
@@ -334,14 +360,12 @@ export class Network {
           this.peersOut[publicKey] && (this.peersOut[publicKey].alive = Date.now());
           try {
             const m = new Message(message);
-            const id = m.id();
-            if (!this.ack[publicKey]) {
-              this.ack[publicKey] = [];
-            }
-            this.ack[publicKey].indexOf(id) === -1 && this.ack[publicKey].push(id);
+            const ident = m.ident();
 
-            if (m.type() !== Message.TYPE_ACK) {
-              ws.send(new Ack().create(id).pack());
+            if (m.type() === Message.TYPE_ACK) {
+              this.ack[publicKey].indexOf(ident) === -1 && this.ack[publicKey].push(ident);
+            } else {
+              ws.send(new Ack().create(m).pack());
               this._onMessage && this._onMessage(m);
             }
           } catch (error) {

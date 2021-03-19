@@ -33,14 +33,12 @@ export class CommitPool {
   }
 
   exists(commit: CommitStruct): boolean {
-    return this.list[commit.hash] && !!this.list[commit.hash].find((p) => p.publicKey === commit.publicKey);
+    return this.list[commit.hash] && !!this.list[commit.hash].find((c) => c.origin === commit.origin);
   }
 
   static isValid(commit: CommitStruct): boolean {
     //@FIXME logging
-    Logger.trace(
-      `CommitPool.isValid: ${ChainUtil.verifySignature(commit.publicKey, commit.signature, commit.id + commit.hash)}`
-    );
-    return ChainUtil.verifySignature(commit.publicKey, commit.signature, commit.id + commit.hash);
+    Logger.trace(`CommitPool.isValid: ${ChainUtil.verifySignature(commit.origin, commit.signature, commit.hash)}`);
+    return ChainUtil.verifySignature(commit.origin, commit.signature, commit.hash);
   }
 }

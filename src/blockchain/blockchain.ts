@@ -18,8 +18,7 @@
  */
 
 import { Block } from './block';
-import { NUMBER_OF_NODES } from '../config';
-import { Validators } from '../transaction/validators';
+import { P2P_NETWORK } from '../config';
 import { Wallet } from '../transaction/wallet';
 import { BlockPool } from '../pool/block-pool';
 import { CommitPool } from '../pool/commit-pool';
@@ -31,12 +30,10 @@ import LevelDown from 'leveldown';
 import path from 'path';
 
 export class Blockchain {
-  validatorList: Array<string>;
   chain: Array<Block> = [];
   private db: InstanceType<typeof LevelUp>;
 
   constructor(publicKey: string) {
-    this.validatorList = Validators.generateAddresses(NUMBER_OF_NODES);
     this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', publicKey)), {
       createIfMissing: true,
       errorIfExists: false,
@@ -53,18 +50,22 @@ export class Blockchain {
           //@FIXME logging
           Logger.trace(error);
 
-          this.db.put(1, Block.genesis());
+          this.db.put(1, JSON.stringify(Block.genesis()));
         })
         .finally(() => {
           this.db
             .createReadStream()
             .on('data', (data) => {
-              this.chain[data.key] = data.value;
+              this.chain[data.key] = JSON.parse(data.value) as Block;
             })
             .on('end', resolve)
             .on('error', reject);
         });
     });
+  }
+
+  async shutdown() {
+    await this.db.close();
   }
 
   // wrapper function to create blocks
@@ -75,7 +76,7 @@ export class Blockchain {
   // @FIXME genesis has a fixed hash, so the first proposer is always known
   getProposer(): string {
     //const index = this.chain[this.chain.length - 1].hash[0].charCodeAt(0) % NUMBER_OF_NODES;
-    return this.validatorList[0];
+    return Object.keys(P2P_NETWORK)[0];
     //return this.validatorList[index];
   }
 
@@ -105,7 +106,7 @@ export class Blockchain {
     const block = blockPool.getBlock(hash);
     block.votes = votePool.list[hash] || [];
     block.commits = commitPool.list[hash] || [];
-    this.db.put(block.height, block).then(() => {
+    this.db.put(block.height, JSON.stringify(block)).then(() => {
       this.chain.push(block);
     });
   }

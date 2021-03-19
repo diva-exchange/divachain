@@ -22,8 +22,7 @@ import { nanoid } from 'nanoid';
 import zlib from 'zlib';
 
 export type MessageStruct = {
-  id: string;
-  timestamp: number;
+  ident: string;
   type: number;
   data: string;
   isBroadcast: boolean;
@@ -46,8 +45,7 @@ export class Message {
   static readonly TYPE_ACK = 9;
 
   protected message: MessageStruct = {
-    id: '',
-    timestamp: 0,
+    ident: '',
     type: 0,
     data: '',
     isBroadcast: false,
@@ -63,8 +61,8 @@ export class Message {
     }
   }
 
-  id(): string {
-    return this.message.id;
+  ident(): string {
+    return this.message.ident;
   }
 
   type(): number {
@@ -89,8 +87,7 @@ export class Message {
    * @throws {Error}
    */
   pack(version?: number): string {
-    this.message.id = this.message.id || nanoid();
-    this.message.timestamp = this.message.timestamp || Date.now();
+    this.message.ident = this.message.ident || nanoid(26);
     return this._pack(version);
   }
 

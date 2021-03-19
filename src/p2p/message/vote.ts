@@ -20,8 +20,7 @@
 import { Message } from './message';
 
 export type VoteStruct = {
-  id: string;
-  publicKey: string;
+  origin: string;
   hash: string;
   signature: string;
 };

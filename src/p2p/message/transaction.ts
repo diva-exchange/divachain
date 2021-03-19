@@ -20,9 +20,8 @@
 import { Message } from './message';
 
 export type TransactionStruct = {
-  id: string;
-  publicKey: string;
-  input: any;
+  origin: string;
+  transaction: any;
   signature: string;
 };
 

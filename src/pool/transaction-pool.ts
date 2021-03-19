@@ -20,7 +20,6 @@
 'use strict';
 
 import { TransactionStruct } from '../p2p/message/transaction';
-import { TRANSACTION_THRESHOLD } from '../config';
 import { ChainUtil } from '../util/chain-util';
 
 export class TransactionPool {
@@ -32,18 +31,15 @@ export class TransactionPool {
 
   add(t: TransactionStruct): boolean {
     this.transactions.push(t);
-    return this.transactions.length >= TRANSACTION_THRESHOLD;
-  }
-
-  exists(t: TransactionStruct): boolean {
-    return !!this.transactions.find((_t) => _t.id === t.id);
+    //@TODO use a transaction threshold
+    return false;
   }
 
   clear(): void {
     this.transactions = [];
   }
 
-  static verify(t: TransactionStruct): boolean {
-    return ChainUtil.verifySignature(t.publicKey, t.signature, t.id + JSON.stringify(t.input));
+  static isValid(t: TransactionStruct): boolean {
+    return ChainUtil.verifySignature(t.origin, t.signature, JSON.stringify(t.transaction));
   }
 }

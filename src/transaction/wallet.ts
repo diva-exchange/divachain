@@ -21,7 +21,6 @@ import base64url from 'base64-url';
 import { Block } from '../blockchain/block';
 import { Commit } from '../p2p/message/commit';
 import { Logger } from '../logger';
-import { nanoid } from 'nanoid';
 import { Proposal } from '../p2p/message/proposal';
 import sodium from 'sodium-native';
 import { Transaction } from '../p2p/message/transaction';
@@ -69,43 +68,36 @@ export class Wallet {
   }
 
   createTransaction(data: any): Transaction {
-    const id = nanoid(8);
     return new Transaction().create({
-      id: id,
-      publicKey: this.getPublicKey(),
-      input: data,
-      signature: this.sign(id + JSON.stringify(data)),
+      origin: this.getPublicKey(),
+      transaction: data,
+      signature: this.sign(JSON.stringify(data)),
     });
   }
 
   createProposal(block: Block): Proposal {
-    const id = nanoid(8);
     return new Proposal().create({
-      id: id,
-      publicKey: this.getPublicKey(),
+      origin: this.getPublicKey(),
       block: block,
+      signature: this.sign(JSON.stringify(block)),
     });
   }
 
   createVote(block: Block): Vote {
     Logger.trace(`createVote() for hash: ${block.hash}`);
-    const id = nanoid(8);
     return new Vote().create({
-      id: id,
-      publicKey: this.getPublicKey(),
+      origin: this.getPublicKey(),
       hash: block.hash,
-      signature: this.sign(id + block.hash),
+      signature: this.sign(block.hash),
     });
   }
 
   createCommit(block: Block): Vote {
     Logger.trace(`createCommit() for hash: ${block.hash}`);
-    const id = nanoid(8);
     return new Commit().create({
-      id: id,
-      publicKey: this.getPublicKey(),
+      origin: this.getPublicKey(),
       hash: block.hash,
-      signature: this.sign(id + block.hash),
+      signature: this.sign(block.hash),
     });
   }
 

@@ -2,6 +2,7 @@
   "extends": "@tsconfig/node12/tsconfig.json",
   "compilerOptions": {
     "esModuleInterop": true,
+    "downlevelIteration": true,
     "outDir": "dist",
     "preserveConstEnums": true,
     "removeComments": true,

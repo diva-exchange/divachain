@@ -17,16 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import {
-  NUMBER_OF_NODES,
-  HTTP_IP,
-  HTTP_PORT,
-  P2P_IP,
-  P2P_PORT,
-  P2P_NETWORK,
-  P2P_MIN_HEALTH,
-  MIN_APPROVALS,
-} from '../config';
+import { HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK, MIN_APPROVALS } from '../config';
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 
@@ -37,7 +28,6 @@ import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
 import { CommitPool } from '../pool/commit-pool';
 import { MessagePool } from '../pool/message-pool';
-import { Validators } from '../transaction/validators';
 import { Network } from './network';
 import { Message } from './message/message';
 import { Transaction } from './message/transaction';
@@ -46,6 +36,9 @@ import { Vote } from './message/vote';
 import { Commit } from './message/commit';
 
 const VERSION = '0.1.0';
+
+const MAX_SIZE_MESSAGE_STACK = 10000;
+const CLEAN_INTERVAL_MS = 60000; // every minute
 
 export class Server {
   private readonly network: Network;
@@ -56,9 +49,10 @@ export class Server {
   private readonly votePool: VotePool;
   private readonly commitPool: CommitPool;
   private readonly messagePool: MessagePool;
-  private readonly validators: Validators;
 
   private readonly httpServer: Hapi.Server;
+
+  private messages: Array<string> = [];
 
   constructor() {
     this.wallet = new Wallet(process.env.SECRET || '');
@@ -68,7 +62,6 @@ export class Server {
     this.votePool = new VotePool();
     this.commitPool = new CommitPool();
     this.messagePool = new MessagePool();
-    this.validators = new Validators(NUMBER_OF_NODES);
 
     this.network = new Network({
       ip: P2P_IP,
@@ -87,8 +80,6 @@ export class Server {
 
   async listen(): Promise<void> {
     await this.blockchain.init();
-    //@FIXME logging
-    Logger.trace(this.blockchain.chain);
 
     // catch all
     this.httpServer.route({
@@ -112,6 +103,22 @@ export class Server {
       path: '/health',
       handler: (request, h) => {
         return h.response(this.network.health());
+      },
+    });
+
+    this.httpServer.route({
+      method: 'GET',
+      path: '/ack',
+      handler: (request, h) => {
+        return h.response(this.network.acknowledge());
+      },
+    });
+
+    this.httpServer.route({
+      method: 'GET',
+      path: '/msg',
+      handler: (request, h) => {
+        return h.response(this.messages);
       },
     });
 
@@ -144,8 +151,7 @@ export class Server {
       path: '/create',
       handler: async (request, h) => {
         try {
-          const t = this.wallet.createTransaction(request.payload);
-          this.processTransaction(t);
+          this.onMessage(new Message(this.wallet.createTransaction(request.payload).pack()));
           return h.response().code(200);
         } catch (error) {
           Logger.trace(error);
@@ -180,32 +186,39 @@ export class Server {
     this.httpServer.events.on('stop', () => {
       Logger.info(`HTTP Server (${VERSION}) closed`);
     });
+
+    setTimeout(() => this.cleanMessages(), CLEAN_INTERVAL_MS);
   }
 
   async shutdown(): Promise<void> {
+    //@FIXME logging
+    Logger.trace('Closing network...');
     await this.network.shutdown();
 
+    //@FIXME logging
+    Logger.trace('Closing blockchain...');
+    await this.blockchain.shutdown();
+
     if (typeof this.httpServer !== 'undefined' && this.httpServer) {
+      //@FIXME logging
+      Logger.trace('Closing http server...');
       await this.httpServer.stop();
     }
   }
 
-  private processTransaction(transaction: Transaction) {
-    if (this.network.health().total < P2P_MIN_HEALTH) {
-      throw new Error('Network not healthy');
+  private cleanMessages() {
+    if (this.messages.length > MAX_SIZE_MESSAGE_STACK) {
+      this.messages.splice(0, Math.floor(this.messages.length / 3));
     }
 
-    if (
-      !this.transactionPool.exists(transaction.getData()) &&
-      TransactionPool.verify(transaction.getData()) &&
-      this.validators.isValid(transaction.getData().publicKey)
-    ) {
-      // (re-)broadcast it (spread it all over)
-      this.network.broadcast(transaction);
+    setTimeout(() => this.cleanMessages(), CLEAN_INTERVAL_MS);
+  }
 
+  private processTransaction(transaction: Transaction) {
+    if (TransactionPool.isValid(transaction.getData())) {
       if (this.transactionPool.add(transaction.getData())) {
         //@FIXME logging
-        Logger.trace('Threshold reached...');
+        Logger.trace('Transactions will be proposed as block...');
 
         if (this.blockchain.getProposer() === this.wallet.getPublicKey()) {
           //@FIXME logging
@@ -223,9 +236,6 @@ export class Server {
 
   private processProposal(proposal: Proposal) {
     if (!this.blockPool.exists(proposal.getData().block) && this.blockchain.isValid(proposal.getData().block)) {
-      // (re-)broadcast it (spread it all over)
-      this.network.broadcast(proposal);
-
       this.blockPool.add(proposal.getData().block);
 
       //@FIXME logging
@@ -239,11 +249,7 @@ export class Server {
 
   private processVote(vote: Vote) {
     // check if the prepare message is valid
-    if (
-      !this.votePool.exists(vote.getData()) &&
-      VotePool.isValid(vote.getData()) &&
-      this.validators.isValid(vote.getData().publicKey)
-    ) {
+    if (!this.votePool.exists(vote.getData()) && VotePool.isValid(vote.getData())) {
       this.votePool.add(vote.getData());
 
       //@FIXME logging
@@ -263,11 +269,7 @@ export class Server {
   }
 
   private processCommit(commit: Commit) {
-    if (
-      !this.commitPool.exists(commit.getData()) &&
-      CommitPool.isValid(commit.getData()) &&
-      this.validators.isValid(commit.getData().publicKey)
-    ) {
+    if (!this.commitPool.exists(commit.getData()) && CommitPool.isValid(commit.getData())) {
       this.commitPool.add(commit.getData());
 
       //@FIXME logging
@@ -290,9 +292,19 @@ export class Server {
   }
 
   private onMessage(message: Message) {
+    if (this.messages.indexOf(message.ident()) !== -1) {
+      return;
+    }
+
+    this.messages.push(message.ident());
+
     switch (message.type()) {
       case Message.TYPE_TRANSACTION:
-        this.processTransaction(message as Transaction);
+        try {
+          this.processTransaction(message as Transaction);
+        } catch (error) {
+          Logger.trace(error);
+        }
         break;
       case Message.TYPE_PROPOSAL:
         this.processProposal(message as Proposal);
@@ -308,8 +320,7 @@ export class Server {
         // check the validity of the round change message
         if (
           !this.messagePool.existingMessage(data.message) &&
-          MessagePool.isValidMessage(data.message) &&
-          this.validators.isValidValidator(data.message.publicKey)
+          MessagePool.isValidMessage(data.message)
         ) {
           // add to pool
           this.messagePool.addMessage(data.message);
@@ -325,6 +336,9 @@ export class Server {
         break;
 */
     }
+
+    // (re-)broadcast it (spread it all over) [gossiping]
+    this.network.broadcast(message);
   }
 
   /*

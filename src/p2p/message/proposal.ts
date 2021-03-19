@@ -21,9 +21,9 @@ import { Message } from './message';
 import { Block } from '../../blockchain/block';
 
 export type ProposalStruct = {
-  id: string;
-  publicKey: string;
+  origin: string;
   block: Block;
+  signature: string;
 };
 
 export class Proposal extends Message {

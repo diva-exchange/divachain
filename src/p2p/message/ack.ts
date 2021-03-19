@@ -24,8 +24,8 @@ export class Ack extends Message {
     super(message);
   }
 
-  create(id: string): Ack {
-    this.message.id = id;
+  create(m: Message): Ack {
+    this.message.ident = m.ident();
     this.message.type = Message.TYPE_ACK;
     this.message.isBroadcast = false;
     return this;

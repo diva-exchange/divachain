@@ -33,12 +33,12 @@ export class VotePool {
   }
 
   exists(vote: VoteStruct): boolean {
-    return this.list[vote.hash] && !!this.list[vote.hash].find((p) => p.publicKey === vote.publicKey);
+    return this.list[vote.hash] && !!this.list[vote.hash].find((p) => p.origin === vote.origin);
   }
 
   static isValid(vote: VoteStruct): boolean {
     //@FIXME logging
-    Logger.trace(`VotePool.isValid: ${ChainUtil.verifySignature(vote.publicKey, vote.signature, vote.id + vote.hash)}`);
-    return ChainUtil.verifySignature(vote.publicKey, vote.signature, vote.id + vote.hash);
+    Logger.trace(`VotePool.isValid: ${ChainUtil.verifySignature(vote.origin, vote.signature, vote.hash)}`);
+    return ChainUtil.verifySignature(vote.origin, vote.signature, vote.hash);
   }
 }

@@ -22,7 +22,6 @@ export const HTTP_PORT = Number(process.env.HTTP_PORT) || 17169;
 
 export const P2P_IP = process.env.P2P_IP || '127.0.0.1';
 export const P2P_PORT = Number(process.env.P2P_PORT) || 17168;
-export const P2P_MIN_HEALTH = 0.5;
 export const P2P_NETWORK = {
   '8IokiGIWO1tZv3STHERC0Vq3-obO0uBnKh9UvVKOSlc': {
     host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
@@ -53,8 +52,6 @@ export const P2P_NETWORK = {
     port: 17768,
   },
 };
-
-export const TRANSACTION_THRESHOLD = 2;
 
 export const NUMBER_OF_NODES = 7;
 
