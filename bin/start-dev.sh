@@ -24,6 +24,9 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
+rm -rf ${PROJECT_PATH}dist/*
+rm -f ${PROJECT_PATH}log/*.log
+
 tsc
 
 SECRET=NODE1 HTTP_PORT=17169 P2P_IP=172.20.101.1 P2P_PORT=17168 NODE_ENV=development LOG_LEVEL=trace \

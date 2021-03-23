@@ -1,60 +1,73 @@
 {
   "version": 1,
-  "created": 88355100000,
+  "timestamp": 88355100000,
   "previousHash": "1234567890123456789012345678901234567890123",
   "hash": "1234567890123456789012345678901234567890123",
   "transactions": [
     {
-      "id": "genesis-1",
-      "command": "addPeer",
-      "host": "47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p",
-      "port": 17168,
-      "publicKey": "8IokiGIWO1tZv3STHERC0Vq3-obO0uBnKh9UvVKOSlc"
-    },
-    {
-      "id": "genesis-2",
-      "command": "addPeer",
-      "host": "o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p",
-      "port": 17268,
-      "publicKey": "HJT9oYoNO9N_K0pOQpAuV8KB4mbFTMccqOf68zrAGFw"
-    },
-    {
-      "id": "genesis-3",
-      "command": "addPeer",
-      "host": "yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p",
-      "port": 17368,
-      "publicKey": "HKBpJ48a-jTQrugsnHHDTuaMJmOIzcz_HcV9KumsQ6A"
-    },
-    {
-      "id": "genesis-4",
-      "command": "addPeer",
-      "host": "xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p",
-      "port": 17468,
-      "publicKey": "2c3oqISpJzXDjdMqLZHJZ0l-gfMY_jsL8OzYKbbL-Xw"
-    },
-    {
-      "id": "genesis-5",
-      "command": "addPeer",
-      "host": "2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p",
-      "port": 17568,
-      "publicKey": "onOB79NAtZxjBdjt6Ea9kuXviJL31lQ7jG2DA-2WCbs"
-    },
-    {
-      "id": "genesis-6",
-      "command": "addPeer",
-      "host": "lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p",
-      "port": 17668,
-      "publicKey": "ncCsviOQEaimSMeOxAhvj5tx09g5lHzEo4I-odliVX8"
-    },
-    {
-      "id": "genesis-7",
-      "command": "addPeer",
-      "host": "6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p",
-      "port": 17768,
-      "publicKey": "jPbhjJUVAs6h0JyILk5nwfdWsPHB_FsU6hPn_LpQuXY"
+      "origin": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI",
+      "signature": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456",
+      "transactions": [
+        {
+          "id": "genesis-1",
+          "command": "addPeer",
+          "host": "47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p",
+          "port": 17168,
+          "publicKey": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI"
+        },
+        {
+          "id": "genesis-2",
+          "command": "addPeer",
+          "host": "o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p",
+          "port": 17268,
+          "publicKey": "z2aVOeo_Mvt0vr0MKUz54N_zM_7jQYVLzedbuSTBcXA"
+        },
+        {
+          "id": "genesis-3",
+          "command": "addPeer",
+          "host": "yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p",
+          "port": 17368,
+          "publicKey": "Fd26iYIRxGRSz3wyK5vjQtoANEyEUl2_EcyCaRQMKIo"
+        },
+        {
+          "id": "genesis-4",
+          "command": "addPeer",
+          "host": "xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p",
+          "port": 17468,
+          "publicKey": "-4UR3gNsahU2ehP3CJLuiFLGe6mX2J7nwqjtg8Bvlng"
+        },
+        {
+          "id": "genesis-5",
+          "command": "addPeer",
+          "host": "2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p",
+          "port": 17568,
+          "publicKey": "fw4sKitin_9cwLTQfUEk9_vOQmYCndraGU_PK9PjXKI"
+        },
+        {
+          "id": "genesis-6",
+          "command": "addPeer",
+          "host": "lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p",
+          "port": 17668,
+          "publicKey": "5YHh90pMJOuWRXMK34DrWiUk20gHazd7TUT9bk6szDw"
+        },
+        {
+          "id": "genesis-7",
+          "command": "addPeer",
+          "host": "6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p",
+          "port": 17768,
+          "publicKey": "KxUiHLdHf_ZyFmEXB-FuJDgB62H2neAzuzQ1cl8Q17I"
+        }
+      ]
     }
   ],
-  "proposer": "8IokiGIWO1tZv3STHERC0Vq3-obO0uBnKh9UvVKOSlc",
+  "origin": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI",
   "signature": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456",
-  "height": 1
+  "height": 1,
+  "votes": [
+    {
+      "origin": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI",
+      "hash": "1234567890123456789012345678901234567890123",
+      "signature": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456"
+    }
+  ]
 }

@@ -32,8 +32,12 @@ export class Vote extends Message {
 
   create(vote: VoteStruct): Vote {
     this.message.type = Message.TYPE_VOTE;
-    this.message.data = JSON.stringify(vote);
+    this.message.data = vote;
     this.message.isBroadcast = true;
     return this;
+  }
+
+  get(): VoteStruct {
+    return this.message.data as VoteStruct;
   }
 }

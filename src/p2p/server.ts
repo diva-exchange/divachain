@@ -17,17 +17,16 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK, MIN_APPROVALS } from '../config';
+import { HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK } from '../config';
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 
+import { Block, BlockStruct } from '../blockchain/block';
 import { Blockchain } from '../blockchain/blockchain';
 import { TransactionPool } from '../pool/transaction-pool';
-import { Wallet } from '../transaction/wallet';
+import { Wallet } from '../blockchain/wallet';
 import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
-import { CommitPool } from '../pool/commit-pool';
-import { MessagePool } from '../pool/message-pool';
 import { Network } from './network';
 import { Message } from './message/message';
 import { Transaction } from './message/transaction';
@@ -37,22 +36,21 @@ import { Commit } from './message/commit';
 
 const VERSION = '0.1.0';
 
-const MAX_SIZE_MESSAGE_STACK = 10000;
-const CLEAN_INTERVAL_MS = 60000; // every minute
-
 export class Server {
+  static readonly STATUS_OUT_OF_SYNC = 1;
+  static readonly STATUS_ACCEPTING = 2;
+  static readonly STATUS_VOTING = 3;
+
   private readonly network: Network;
   private readonly blockchain: Blockchain;
   private readonly transactionPool: TransactionPool;
   private readonly wallet: Wallet;
   private readonly blockPool: BlockPool;
   private readonly votePool: VotePool;
-  private readonly commitPool: CommitPool;
-  private readonly messagePool: MessagePool;
 
   private readonly httpServer: Hapi.Server;
 
-  private messages: Array<string> = [];
+  private status: number;
 
   constructor() {
     this.wallet = new Wallet(process.env.SECRET || '');
@@ -60,22 +58,25 @@ export class Server {
     this.transactionPool = new TransactionPool();
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
-    this.commitPool = new CommitPool();
-    this.messagePool = new MessagePool();
 
-    this.network = new Network({
-      ip: P2P_IP,
-      port: P2P_PORT,
-      networkPeers: P2P_NETWORK,
-      onMessageCallback: async (m: Message) => {
-        this.onMessage(m);
+    this.network = new Network(
+      {
+        ip: P2P_IP,
+        port: P2P_PORT,
+        networkPeers: P2P_NETWORK,
+        onMessageCallback: (type: number, message: Buffer | string) => {
+          this.onMessage(type, message);
+        },
       },
-    });
+      this.wallet
+    );
 
     this.httpServer = Hapi.server({
       address: HTTP_IP,
       port: HTTP_PORT,
     });
+
+    this.status = Server.STATUS_OUT_OF_SYNC;
   }
 
   async listen(): Promise<void> {
@@ -92,9 +93,17 @@ export class Server {
 
     this.httpServer.route({
       method: 'GET',
+      path: '/status',
+      handler: (request, h) => {
+        return h.response({ status: this.status });
+      },
+    });
+
+    this.httpServer.route({
+      method: 'GET',
       path: '/peers',
       handler: (request, h) => {
-        return h.response(this.network.peers());
+        return h.response(this.network.getPeers());
       },
     });
 
@@ -102,7 +111,7 @@ export class Server {
       method: 'GET',
       path: '/health',
       handler: (request, h) => {
-        return h.response(this.network.health());
+        return h.response(this.network.getHealth());
       },
     });
 
@@ -110,39 +119,47 @@ export class Server {
       method: 'GET',
       path: '/ack',
       handler: (request, h) => {
-        return h.response(this.network.acknowledge());
+        return h.response(this.network.getAck());
       },
     });
 
     this.httpServer.route({
       method: 'GET',
-      path: '/msg',
+      path: '/messages',
       handler: (request, h) => {
-        return h.response(this.messages);
+        return h.response(this.network.getMessages());
       },
     });
 
     this.httpServer.route({
       method: 'GET',
-      path: '/transactions',
+      path: '/pool/transactions',
       handler: (request, h) => {
-        return h.response(this.transactionPool.transactions);
+        return h.response(this.transactionPool.get());
       },
     });
 
     this.httpServer.route({
       method: 'GET',
-      path: '/votes',
+      path: '/pool/votes',
       handler: (request, h) => {
-        return h.response(this.votePool.list);
+        return h.response(this.votePool.get());
+      },
+    });
+
+    this.httpServer.route({
+      method: 'GET',
+      path: '/pool/blocks',
+      handler: (request, h) => {
+        return h.response(this.blockPool.get());
       },
     });
 
     this.httpServer.route({
       method: 'GET',
       path: '/blocks',
-      handler: (request, h) => {
-        return h.response(this.blockchain.chain);
+      handler: async (request, h) => {
+        return h.response(await this.blockchain.get());
       },
     });
 
@@ -151,7 +168,10 @@ export class Server {
       path: '/create',
       handler: async (request, h) => {
         try {
-          this.onMessage(new Message(this.wallet.createTransaction(request.payload).pack()));
+          this.onMessage(
+            Message.TYPE_TRANSACTION,
+            this.wallet.createTransaction(this.blockchain.getHeight(), request.payload as Array<object>).pack()
+          );
           return h.response().code(200);
         } catch (error) {
           Logger.trace(error);
@@ -187,170 +207,95 @@ export class Server {
       Logger.info(`HTTP Server (${VERSION}) closed`);
     });
 
-    setTimeout(() => this.cleanMessages(), CLEAN_INTERVAL_MS);
+    this.status = Server.STATUS_ACCEPTING;
   }
 
   async shutdown(): Promise<void> {
-    //@FIXME logging
-    Logger.trace('Closing network...');
     await this.network.shutdown();
-
-    //@FIXME logging
-    Logger.trace('Closing blockchain...');
     await this.blockchain.shutdown();
 
     if (typeof this.httpServer !== 'undefined' && this.httpServer) {
-      //@FIXME logging
-      Logger.trace('Closing http server...');
       await this.httpServer.stop();
     }
   }
 
-  private cleanMessages() {
-    if (this.messages.length > MAX_SIZE_MESSAGE_STACK) {
-      this.messages.splice(0, Math.floor(this.messages.length / 3));
+  private processTransaction(transaction: Transaction) {
+    if (this.status !== Server.STATUS_ACCEPTING) {
+      return;
     }
 
-    setTimeout(() => this.cleanMessages(), CLEAN_INTERVAL_MS);
-  }
+    this.transactionPool.add(this.blockchain.getHeight(), transaction.get());
 
-  private processTransaction(transaction: Transaction) {
-    if (TransactionPool.isValid(transaction.getData())) {
-      if (this.transactionPool.add(transaction.getData())) {
-        //@FIXME logging
-        Logger.trace('Transactions will be proposed as block...');
+    // check for Leadership
+    //@FIXME length is pointless
+    if (this.network.isLeader(this.blockchain.getHeight()) && this.transactionPool.get().length >= 2) {
+      const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get(), this.wallet);
 
-        if (this.blockchain.getProposer() === this.wallet.getPublicKey()) {
-          //@FIXME logging
-          Logger.trace('Proposing Block...');
-
-          const block = this.blockchain.createBlock(this.transactionPool.transactions, this.wallet);
-          this.processProposal(this.wallet.createProposal(block));
-        }
-      } else {
-        //@FIXME logging
-        Logger.trace('Transaction Added');
-      }
+      this.status = Server.STATUS_VOTING;
+      this.onMessage(Message.TYPE_PROPOSAL, new Proposal().create(block.get()).pack());
     }
   }
 
   private processProposal(proposal: Proposal) {
-    if (!this.blockPool.exists(proposal.getData().block) && this.blockchain.isValid(proposal.getData().block)) {
-      this.blockPool.add(proposal.getData().block);
-
-      //@FIXME logging
-      Logger.trace('Creating Vote...');
-
-      const v = this.wallet.createVote(proposal.getData().block);
-      this.network.broadcast(v);
-      this.processVote(v);
+    const b: BlockStruct = proposal.get();
+    if (b.origin === this.network.getLeader(b.height - 1) && this.blockchain.isValid(b)) {
+      this.blockPool.set(b);
+      this.onMessage(Message.TYPE_VOTE, this.wallet.createVote(b).pack());
     }
   }
 
   private processVote(vote: Vote) {
-    // check if the prepare message is valid
-    if (!this.votePool.exists(vote.getData()) && VotePool.isValid(vote.getData())) {
-      this.votePool.add(vote.getData());
+    const v = vote.get();
+    this.votePool.add(v);
 
+    if (this.status === Server.STATUS_VOTING && this.votePool.accepted()) {
       //@FIXME logging
-      Logger.trace(`Voting result: ${this.votePool.list[vote.getData().hash].length} >= ${MIN_APPROVALS}`);
+      Logger.trace('Got approval - committing...');
 
-      if (this.votePool.list[vote.getData().hash].length >= MIN_APPROVALS) {
-        //@FIXME logging
-        Logger.trace('Got approval - committing...');
-
-        const c = this.wallet.createCommit(vote.getData());
-        this.network.broadcast(c);
-        this.processCommit(c);
-      } else {
-        this.network.broadcast(vote);
-      }
+      this.onMessage(Message.TYPE_COMMIT, this.wallet.createCommit(this.votePool.get()).pack());
     }
   }
 
   private processCommit(commit: Commit) {
-    if (!this.commitPool.exists(commit.getData()) && CommitPool.isValid(commit.getData())) {
-      this.commitPool.add(commit.getData());
-
-      //@FIXME logging
-      Logger.trace(`Committing result: ${this.commitPool.list[commit.getData().hash].length} >= ${MIN_APPROVALS}`);
-
-      if (this.commitPool.list[commit.getData().hash].length >= MIN_APPROVALS) {
-        this.blockchain.add(commit.getData().hash, this.blockPool, this.votePool, this.commitPool);
-        /*
-        // Send a round change message to nodes
-        const message = this.messagePool.createMessage(
-          this.blockchain.chain[this.blockchain.chain.length - 1].hash,
-          this.wallet
-        );
-        // this.network.broadcast(this.wallet.createRoundChange(proposal.getData()));
-        */
-      } else {
-        this.network.broadcast(commit);
-      }
-    }
-  }
-
-  private onMessage(message: Message) {
-    if (this.messages.indexOf(message.ident()) !== -1) {
+    const block: BlockStruct = this.blockPool.get();
+    if (!this.blockchain.isValid(block)) {
       return;
     }
 
-    this.messages.push(message.ident());
+    const c = commit.get();
+    if (Commit.isValid(c)) {
+      this.blockPool.commit(c.votes);
+      this.blockchain.add(block);
+      this.clearPools();
+      this.status = Server.STATUS_ACCEPTING;
+    } else {
+      this.status = Server.STATUS_OUT_OF_SYNC;
+    }
+  }
 
-    switch (message.type()) {
+  private clearPools() {
+    this.blockPool.clear();
+    this.votePool.clear();
+    this.transactionPool.clear();
+  }
+
+  private onMessage(type: number, message: Buffer | string) {
+    switch (type) {
       case Message.TYPE_TRANSACTION:
-        try {
-          this.processTransaction(message as Transaction);
-        } catch (error) {
-          Logger.trace(error);
-        }
+        this.processTransaction(new Transaction(message));
         break;
       case Message.TYPE_PROPOSAL:
-        this.processProposal(message as Proposal);
+        this.processProposal(new Proposal(message));
         break;
       case Message.TYPE_VOTE:
-        this.processVote(message as Vote);
+        this.processVote(new Vote(message));
         break;
       case Message.TYPE_COMMIT:
-        this.processCommit(message as Commit);
+        this.processCommit(new Commit(message));
         break;
-      /*
-      case Message.TYPE_ROUND_CHANGE:
-        // check the validity of the round change message
-        if (
-          !this.messagePool.existingMessage(data.message) &&
-          MessagePool.isValidMessage(data.message)
-        ) {
-          // add to pool
-          this.messagePool.addMessage(data.message);
-
-          // send to other nodes
-          this.broadcastRoundChange(data.message);
-
-          // if enough messages are received, clear the pools
-          if (this.messagePool.list[data.message.blockHash].length >= MIN_APPROVALS) {
-            this.transactionPool.clear();
-          }
-        }
-        break;
-*/
     }
 
     // (re-)broadcast it (spread it all over) [gossiping]
     this.network.broadcast(message);
   }
-
-  /*
-  broadcastRoundChange(message: Message): void {
-    const msg = JSON.stringify({
-      type: MESSAGE_TYPE.round_change,
-      message: message,
-    });
-    this.onMessage(Buffer.from(msg));
-    this.wss.clients.forEach((socket) => {
-      socket.send(msg);
-    });
-  }
-*/
 }

@@ -3,6 +3,7 @@
   "compilerOptions": {
     "esModuleInterop": true,
     "downlevelIteration": true,
+    "emitDecoratorMetadata": false,
     "outDir": "dist",
     "preserveConstEnums": true,
     "removeComments": true,

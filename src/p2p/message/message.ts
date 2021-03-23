@@ -24,16 +24,16 @@ import zlib from 'zlib';
 export type MessageStruct = {
   ident: string;
   type: number;
-  data: string;
+  data: any;
   isBroadcast: boolean;
 };
 
 export class Message {
   static readonly VERSION_1 = 1; // string representation of object data
   static readonly VERSION_2 = 2; // base64url encoded object data
-  static readonly VERSION_3 = 3; // base64url encoded zlib-deflated object data
+  static readonly VERSION_3 = 3; // base64 encoded zlib-deflated object data
 
-  static readonly VERSION = Message.VERSION_2;
+  static readonly VERSION = Message.VERSION_3;
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;
@@ -41,13 +41,12 @@ export class Message {
   static readonly TYPE_PROPOSAL = 4;
   static readonly TYPE_VOTE = 5;
   static readonly TYPE_COMMIT = 6;
-  static readonly TYPE_ROUND_CHANGE = 7;
   static readonly TYPE_ACK = 9;
 
   protected message: MessageStruct = {
     ident: '',
     type: 0,
-    data: '',
+    data: {},
     isBroadcast: false,
   };
 
@@ -73,12 +72,8 @@ export class Message {
     return this.message.isBroadcast;
   }
 
-  get(): MessageStruct {
-    return this.message;
-  }
-
-  getData(): any {
-    return JSON.parse(this.message.data);
+  origin(): string {
+    return this.message.data.origin || '';
   }
 
   /**
@@ -98,9 +93,7 @@ export class Message {
       case Message.VERSION_2:
         return version + ';' + base64url.encode(JSON.stringify(this.message));
       case Message.VERSION_3:
-        return (
-          version + ';' + base64url.encode(zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message))).toString())
-        );
+        return version + ';' + zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message))).toString('base64');
     }
     throw new Error('Message.pack(): unsupported data version');
   }
@@ -122,7 +115,7 @@ export class Message {
         this.message = JSON.parse(base64url.decode(message));
         break;
       case Message.VERSION_3:
-        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(base64url.unescape(message), 'base64')).toString());
+        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(message, 'base64')).toString());
         break;
       default:
         throw new Error(`Message.unpack(): unsupported data version ${version}`);

@@ -8,7 +8,7 @@
       "type": "integer",
       "minimum": 1
     },
-    "created": {
+    "timestamp": {
       "type": "integer",
       "minimum": 0
     },
@@ -28,7 +28,7 @@
       "minItems": 1,
       "uniqueItems": true
     },
-    "proposer": {
+    "origin": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
@@ -39,16 +39,26 @@
     "height": {
       "type": "integer",
       "minimum": 0
+    },
+    "votes": {
+      "type": "array",
+      "items": {
+        "$ref": "votes.json"
+      },
+      "minItems": 1,
+      "uniqueItems": true
     }
   },
   "required": [
+    "version",
     "timestamp",
     "previousHash",
     "hash",
     "transactions",
-    "proposer",
+    "origin",
     "signature",
-    "height"
+    "height",
+    "votes"
   ],
   "additionalProperties": false
 }

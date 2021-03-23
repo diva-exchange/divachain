@@ -18,10 +18,12 @@
  */
 
 import { Message } from './message';
+import { Logger } from '../../logger';
 
 export type TransactionStruct = {
+  height: number;
   origin: string;
-  transaction: any;
+  transactions: Array<object>;
   signature: string;
 };
 
@@ -30,10 +32,18 @@ export class Transaction extends Message {
     super(message);
   }
 
-  create(transaction: TransactionStruct): Transaction {
+  create(struct: TransactionStruct): Transaction {
     this.message.type = Message.TYPE_TRANSACTION;
-    this.message.data = JSON.stringify(transaction);
+    this.message.data = struct;
     this.message.isBroadcast = true;
+
+    //@FIXME logging
+    Logger.trace(`Transaction.create() ${JSON.stringify(this.message)}`);
+
     return this;
+  }
+
+  get(): TransactionStruct {
+    return this.message.data as TransactionStruct;
   }
 }

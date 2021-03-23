@@ -17,20 +17,15 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Block } from './block';
-import { P2P_NETWORK } from '../config';
-import { Wallet } from '../transaction/wallet';
-import { BlockPool } from '../pool/block-pool';
-import { CommitPool } from '../pool/commit-pool';
-import { Logger } from '../logger';
-import { VotePool } from '../pool/vote-pool';
-import { TransactionStruct } from '../p2p/message/transaction';
+import { Block, BlockStruct } from './block';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
+import { Logger } from '../logger';
 
 export class Blockchain {
-  chain: Array<Block> = [];
+  private latestBlock: BlockStruct;
+  private height: number = 0;
   private db: InstanceType<typeof LevelUp>;
 
   constructor(publicKey: string) {
@@ -40,27 +35,26 @@ export class Blockchain {
       compression: true,
       cacheSize: 2 * 1024 * 1024, // 2 MB
     });
+
+    this.height = 1;
+    this.latestBlock = Block.genesis();
+    this.db.get(1).catch(() => {
+      this.db.put(this.height, JSON.stringify(this.latestBlock));
+    });
   }
 
   async init(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db
-        .get(1)
-        .catch((error) => {
-          //@FIXME logging
-          Logger.trace(error);
-
-          this.db.put(1, JSON.stringify(Block.genesis()));
+        .createReadStream()
+        .on('data', (data) => {
+          if (Number(data.key) > this.height) {
+            this.height = Number(data.key);
+            this.latestBlock = JSON.parse(data.value) as BlockStruct;
+          }
         })
-        .finally(() => {
-          this.db
-            .createReadStream()
-            .on('data', (data) => {
-              this.chain[data.key] = JSON.parse(data.value) as Block;
-            })
-            .on('end', resolve)
-            .on('error', reject);
-        });
+        .on('end', resolve)
+        .on('error', reject);
     });
   }
 
@@ -68,46 +62,50 @@ export class Blockchain {
     await this.db.close();
   }
 
-  // wrapper function to create blocks
-  createBlock(transactions: Array<TransactionStruct>, wallet: Wallet): Block {
-    return Block.createBlock(this.chain[this.chain.length - 1], transactions, wallet);
-  }
-
-  // @FIXME genesis has a fixed hash, so the first proposer is always known
-  getProposer(): string {
-    //const index = this.chain[this.chain.length - 1].hash[0].charCodeAt(0) % NUMBER_OF_NODES;
-    return Object.keys(P2P_NETWORK)[0];
-    //return this.validatorList[index];
-  }
-
-  isValid(block: Block): boolean {
-    const previousBlock = this.chain[this.chain.length - 1];
-    if (
-      previousBlock.height + 1 === block.height &&
-      block.previousHash === previousBlock.hash &&
+  isValid(block: BlockStruct): boolean {
+    Logger.trace(
+      `Blockchain.isValid(): ${
+        this.height + 1 === block.height &&
+        block.previousHash === this.latestBlock.hash &&
+        block.hash === Block.blockHash(block) &&
+        Block.verifyBlock(block)
+      }`
+    );
+    return (
+      this.height + 1 === block.height &&
+      block.previousHash === this.latestBlock.hash &&
       block.hash === Block.blockHash(block) &&
-      Block.verifyBlock(block) &&
-      Block.verifyProposer(block, this.getProposer())
-    ) {
-      //@FIXME logging
-      Logger.trace('Blockchain.isValid(): true');
-      return true;
-    } else {
-      //@FIXME logging
-      Logger.trace('Blockchain.isValid(): false');
-      return false;
-    }
+      Block.verifyBlock(block)
+    );
   }
 
-  add(hash: string, blockPool: BlockPool, votePool: VotePool, commitPool: CommitPool): void {
-    //@FIXME logging
-    Logger.trace('Blockchain.add()');
-
-    const block = blockPool.getBlock(hash);
-    block.votes = votePool.list[hash] || [];
-    block.commits = commitPool.list[hash] || [];
+  add(block: BlockStruct) {
     this.db.put(block.height, JSON.stringify(block)).then(() => {
-      this.chain.push(block);
+      this.latestBlock = block;
+      this.height = block.height;
     });
+  }
+
+  getHeight(): number {
+    return this.height;
+  }
+
+  async get(): Promise<Array<BlockStruct>> {
+    const a: Array<BlockStruct> = [];
+    return new Promise((resolve, reject) => {
+      this.db
+        .createReadStream()
+        .on('data', (data) => {
+          a[Number(data.key) - 1] = JSON.parse(data.value) as BlockStruct;
+        })
+        .on('end', () => {
+          resolve(a);
+        })
+        .on('error', reject);
+    });
+  }
+
+  getLatestBlock(): BlockStruct {
+    return this.latestBlock;
   }
 }

@@ -17,28 +17,34 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { ChainUtil } from '../util/chain-util';
+import { ChainUtil } from '../blockchain/chain-util';
 import { VoteStruct } from '../p2p/message/vote';
-import { Logger } from '../logger';
+import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
-  list: { [id: string]: Array<VoteStruct> };
+  private list: Array<VoteStruct>;
 
   constructor() {
-    this.list = {};
+    this.list = [];
   }
 
   add(vote: VoteStruct): void {
-    this.list[vote.hash] ? this.list[vote.hash].push(vote) : (this.list[vote.hash] = [vote]);
+    this.list.indexOf(vote) < 0 && VotePool.isValid(vote) && this.list.push(vote);
   }
 
-  exists(vote: VoteStruct): boolean {
-    return this.list[vote.hash] && !!this.list[vote.hash].find((p) => p.origin === vote.origin);
+  accepted(): boolean {
+    return this.list.length >= MIN_APPROVALS;
   }
 
-  static isValid(vote: VoteStruct): boolean {
-    //@FIXME logging
-    Logger.trace(`VotePool.isValid: ${ChainUtil.verifySignature(vote.origin, vote.signature, vote.hash)}`);
+  get(): Array<VoteStruct> {
+    return this.list;
+  }
+
+  clear() {
+    this.list = [];
+  }
+
+  private static isValid(vote: VoteStruct): boolean {
     return ChainUtil.verifySignature(vote.origin, vote.signature, vote.hash);
   }
 }

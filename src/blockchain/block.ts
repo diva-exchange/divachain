@@ -17,90 +17,74 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { ChainUtil } from '../util/chain-util';
-import { Wallet } from '../transaction/wallet';
-
+import { ChainUtil } from './chain-util';
+import { Wallet } from './wallet';
 import fs from 'fs';
 import path from 'path';
 import { VoteStruct } from '../p2p/message/vote';
+import { TransactionStruct } from '../p2p/message/transaction';
+
+export type BlockStruct = {
+  version: number;
+  timestamp: number;
+  previousHash: string;
+  hash: string;
+  transactions: Array<TransactionStruct>;
+  origin: string;
+  signature: string;
+  height: number;
+  votes: Array<VoteStruct>;
+};
 
 export class Block {
+  readonly previousBlock: BlockStruct;
   readonly version: number;
-  readonly created: number;
-  readonly previousHash: string;
-  readonly hash: string; // hash
-  readonly transactions: Array<object>; //@FIXME
-  readonly proposer: string;
-  readonly signature: string;
+  readonly timestamp: number;
   readonly height: number;
-  votes: Array<VoteStruct>;
-  commits: Array<any>; //@FIXME CommitStruct
+  readonly previousHash: string;
+  readonly hash: string;
+  readonly transactions: Array<TransactionStruct>;
+  readonly origin: string;
+  readonly signature: string;
 
-  constructor(
-    created: number,
-    previousHash: string,
-    hash: string,
-    transactions: Array<object>,
-    proposer: string,
-    signature: string,
-    height: number
-  ) {
+  constructor(previousBlock: BlockStruct, transactions: Array<TransactionStruct>, wallet: Wallet) {
+    this.previousBlock = previousBlock;
     this.version = 1; //@FIXME
-    this.created = created;
-    this.previousHash = previousHash;
-    this.hash = hash;
+    this.timestamp = Date.now();
+    this.previousHash = previousBlock.hash;
+    this.height = previousBlock.height + 1;
     this.transactions = transactions;
-    this.proposer = proposer;
-    this.signature = signature;
-    this.height = height;
-
-    this.votes = [];
-    this.commits = [];
-  }
-
-  toString(): string {
-    return `
-      Version        : ${this.version}
-      Created        : ${this.created}
-      Previous Hash  : ${this.previousHash}
-      Hash           : ${this.hash}
-      Transactions   : ${JSON.stringify(this.transactions)}
-      Proposer       : ${this.proposer}
-      Signature      : ${this.signature}
-      Height         : ${this.height}`;
-  }
-
-  static genesis(): Block {
-    const { created, previousHash, hash, transactions, proposer, signature, height } = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString()
+    this.hash = ChainUtil.hash(
+      this.previousHash + this.version + this.timestamp + this.height + JSON.stringify(transactions)
     );
-
-    return new this(created, previousHash, hash, transactions, proposer, signature, height);
+    this.origin = wallet.getPublicKey();
+    this.signature = wallet.sign(this.hash);
   }
 
-  static createBlock(previousBlock: Block, transactions: Array<object>, wallet: Wallet): Block {
-    const created = Date.now();
-    const previousHash = previousBlock.hash;
-    const hash = ChainUtil.hash(created + previousHash + JSON.stringify(transactions));
-    const proposer = wallet.getPublicKey();
-    const signature = Block.signBlockHash(hash, wallet);
-    return new this(created, previousHash, hash, transactions, proposer, signature, previousBlock.height + 1);
+  get(): BlockStruct {
+    return {
+      version: this.version,
+      timestamp: this.timestamp,
+      previousHash: this.previousHash,
+      hash: this.hash,
+      transactions: this.transactions,
+      origin: this.origin,
+      signature: this.signature,
+      height: this.height,
+      votes: [],
+    } as BlockStruct;
   }
 
-  static blockHash(block: Block): string {
-    const { created, previousHash, transactions } = block;
-    return ChainUtil.hash(created + previousHash + JSON.stringify(transactions));
+  static genesis(): BlockStruct {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString());
   }
 
-  static signBlockHash(hash: string, wallet: Wallet): string {
-    return wallet.sign(hash);
+  static blockHash(block: BlockStruct): string {
+    const { version, timestamp, previousHash, height, transactions } = block;
+    return ChainUtil.hash(previousHash + version + timestamp + height + JSON.stringify(transactions));
   }
 
-  static verifyBlock(block: Block): boolean {
-    return ChainUtil.verifySignature(block.proposer, block.signature, block.hash);
-  }
-
-  static verifyProposer(block: Block, proposer: string): boolean {
-    return block.proposer === proposer;
+  static verifyBlock(block: BlockStruct): boolean {
+    return ChainUtil.verifySignature(block.origin, block.signature, block.hash);
   }
 }

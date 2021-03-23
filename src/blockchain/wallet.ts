@@ -18,17 +18,16 @@
  */
 
 import base64url from 'base64-url';
-import { Block } from '../blockchain/block';
+import { BlockStruct } from './block';
 import { Commit } from '../p2p/message/commit';
 import { Logger } from '../logger';
-import { Proposal } from '../p2p/message/proposal';
 import sodium from 'sodium-native';
 import { Transaction } from '../p2p/message/transaction';
-import { Vote } from '../p2p/message/vote';
+import { Vote, VoteStruct } from '../p2p/message/vote';
 
 export class Wallet {
-  publicKey: Buffer;
-  secretKey: Buffer;
+  private readonly publicKey: Buffer;
+  private readonly secretKey: Buffer;
 
   /**
    * @param secret
@@ -67,23 +66,16 @@ export class Wallet {
     return base64url.escape(bufferSignature.toString('base64'));
   }
 
-  createTransaction(data: any): Transaction {
+  createTransaction(currentChainHeight: number, transactions: Array<object>): Transaction {
     return new Transaction().create({
+      height: currentChainHeight + 1,
       origin: this.getPublicKey(),
-      transaction: data,
-      signature: this.sign(JSON.stringify(data)),
+      transactions: transactions,
+      signature: this.sign(JSON.stringify(transactions)),
     });
   }
 
-  createProposal(block: Block): Proposal {
-    return new Proposal().create({
-      origin: this.getPublicKey(),
-      block: block,
-      signature: this.sign(JSON.stringify(block)),
-    });
-  }
-
-  createVote(block: Block): Vote {
+  createVote(block: BlockStruct): Vote {
     Logger.trace(`createVote() for hash: ${block.hash}`);
     return new Vote().create({
       origin: this.getPublicKey(),
@@ -92,12 +84,12 @@ export class Wallet {
     });
   }
 
-  createCommit(block: Block): Vote {
-    Logger.trace(`createCommit() for hash: ${block.hash}`);
+  createCommit(votes: Array<VoteStruct>): Commit {
+    Logger.trace(`createCommit(): ${JSON.stringify(votes)}`);
     return new Commit().create({
       origin: this.getPublicKey(),
-      hash: block.hash,
-      signature: this.sign(block.hash),
+      votes: votes,
+      signature: this.sign(JSON.stringify(votes)),
     });
   }
 

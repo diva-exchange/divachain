@@ -17,28 +17,49 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Block } from '../blockchain/block';
+import { BlockStruct } from '../blockchain/block';
+import { VoteStruct } from '../p2p/message/vote';
 
 export class BlockPool {
-  private list: Array<Block>;
+  private block: BlockStruct;
 
   constructor() {
-    this.list = [];
+    this.block = {
+      version: 0,
+      timestamp: 0,
+      previousHash: '',
+      hash: '',
+      transactions: [],
+      origin: '',
+      signature: '',
+      height: 0,
+      votes: [],
+    };
   }
 
-  exists(block: Block): boolean {
-    return !!this.list.find((b) => b.hash === block.hash);
+  set(block: BlockStruct): void {
+    this.block = block;
   }
 
-  add(block: Block): void {
-    this.list.push(block);
+  get(): BlockStruct {
+    return this.block;
   }
 
-  getBlock(hash: string): Block {
-    const b = this.list.find((b) => b.hash === hash);
-    if (!b) {
-      throw new Error(`Block ${hash} not found`);
-    }
-    return b;
+  commit(votes: Array<VoteStruct>) {
+    this.block.votes = votes;
+  }
+
+  clear() {
+    this.block = {
+      version: 0,
+      timestamp: 0,
+      previousHash: '',
+      hash: '',
+      transactions: [],
+      origin: '',
+      signature: '',
+      height: 0,
+      votes: [],
+    };
   }
 }

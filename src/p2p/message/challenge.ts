@@ -18,21 +18,20 @@
  */
 
 import { Message } from './message';
-import { nanoid } from 'nanoid';
 
 export class Challenge extends Message {
   constructor(message?: Buffer | string) {
     super(message);
   }
 
-  create(challenge?: string): Challenge {
+  create(challenge: string): Challenge {
     this.message.type = Message.TYPE_CHALLENGE;
-    this.message.data = challenge || nanoid();
+    this.message.data = challenge;
     return this;
   }
 
   getChallenge(): string {
-    return this.message.data || nanoid();
+    return this.message.data;
   }
 
   verify(): boolean {

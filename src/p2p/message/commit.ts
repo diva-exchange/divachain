@@ -18,10 +18,14 @@
  */
 
 import { Message } from './message';
+import { ChainUtil } from '../../blockchain/chain-util';
+import { Logger } from '../../logger';
+import { VoteStruct } from './vote';
+import { MIN_APPROVALS } from '../../config';
 
 export type CommitStruct = {
   origin: string;
-  hash: string;
+  votes: Array<VoteStruct>;
   signature: string;
 };
 
@@ -32,8 +36,22 @@ export class Commit extends Message {
 
   create(commit: CommitStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
-    this.message.data = JSON.stringify(commit);
+    this.message.data = commit;
     this.message.isBroadcast = true;
     return this;
+  }
+
+  get(): CommitStruct {
+    return this.message.data as CommitStruct;
+  }
+
+  static isValid(c: CommitStruct): boolean {
+    //@FIXME logging
+    Logger.trace(
+      `Commit isValid(): ${
+        c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.signature, JSON.stringify(c.votes))
+      }`
+    );
+    return c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.signature, JSON.stringify(c.votes));
   }
 }

@@ -20,26 +20,34 @@
 'use strict';
 
 import { TransactionStruct } from '../p2p/message/transaction';
-import { ChainUtil } from '../util/chain-util';
+import { ChainUtil } from '../blockchain/chain-util';
 
 export class TransactionPool {
-  transactions: Array<TransactionStruct>;
+  private list: Array<TransactionStruct>;
 
   constructor() {
-    this.transactions = [];
+    this.list = [];
   }
 
-  add(t: TransactionStruct): boolean {
-    this.transactions.push(t);
-    //@TODO use a transaction threshold
-    return false;
+  add(currentChainHeight: number, t: TransactionStruct) {
+    if (t.height === currentChainHeight + 1 && this.list.indexOf(t) < 0 && TransactionPool.isValid(t)) {
+      this.list.push(t);
+    }
   }
 
-  clear(): void {
-    this.transactions = [];
+  get(): Array<TransactionStruct> {
+    return this.list;
   }
 
-  static isValid(t: TransactionStruct): boolean {
-    return ChainUtil.verifySignature(t.origin, t.signature, JSON.stringify(t.transaction));
+  clear() {
+    this.list = [];
+  }
+
+  private static isValid(t: TransactionStruct): boolean {
+    try {
+      return ChainUtil.verifySignature(t.origin, t.signature, JSON.stringify(t.transactions));
+    } catch (e) {
+      return false;
+    }
   }
 }
