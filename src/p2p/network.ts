@@ -73,7 +73,7 @@ export class Network {
 
   private readonly _onMessage: Function | false;
   private messages: Array<string> = [];
-  private ack: { [publicKey: string]: Array<string> } = {};
+  private ack: { [publicKeyPeer: string]: Array<string> } = {};
 
   constructor(config: Config, wallet: Wallet) {
     this.ip = config.ip || '127.0.0.1';
@@ -230,39 +230,40 @@ export class Network {
           : BROADCAST_RETRY_MAX_MS
         : BROADCAST_RETRY_MS;
 
-    let doRetry = false;
-    Object.keys(this.networkPeers)
-      .filter((publicKey) => {
-        return (
-          publicKey !== this.identity &&
-          publicKey !== m.origin() &&
-          (!this.ack[publicKey] || this.ack[publicKey].indexOf(m.ident()) < 0)
-        );
-      })
-      .forEach(async (publicKey) => {
-        doRetry = true;
+    const ident = m.ident();
+    this.messages.indexOf(ident) < 0 && this.messages.push(ident);
+
+    const arrayBroadcast = Object.keys(this.networkPeers).filter((publicKeyPeer) => {
+      return (
+        publicKeyPeer !== this.identity && (!this.ack[publicKeyPeer] || this.ack[publicKeyPeer].indexOf(ident) < 0)
+      );
+    });
+
+    if (arrayBroadcast.length) {
+      const msg = m.pack();
+      arrayBroadcast.forEach(async (publicKeyPeer) => {
+        //@FIXME logging
+        Logger.trace(`broadcast() "${ident}" (type ${m.type()}) to ${publicKeyPeer}`);
         try {
-          (this.peersOut[publicKey] &&
-            this.peersOut[publicKey].ws.readyState === 1 &&
-            (await this.peersOut[publicKey].ws.send(m.pack()))) ||
-            (this.peersIn[publicKey] &&
-              this.peersIn[publicKey].ws.readyState === 1 &&
-              (await this.peersIn[publicKey].ws.send(m.pack())));
+          if (this.peersOut[publicKeyPeer] && this.peersOut[publicKeyPeer].ws.readyState === 1) {
+            await this.peersOut[publicKeyPeer].ws.send(msg);
+          } else if (this.peersIn[publicKeyPeer] && this.peersIn[publicKeyPeer].ws.readyState === 1) {
+            await this.peersIn[publicKeyPeer].ws.send(msg);
+          }
         } catch (error) {
           Logger.warn('broadcast(): Websocket Error');
           Logger.trace(JSON.stringify(error));
         }
       });
 
-    if (doRetry) {
       setTimeout(() => {
         this.broadcast(message, Math.floor(retry * BROADCAST_RETRY_FACTOR));
       }, retry);
     }
   }
 
-  private auth(ws: WebSocket, publicKey: string, origin: string) {
-    if (!publicKey || !origin || !this.networkPeers[publicKey] || this.peersIn[publicKey]) {
+  private auth(ws: WebSocket, publicKeyPeer: string, origin: string) {
+    if (!publicKeyPeer || !origin || !this.networkPeers[publicKeyPeer] || this.peersIn[publicKeyPeer]) {
       return ws.close(4003, 'Denied');
     }
 
@@ -276,36 +277,32 @@ export class Network {
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
 
-      if (!new Auth(message).verify(challenge, publicKey)) {
+      //@FIXME error handling, if message is not Auth (throw an Exception)
+      //@TODO implement message validation
+      if (!new Auth(message).verify(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
-      this.peersIn[publicKey] = {
+      this.peersIn[publicKeyPeer] = {
         address: 'ws://' + origin,
         alive: Date.now(),
         ws: ws,
       };
-      !this.ack[publicKey] && (this.ack[publicKey] = []);
 
-      ws.on('message', (message: Buffer) => {
-        try {
-          this.peersIn[publicKey].alive = Date.now();
-          this.processWebSocketMessage(ws, message, publicKey);
-        } catch (error) {
-          //@FIXME logging
-          Logger.trace(error);
-        }
-      });
       ws.on('error', () => {
         ws.close();
       });
       ws.on('close', () => {
-        delete this.peersIn[publicKey];
+        delete this.peersIn[publicKeyPeer];
+      });
+      ws.on('message', (message: Buffer) => {
+        if (this.peersIn[publicKeyPeer]) {
+          this.peersIn[publicKeyPeer].alive = Date.now();
+          this.processWebSocketMessage(ws, message, publicKeyPeer);
+        }
       });
       ws.on('pong', () => {
-        this.peersIn[publicKey] &&
-          this.peersIn[publicKey].ws.readyState === 1 &&
-          (this.peersIn[publicKey].alive = Date.now());
+        this.peersIn[publicKeyPeer] && (this.peersIn[publicKeyPeer].alive = Date.now());
       });
     });
   }
@@ -341,9 +338,9 @@ export class Network {
     setTimeout(() => this.cleanNetwork(), CLEAN_INTERVAL_MS);
   }
 
-  private connect(publicKey: string): Promise<void> {
+  private connect(publicKeyPeer: string): Promise<void> {
     return new Promise((resolve) => {
-      const address = 'ws://' + this.networkPeers[publicKey].host + ':' + this.networkPeers[publicKey].port;
+      const address = 'ws://' + this.networkPeers[publicKeyPeer].host + ':' + this.networkPeers[publicKeyPeer].port;
       const options: WebSocket.ClientOptions = {
         followRedirects: false,
         perMessageDeflate: false,
@@ -353,48 +350,44 @@ export class Network {
         },
       };
 
-      if (/\.i2p$/.test(this.networkPeers[publicKey].host)) {
+      if (/\.i2p$/.test(this.networkPeers[publicKeyPeer].host)) {
         options.agent = new SocksProxyAgent(`socks://${SOCKS_PROXY_HOST}:${SOCKS_PROXY_PORT}`);
       }
 
       const ws = new WebSocket(address, options);
-      this.peersOut[publicKey] = {
+      this.peersOut[publicKeyPeer] = {
         address: address,
         alive: Date.now(),
         ws: ws,
       };
-      !this.ack[publicKey] && (this.ack[publicKey] = []);
 
       ws.on('open', () => {
         resolve();
       });
       ws.on('close', () => {
-        delete this.peersOut[publicKey];
+        delete this.peersOut[publicKeyPeer];
         resolve();
       });
       ws.on('error', () => {
         ws.close();
       });
       ws.once('message', (message: Buffer) => {
+        //@FIXME error handling, if message is not a Challenge (throw an Exception)
+        //@TODO implement message validation
         const challenge = new Challenge(message);
-        if (!challenge.verify()) {
+        if (challenge.type() !== Message.TYPE_CHALLENGE) {
           return ws.close(4003, 'Challenge Failed');
         }
         ws.send(new Auth().create(this.wallet.sign(challenge.getChallenge())).pack());
 
         ws.on('message', (message: Buffer) => {
-          try {
-            this.peersOut[publicKey].alive = Date.now();
-            this.processWebSocketMessage(ws, message, publicKey);
-          } catch (error) {
-            //@FIXME logging
-            Logger.trace(error);
+          if (this.peersOut[publicKeyPeer]) {
+            this.peersOut[publicKeyPeer].alive = Date.now();
+            this.processWebSocketMessage(ws, message, publicKeyPeer);
           }
         });
         ws.on('pong', () => {
-          this.peersOut[publicKey] &&
-            this.peersOut[publicKey].ws.readyState === 1 &&
-            (this.peersOut[publicKey].alive = Date.now());
+          this.peersOut[publicKeyPeer] && (this.peersOut[publicKeyPeer].alive = Date.now());
         });
       });
     });
@@ -416,18 +409,19 @@ export class Network {
     setTimeout(() => this.ping(), PING_INTERVAL_MS);
   }
 
-  private processWebSocketMessage(ws: WebSocket, message: Buffer, publicKey: string) {
+  private processWebSocketMessage(ws: WebSocket, message: Buffer, publicKeyPeer: string) {
     const m = new Message(message);
     const ident = m.ident();
+    !this.ack[m.origin()] && (this.ack[m.origin()] = []);
+    !this.ack[publicKeyPeer] && (this.ack[publicKeyPeer] = []);
 
-    this.ack[publicKey].indexOf(ident) < 0 && this.ack[publicKey].push(ident);
-    if (m.type() !== Message.TYPE_ACK) {
-      ws.send(new Ack().create(new Message(message)).pack());
-
-      if (this.messages.indexOf(ident) < 0) {
-        this._onMessage && this._onMessage(m.type(), message);
-        this.messages.push(ident);
-      }
+    this.ack[m.origin()].indexOf(ident) < 0 && this.ack[m.origin()].push(ident);
+    this.ack[publicKeyPeer].indexOf(ident) < 0 && this.ack[publicKeyPeer].push(ident);
+    let doAck = true;
+    if (this.messages.indexOf(ident) < 0) {
+      doAck = this._onMessage && this._onMessage(m.type(), message);
     }
+    doAck && m.type() !== Message.TYPE_ACK &&
+      ws.send(new Ack().create({ origin: this.identity, signature: this.wallet.sign(ident) }, m).pack());
   }
 }

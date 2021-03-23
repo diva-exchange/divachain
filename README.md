@@ -10,7 +10,7 @@ The peers in the network communicate via websockets. The peers build the tunnels
 
 ## Architecture / Flow
 
-1. Leader selection: modulo of "block height" / "number of peers in the network". Usage of the modulo as index on the array of peers. Fallback leaders are defined as ascending index.
+1. Leader selection: modulo of "block height" / "number of peers in the network". Usage of the modulo as index on the array of peers. This is workin progress.
 2. New transactions proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network, including the leader.
 3. The leader initiates the voting, by hashing and signing the new block. The new hash contains the hash of previous block, version, timestamp, new height and the hashes of the serialized transactions. The new hash gets signed.
 4. The proposed new block gets broadcasted to the network (gossip)

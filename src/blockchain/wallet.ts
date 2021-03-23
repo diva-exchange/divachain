@@ -68,7 +68,6 @@ export class Wallet {
 
   createTransaction(currentChainHeight: number, transactions: Array<object>): Transaction {
     return new Transaction().create({
-      height: currentChainHeight + 1,
       origin: this.getPublicKey(),
       transactions: transactions,
       signature: this.sign(JSON.stringify(transactions)),

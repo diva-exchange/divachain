@@ -19,15 +19,21 @@
 
 import { Message } from './message';
 
+export type AckStruct = {
+  origin: string;
+  signature: string;
+};
+
 export class Ack extends Message {
   constructor(message?: Buffer | string) {
     super(message);
   }
 
-  create(m: Message): Ack {
+  create(ack: AckStruct, m: Message): Ack {
     this.message.ident = m.ident();
     this.message.type = Message.TYPE_ACK;
-    this.message.isBroadcast = false;
+    this.message.data = ack;
+    this.message.isBroadcast = true;
     return this;
   }
 }

@@ -33,7 +33,7 @@ export class Message {
   static readonly VERSION_2 = 2; // base64url encoded object data
   static readonly VERSION_3 = 3; // base64 encoded zlib-deflated object data
 
-  static readonly VERSION = Message.VERSION_3;
+  static readonly VERSION = Message.VERSION_1;
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;

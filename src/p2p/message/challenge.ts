@@ -33,8 +33,4 @@ export class Challenge extends Message {
   getChallenge(): string {
     return this.message.data;
   }
-
-  verify(): boolean {
-    return this.message.type === Message.TYPE_CHALLENGE;
-  }
 }

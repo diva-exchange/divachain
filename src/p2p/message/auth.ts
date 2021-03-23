@@ -32,8 +32,6 @@ export class Auth extends Message {
   }
 
   verify(challenge: string, publicKey: string): boolean {
-    return (
-      this.message.type === Message.TYPE_AUTH && ChainUtil.verifySignature(publicKey, this.message.data, challenge)
-    );
+    return ChainUtil.verifySignature(publicKey, this.message.data, challenge);
   }
 }

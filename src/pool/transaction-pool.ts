@@ -29,9 +29,12 @@ export class TransactionPool {
     this.list = [];
   }
 
-  add(currentChainHeight: number, t: TransactionStruct) {
-    if (t.height === currentChainHeight + 1 && this.list.indexOf(t) < 0 && TransactionPool.isValid(t)) {
+  add(t: TransactionStruct) {
+    if (this.list.indexOf(t) < 0 && TransactionPool.isValid(t)) {
       this.list.push(t);
+      this.list.sort((a: TransactionStruct, b: TransactionStruct) => {
+        return a.signature > b.signature ? 1 : -1;
+      });
     }
   }
 

@@ -21,7 +21,6 @@ import { Message } from './message';
 import { Logger } from '../../logger';
 
 export type TransactionStruct = {
-  height: number;
   origin: string;
   transactions: Array<object>;
   signature: string;

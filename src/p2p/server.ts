@@ -64,8 +64,8 @@ export class Server {
         ip: P2P_IP,
         port: P2P_PORT,
         networkPeers: P2P_NETWORK,
-        onMessageCallback: (type: number, message: Buffer | string) => {
-          this.onMessage(type, message);
+        onMessageCallback: (type: number, message: Buffer | string): boolean => {
+          return this.onMessage(type, message);
         },
       },
       this.wallet
@@ -219,16 +219,18 @@ export class Server {
     }
   }
 
+  private doPropose(): boolean {
+    return this.network.isLeader(this.blockchain.getHeight()) && this.transactionPool.get().length > 1;
+  }
+
   private processTransaction(transaction: Transaction) {
     if (this.status !== Server.STATUS_ACCEPTING) {
-      return;
+      throw new Error('Not accepting transactions');
     }
 
-    this.transactionPool.add(this.blockchain.getHeight(), transaction.get());
+    this.transactionPool.add(transaction.get());
 
-    // check for Leadership
-    //@FIXME length is pointless
-    if (this.network.isLeader(this.blockchain.getHeight()) && this.transactionPool.get().length >= 2) {
+    if (this.doPropose()) {
       const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get(), this.wallet);
 
       this.status = Server.STATUS_VOTING;
@@ -279,23 +281,38 @@ export class Server {
     this.transactionPool.clear();
   }
 
-  private onMessage(type: number, message: Buffer | string) {
-    switch (type) {
-      case Message.TYPE_TRANSACTION:
-        this.processTransaction(new Transaction(message));
-        break;
-      case Message.TYPE_PROPOSAL:
-        this.processProposal(new Proposal(message));
-        break;
-      case Message.TYPE_VOTE:
-        this.processVote(new Vote(message));
-        break;
-      case Message.TYPE_COMMIT:
-        this.processCommit(new Commit(message));
-        break;
+  private onMessage(type: number, message: Buffer | string): boolean {
+    let r = true;
+    try {
+      switch (type) {
+        case Message.TYPE_ACK:
+          break;
+        case Message.TYPE_TRANSACTION:
+          this.processTransaction(new Transaction(message));
+          break;
+        case Message.TYPE_PROPOSAL:
+          this.processProposal(new Proposal(message));
+          break;
+        case Message.TYPE_VOTE:
+          this.processVote(new Vote(message));
+          break;
+        case Message.TYPE_COMMIT:
+          this.processCommit(new Commit(message));
+          break;
+        default:
+          //@FIXME should be solved with generic message validation, using ajv
+          //@FIXME logging
+          Logger.error(`Unknown message type ${message.toString()}`);
+          return false;
+      }
+    } catch (error) {
+      Logger.trace(error);
+      r = false;
     }
 
     // (re-)broadcast it (spread it all over) [gossiping]
     this.network.broadcast(message);
+
+    return r;
   }
 }
