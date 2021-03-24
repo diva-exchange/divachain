@@ -32,14 +32,15 @@ const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
 
 const REFRESH_INTERVAL_MS = 3000; // 3 secs
 const TIMEOUT_AUTH_MS = REFRESH_INTERVAL_MS * 10;
-const PING_INTERVAL_MS = REFRESH_INTERVAL_MS * 10;
-const CLEAN_INTERVAL_MS = REFRESH_INTERVAL_MS * 15;
+const CLEAN_INTERVAL_MS = 60000; // 1 minute
+const PING_INTERVAL_MS = Math.floor(CLEAN_INTERVAL_MS / 2); // must be significantly lower than CLEAN_INTERVAL_MS
 
 const BROADCAST_RETRY_MS = 2000; // 2 sec
 const BROADCAST_RETRY_MAX_MS = 60000; // 60 sec
 const BROADCAST_RETRY_FACTOR = 1.2;
 
 const MAX_SIZE_MESSAGE_STACK = 10000;
+const MAX_SIZE_ACK_STACK = 1000;
 
 type NetworkPeer = {
   host: string;
@@ -88,6 +89,17 @@ export class Network {
       throw new Error(`Invalid identity ${this.identity}`);
     }
 
+    //@FIXME testing subnet
+    const a = Object.keys(this.networkPeers);
+    let i = 0;
+    while (i < 4) {
+      const k = a[Math.floor(Math.random() * a.length)];
+      if (k !== this.identity && this.networkPeers[k]) {
+        delete this.networkPeers[k];
+        i++;
+      }
+    }
+
     Logger.info(`Identity: ${this.identity}`);
     Logger.info(`Network: ${JSON.stringify(this.networkPeers)}`);
 
@@ -103,7 +115,11 @@ export class Network {
       const publicKey = request.headers['diva-identity']?.toString() || '';
       const origin = request.headers['diva-origin']?.toString() || '';
 
-      this.auth(ws, publicKey, origin);
+      if (publicKey && origin) {
+        this.auth(ws, publicKey, origin);
+      } else {
+        Logger.warn('Connection credentials missing (diva-identity, diva-origin)');
+      }
     });
 
     this.wss.on('error', (error: Error) => {
@@ -122,7 +138,7 @@ export class Network {
 
     setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
     setTimeout(() => this.ping(), PING_INTERVAL_MS);
-    setTimeout(() => this.cleanNetwork(), CLEAN_INTERVAL_MS);
+    setTimeout(() => this.clean(), CLEAN_INTERVAL_MS);
   }
 
   async shutdown(): Promise<void> {
@@ -180,10 +196,6 @@ export class Network {
     return this.ack;
   }
 
-  getIdentity(): string {
-    return this.identity;
-  }
-
   isLeader(height: number): boolean {
     const p = this.getNetwork();
     return p.indexOf(this.identity) % p.length == height;
@@ -191,8 +203,6 @@ export class Network {
 
   getLeader(height: number): string {
     const p = this.getNetwork();
-    //@FIXME logging
-    Logger.trace(`Leader: ${p[height % p.length]}`);
 
     return p[height % p.length];
   }
@@ -233,17 +243,17 @@ export class Network {
     const ident = m.ident();
     this.messages.indexOf(ident) < 0 && this.messages.push(ident);
 
-    const arrayBroadcast = Object.keys(this.networkPeers).filter((publicKeyPeer) => {
-      return (
-        publicKeyPeer !== this.identity && (!this.ack[publicKeyPeer] || this.ack[publicKeyPeer].indexOf(ident) < 0)
-      );
-    });
+    const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
+      (publicKeyPeer) => {
+        return (
+          publicKeyPeer !== this.identity && (!this.ack[publicKeyPeer] || this.ack[publicKeyPeer].indexOf(ident) < 0)
+        );
+      }
+    );
 
     if (arrayBroadcast.length) {
       const msg = m.pack();
       arrayBroadcast.forEach(async (publicKeyPeer) => {
-        //@FIXME logging
-        Logger.trace(`broadcast() "${ident}" (type ${m.type()}) to ${publicKeyPeer}`);
         try {
           if (this.peersOut[publicKeyPeer] && this.peersOut[publicKeyPeer].ws.readyState === 1) {
             await this.peersOut[publicKeyPeer].ws.send(msg);
@@ -263,8 +273,9 @@ export class Network {
   }
 
   private auth(ws: WebSocket, publicKeyPeer: string, origin: string) {
-    if (!publicKeyPeer || !origin || !this.networkPeers[publicKeyPeer] || this.peersIn[publicKeyPeer]) {
-      return ws.close(4003, 'Denied');
+    if (this.peersIn[publicKeyPeer]) {
+      this.peersIn[publicKeyPeer].ws.close(4005, 'Rebuilding');
+      delete this.peersIn[publicKeyPeer];
     }
 
     const timeout = setTimeout(() => {
@@ -310,24 +321,22 @@ export class Network {
   private async refresh() {
     for (const publicKey in this.networkPeers) {
       if (publicKey !== this.identity && !this.peersOut[publicKey]) {
-        await this.connect(publicKey);
+        this.connect(publicKey);
       }
     }
     setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
   }
 
-  private cleanNetwork() {
-    const t = Date.now() - CLEAN_INTERVAL_MS;
+  private clean() {
+    const t = Date.now() - CLEAN_INTERVAL_MS * 2; // timeout
     for (const publicKey in this.peersOut) {
       if (this.peersOut[publicKey].alive < t) {
         this.peersOut[publicKey].ws.close(4002, 'Timeout');
-        delete this.peersOut[publicKey];
       }
     }
     for (const publicKey in this.peersIn) {
       if (this.peersIn[publicKey].alive < t) {
         this.peersIn[publicKey].ws.close(4002, 'Timeout');
-        delete this.peersIn[publicKey];
       }
     }
 
@@ -335,60 +344,60 @@ export class Network {
       this.messages.splice(0, Math.floor(this.messages.length / 3));
     }
 
-    setTimeout(() => this.cleanNetwork(), CLEAN_INTERVAL_MS);
+    Object.keys(this.ack).forEach((publicKeyPeer) => {
+      if (this.ack[publicKeyPeer].length > MAX_SIZE_ACK_STACK) {
+        this.ack[publicKeyPeer].splice(0, Math.floor(this.ack[publicKeyPeer].length / 3));
+      }
+    });
+
+    setTimeout(() => this.clean(), CLEAN_INTERVAL_MS);
   }
 
-  private connect(publicKeyPeer: string): Promise<void> {
-    return new Promise((resolve) => {
-      const address = 'ws://' + this.networkPeers[publicKeyPeer].host + ':' + this.networkPeers[publicKeyPeer].port;
-      const options: WebSocket.ClientOptions = {
-        followRedirects: false,
-        perMessageDeflate: false,
-        headers: {
-          'diva-identity': this.identity,
-          'diva-origin': this.networkPeers[this.identity].host + ':' + this.networkPeers[this.identity].port,
-        },
-      };
+  private connect(publicKeyPeer: string) {
+    const address = 'ws://' + this.networkPeers[publicKeyPeer].host + ':' + this.networkPeers[publicKeyPeer].port;
+    const options: WebSocket.ClientOptions = {
+      followRedirects: false,
+      perMessageDeflate: false,
+      headers: {
+        'diva-identity': this.identity,
+        'diva-origin': this.networkPeers[this.identity].host + ':' + this.networkPeers[this.identity].port,
+      },
+    };
 
-      if (/\.i2p$/.test(this.networkPeers[publicKeyPeer].host)) {
-        options.agent = new SocksProxyAgent(`socks://${SOCKS_PROXY_HOST}:${SOCKS_PROXY_PORT}`);
+    if (/\.i2p$/.test(this.networkPeers[publicKeyPeer].host)) {
+      options.agent = new SocksProxyAgent(`socks://${SOCKS_PROXY_HOST}:${SOCKS_PROXY_PORT}`);
+    }
+
+    const ws = new WebSocket(address, options);
+    this.peersOut[publicKeyPeer] = {
+      address: address,
+      alive: Date.now(),
+      ws: ws,
+    };
+
+    ws.on('close', () => {
+      delete this.peersOut[publicKeyPeer];
+    });
+    ws.on('error', () => {
+      ws.close();
+    });
+    ws.once('message', (message: Buffer) => {
+      //@FIXME error handling, if message is not a Challenge (throw an Exception)
+      //@TODO implement message validation
+      const challenge = new Challenge(message);
+      if (challenge.type() !== Message.TYPE_CHALLENGE) {
+        return ws.close(4003, 'Challenge Failed');
       }
+      ws.send(new Auth().create(this.wallet.sign(challenge.getChallenge())).pack());
 
-      const ws = new WebSocket(address, options);
-      this.peersOut[publicKeyPeer] = {
-        address: address,
-        alive: Date.now(),
-        ws: ws,
-      };
-
-      ws.on('open', () => {
-        resolve();
-      });
-      ws.on('close', () => {
-        delete this.peersOut[publicKeyPeer];
-        resolve();
-      });
-      ws.on('error', () => {
-        ws.close();
-      });
-      ws.once('message', (message: Buffer) => {
-        //@FIXME error handling, if message is not a Challenge (throw an Exception)
-        //@TODO implement message validation
-        const challenge = new Challenge(message);
-        if (challenge.type() !== Message.TYPE_CHALLENGE) {
-          return ws.close(4003, 'Challenge Failed');
+      ws.on('message', (message: Buffer) => {
+        if (this.peersOut[publicKeyPeer]) {
+          this.peersOut[publicKeyPeer].alive = Date.now();
+          this.processWebSocketMessage(ws, message, publicKeyPeer);
         }
-        ws.send(new Auth().create(this.wallet.sign(challenge.getChallenge())).pack());
-
-        ws.on('message', (message: Buffer) => {
-          if (this.peersOut[publicKeyPeer]) {
-            this.peersOut[publicKeyPeer].alive = Date.now();
-            this.processWebSocketMessage(ws, message, publicKeyPeer);
-          }
-        });
-        ws.on('pong', () => {
-          this.peersOut[publicKeyPeer] && (this.peersOut[publicKeyPeer].alive = Date.now());
-        });
+      });
+      ws.on('pong', () => {
+        this.peersOut[publicKeyPeer] && (this.peersOut[publicKeyPeer].alive = Date.now());
       });
     });
   }
@@ -415,13 +424,16 @@ export class Network {
     !this.ack[m.origin()] && (this.ack[m.origin()] = []);
     !this.ack[publicKeyPeer] && (this.ack[publicKeyPeer] = []);
 
+    let doAck = m.type() !== Message.TYPE_ACK && this.ack[publicKeyPeer].indexOf(ident) < 0;
+    if (this.messages.indexOf(ident) < 0) {
+      doAck = this._onMessage && this._onMessage(m.type(), message) && doAck;
+    }
+    doAck && ws.send(new Ack().create({ origin: this.identity, signature: this.wallet.sign(ident) }, m).pack());
+
     this.ack[m.origin()].indexOf(ident) < 0 && this.ack[m.origin()].push(ident);
     this.ack[publicKeyPeer].indexOf(ident) < 0 && this.ack[publicKeyPeer].push(ident);
-    let doAck = true;
-    if (this.messages.indexOf(ident) < 0) {
-      doAck = this._onMessage && this._onMessage(m.type(), message);
-    }
-    doAck && m.type() !== Message.TYPE_ACK &&
-      ws.send(new Ack().create({ origin: this.identity, signature: this.wallet.sign(ident) }, m).pack());
+
+    // (re-)broadcast it (spread it all over) [gossiping]
+    this.broadcast(message);
   }
 }

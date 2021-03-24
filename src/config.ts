@@ -53,6 +53,4 @@ export const P2P_NETWORK = {
   },
 };
 
-export const NUMBER_OF_NODES = 7;
-
-export const MIN_APPROVALS = 2 * (NUMBER_OF_NODES / 3) + 1; // PBFT
+export const MIN_APPROVALS = 2 * (Object.keys(P2P_NETWORK).length / 3) + 1; // PBFT

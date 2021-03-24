@@ -18,12 +18,7 @@
  */
 
 import base64url from 'base64-url';
-import { BlockStruct } from './block';
-import { Commit } from '../p2p/message/commit';
-import { Logger } from '../logger';
 import sodium from 'sodium-native';
-import { Transaction } from '../p2p/message/transaction';
-import { Vote, VoteStruct } from '../p2p/message/vote';
 
 export class Wallet {
   private readonly publicKey: Buffer;
@@ -64,32 +59,6 @@ export class Wallet {
     sodium.crypto_sign_detached(bufferSignature, bufferDataHash, this.secretKey);
 
     return base64url.escape(bufferSignature.toString('base64'));
-  }
-
-  createTransaction(currentChainHeight: number, transactions: Array<object>): Transaction {
-    return new Transaction().create({
-      origin: this.getPublicKey(),
-      transactions: transactions,
-      signature: this.sign(JSON.stringify(transactions)),
-    });
-  }
-
-  createVote(block: BlockStruct): Vote {
-    Logger.trace(`createVote() for hash: ${block.hash}`);
-    return new Vote().create({
-      origin: this.getPublicKey(),
-      hash: block.hash,
-      signature: this.sign(block.hash),
-    });
-  }
-
-  createCommit(votes: Array<VoteStruct>): Commit {
-    Logger.trace(`createCommit(): ${JSON.stringify(votes)}`);
-    return new Commit().create({
-      origin: this.getPublicKey(),
-      votes: votes,
-      signature: this.sign(JSON.stringify(votes)),
-    });
   }
 
   /**

@@ -29,7 +29,7 @@ import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
 import { Network } from './network';
 import { Message } from './message/message';
-import { Transaction } from './message/transaction';
+import { Transaction, TransactionStruct } from './message/transaction';
 import { Proposal } from './message/proposal';
 import { Vote } from './message/vote';
 import { Commit } from './message/commit';
@@ -168,10 +168,14 @@ export class Server {
       path: '/create',
       handler: async (request, h) => {
         try {
-          this.onMessage(
-            Message.TYPE_TRANSACTION,
-            this.wallet.createTransaction(this.blockchain.getHeight(), request.payload as Array<object>).pack()
-          );
+          const transactions = request.payload as Array<TransactionStruct>;
+          const data = new Transaction().create({
+            origin: this.wallet.getPublicKey(),
+            transactions: transactions,
+            signature: this.wallet.sign(JSON.stringify(transactions)),
+          });
+          this.processTransaction(data);
+          this.network.broadcast(data.pack());
           return h.response().code(200);
         } catch (error) {
           Logger.trace(error);
@@ -234,7 +238,9 @@ export class Server {
       const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get(), this.wallet);
 
       this.status = Server.STATUS_VOTING;
-      this.onMessage(Message.TYPE_PROPOSAL, new Proposal().create(block.get()).pack());
+      const proposal = new Proposal().create(block.get());
+      this.processProposal(proposal);
+      this.network.broadcast(proposal.pack());
     }
   }
 
@@ -242,7 +248,16 @@ export class Server {
     const b: BlockStruct = proposal.get();
     if (b.origin === this.network.getLeader(b.height - 1) && this.blockchain.isValid(b)) {
       this.blockPool.set(b);
-      this.onMessage(Message.TYPE_VOTE, this.wallet.createVote(b).pack());
+
+      //@FIXME logging
+      Logger.trace(`createVote for hash: ${b.hash}`);
+      const vote = new Vote().create({
+        origin: this.wallet.getPublicKey(),
+        hash: b.hash,
+        signature: this.wallet.sign(b.hash),
+      });
+      this.processVote(vote);
+      this.network.broadcast(vote.pack());
     }
   }
 
@@ -251,10 +266,18 @@ export class Server {
     this.votePool.add(v);
 
     if (this.status === Server.STATUS_VOTING && this.votePool.accepted()) {
-      //@FIXME logging
-      Logger.trace('Got approval - committing...');
+      const votes = this.votePool.get();
 
-      this.onMessage(Message.TYPE_COMMIT, this.wallet.createCommit(this.votePool.get()).pack());
+      //@FIXME logging
+      Logger.trace(`createCommit: ${JSON.stringify(votes)}`);
+
+      const commit = new Commit().create({
+        origin: this.wallet.getPublicKey(),
+        votes: this.votePool.get(),
+        signature: this.wallet.sign(JSON.stringify(votes)),
+      });
+      this.processCommit(commit);
+      this.network.broadcast(commit.pack());
     }
   }
 
@@ -309,9 +332,6 @@ export class Server {
       Logger.trace(error);
       r = false;
     }
-
-    // (re-)broadcast it (spread it all over) [gossiping]
-    this.network.broadcast(message);
 
     return r;
   }
