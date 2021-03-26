@@ -1,0 +1,8 @@
+{
+  "require": [
+    "ts-node/register",
+    "source-map-support/register"
+    ],
+  "reporter": "dot",
+  "spec": "test/**/*.spec.ts"
+}
