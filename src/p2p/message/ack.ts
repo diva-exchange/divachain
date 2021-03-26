@@ -21,7 +21,7 @@ import { Message } from './message';
 
 export type AckStruct = {
   origin: string;
-  signature: string;
+  sig: string;
 };
 
 export class Ack extends Message {

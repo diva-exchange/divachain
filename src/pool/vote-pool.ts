@@ -22,29 +22,32 @@ import { VoteStruct } from '../p2p/message/vote';
 import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
-  private list: Array<VoteStruct>;
+  private readonly list: { [hash: string]: Array<VoteStruct> } = {};
 
-  constructor() {
-    this.list = [];
+  add(vote: VoteStruct) {
+    !this.list[vote.hash] && (this.list[vote.hash] = []);
+    !this.list[vote.hash].some((_v) => _v.origin === vote.origin) &&
+      VotePool.isValid(vote) &&
+      this.list[vote.hash].push(vote);
   }
 
-  add(vote: VoteStruct): void {
-    this.list.indexOf(vote) < 0 && VotePool.isValid(vote) && this.list.push(vote);
+  accepted(hash: string): boolean {
+    return this.list[hash] && this.list[hash].length >= MIN_APPROVALS;
   }
 
-  accepted(): boolean {
-    return this.list.length >= MIN_APPROVALS;
+  get(hash: string): Array<VoteStruct> {
+    return this.list[hash];
   }
 
-  get(): Array<VoteStruct> {
+  getList(): { [hash: string]: Array<VoteStruct> } {
     return this.list;
   }
 
-  clear() {
-    this.list = [];
+  clear(hash: string) {
+    delete this.list[hash];
   }
 
   private static isValid(vote: VoteStruct): boolean {
-    return ChainUtil.verifySignature(vote.origin, vote.signature, vote.hash);
+    return ChainUtil.verifySignature(vote.origin, vote.sig, vote.hash);
   }
 }

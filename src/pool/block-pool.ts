@@ -21,21 +21,17 @@ import { BlockStruct } from '../blockchain/block';
 import { VoteStruct } from '../p2p/message/vote';
 
 export class BlockPool {
-  private block: BlockStruct;
-
-  constructor() {
-    this.block = {
-      version: 0,
-      timestamp: 0,
-      previousHash: '',
-      hash: '',
-      transactions: [],
-      origin: '',
-      signature: '',
-      height: 0,
-      votes: [],
-    };
-  }
+  private block: BlockStruct = {
+    version: 0,
+    timestamp: 0,
+    previousHash: '',
+    hash: '',
+    tx: [],
+    origin: '',
+    sig: '',
+    height: 0,
+    votes: [],
+  };
 
   set(block: BlockStruct): void {
     this.block = block;
@@ -46,6 +42,9 @@ export class BlockPool {
   }
 
   commit(votes: Array<VoteStruct>) {
+    if (!this.block.version) {
+      throw new Error('invalid block');
+    }
     this.block.votes = votes;
   }
 
@@ -55,9 +54,9 @@ export class BlockPool {
       timestamp: 0,
       previousHash: '',
       hash: '',
-      transactions: [],
+      tx: [],
       origin: '',
-      signature: '',
+      sig: '',
       height: 0,
       votes: [],
     };

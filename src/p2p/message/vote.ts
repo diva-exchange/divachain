@@ -21,8 +21,8 @@ import { Message } from './message';
 
 export type VoteStruct = {
   origin: string;
-  hash: string;
-  signature: string;
+  hash: string; // hash of the block
+  sig: string;
 };
 
 export class Vote extends Message {

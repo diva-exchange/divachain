@@ -20,7 +20,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "transactions": {
+    "tx": {
       "type": "array",
       "items": {
         "$ref": "transaction/transactions.json"
@@ -32,7 +32,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "signature": {
+    "sig": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     },
@@ -56,7 +56,7 @@
     "hash",
     "transactions",
     "origin",
-    "signature",
+    "sig",
     "height",
     "votes"
   ],

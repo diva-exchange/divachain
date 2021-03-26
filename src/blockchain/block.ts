@@ -29,9 +29,9 @@ export type BlockStruct = {
   timestamp: number;
   previousHash: string;
   hash: string;
-  transactions: Array<TransactionStruct>;
+  tx: Array<TransactionStruct>;
   origin: string;
-  signature: string;
+  sig: string;
   height: number;
   votes: Array<VoteStruct>;
 };
@@ -43,22 +43,22 @@ export class Block {
   readonly height: number;
   readonly previousHash: string;
   readonly hash: string;
-  readonly transactions: Array<TransactionStruct>;
+  readonly tx: Array<TransactionStruct>;
   readonly origin: string;
-  readonly signature: string;
+  readonly sig: string;
 
-  constructor(previousBlock: BlockStruct, transactions: Array<TransactionStruct>, wallet: Wallet) {
+  constructor(previousBlock: BlockStruct, tx: Array<TransactionStruct>, wallet: Wallet) {
     this.previousBlock = previousBlock;
     this.version = 1; //@FIXME
     this.timestamp = Date.now();
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
-    this.transactions = transactions;
+    this.tx = tx.sort((a, b) => (a.origin > b.origin ? 1 : -1));
     this.hash = ChainUtil.hash(
-      this.previousHash + this.version + this.timestamp + this.height + JSON.stringify(transactions)
+      this.previousHash + this.version + this.timestamp + this.height + JSON.stringify(this.tx)
     );
     this.origin = wallet.getPublicKey();
-    this.signature = wallet.sign(this.hash);
+    this.sig = wallet.sign(this.hash);
   }
 
   get(): BlockStruct {
@@ -67,9 +67,9 @@ export class Block {
       timestamp: this.timestamp,
       previousHash: this.previousHash,
       hash: this.hash,
-      transactions: this.transactions,
+      tx: this.tx,
       origin: this.origin,
-      signature: this.signature,
+      sig: this.sig,
       height: this.height,
       votes: [],
     } as BlockStruct;
@@ -80,11 +80,12 @@ export class Block {
   }
 
   static blockHash(block: BlockStruct): string {
-    const { version, timestamp, previousHash, height, transactions } = block;
-    return ChainUtil.hash(previousHash + version + timestamp + height + JSON.stringify(transactions));
+    const { version, timestamp, previousHash, height, tx } = block;
+    return ChainUtil.hash(previousHash + version + timestamp + height + JSON.stringify(tx));
   }
 
   static verifyBlock(block: BlockStruct): boolean {
-    return ChainUtil.verifySignature(block.origin, block.signature, block.hash);
+    //@FIXME only one tx per origin
+    return ChainUtil.verifySignature(block.origin, block.sig, block.hash);
   }
 }

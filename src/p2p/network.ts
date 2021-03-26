@@ -26,6 +26,7 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
 import { Ack } from './message/ack';
 import { Wallet } from '../blockchain/wallet';
+import { Blockchain } from '../blockchain/blockchain';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.17.0.2';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -35,12 +36,12 @@ const TIMEOUT_AUTH_MS = REFRESH_INTERVAL_MS * 10;
 const CLEAN_INTERVAL_MS = 60000; // 1 minute
 const PING_INTERVAL_MS = Math.floor(CLEAN_INTERVAL_MS / 2); // must be significantly lower than CLEAN_INTERVAL_MS
 
-const BROADCAST_RETRY_MS = 2000; // 2 sec
-const BROADCAST_RETRY_MAX_MS = 60000; // 60 sec
-const BROADCAST_RETRY_FACTOR = 1.2;
-
-const MAX_SIZE_MESSAGE_STACK = 10000;
 const MAX_SIZE_ACK_STACK = 1000;
+
+const WS_CLIENT_OPTIONS = {
+  compress: true,
+  binary: true,
+};
 
 type NetworkPeer = {
   host: string;
@@ -73,7 +74,6 @@ export class Network {
   private peersOut: { [publicKey: string]: Peer } = {};
 
   private readonly _onMessage: Function | false;
-  private messages: Array<string> = [];
   private ack: { [publicKeyPeer: string]: Array<string> } = {};
 
   constructor(config: Config, wallet: Wallet) {
@@ -107,7 +107,8 @@ export class Network {
       host: this.ip,
       port: this.port,
       clientTracking: false,
-      perMessageDeflate: false,
+      perMessageDeflate: true,
+      maxPayload: 64 * 1024, // 64KByte
     });
 
     // incoming connection
@@ -188,23 +189,64 @@ export class Network {
     return Object.keys(this.networkPeers);
   }
 
-  getMessages(): Array<string> {
-    return this.messages;
-  }
-
   getAck(): { [publicKey: string]: Array<string> } {
     return this.ack;
   }
 
-  isLeader(height: number): boolean {
-    const p = this.getNetwork();
-    return p.indexOf(this.identity) % p.length == height;
-  }
+  processMessage(message: Buffer | string, publicKeyPeer?: string, ws?: WebSocket) {
+    const m = new Message(message);
+    if (Blockchain.has(m.hash())) {
+      return;
+    }
 
-  getLeader(height: number): string {
-    const p = this.getNetwork();
+    const ident = m.ident();
+    const origin = m.origin();
+    const isAck = m.type() === Message.TYPE_ACK;
+    publicKeyPeer && !this.ack[publicKeyPeer] && (this.ack[publicKeyPeer] = []);
+    origin && !this.ack[origin] && (this.ack[origin] = []);
+    publicKeyPeer && this.ack[publicKeyPeer].indexOf(ident) < 0 && this.ack[publicKeyPeer].push(ident);
+    origin && this.ack[origin].indexOf(ident) < 0 && this.ack[origin].push(ident);
 
-    return p[height % p.length];
+    // send ACK
+    if (ws && !isAck) {
+      Network.send(ws, new Ack().create({ origin: this.identity, sig: this.wallet.sign(ident) }, m).pack());
+      //@TODO add spam measures here...
+    }
+
+    // process message handler callback
+    if (!isAck && this._onMessage) {
+      this._onMessage(m.type(), message);
+    }
+
+    // broadcasting / gossip
+    if (m.isBroadcast()) {
+      const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
+        (publicKeyPeer) => {
+          return (
+            publicKeyPeer !== this.identity && (!this.ack[publicKeyPeer] || this.ack[publicKeyPeer].indexOf(ident) < 0)
+          );
+        }
+      );
+
+      if (arrayBroadcast.length) {
+        //@FIXME logging
+        Logger.trace(`Broadcasting "${ident}" (${m.type()}) to ${JSON.stringify(arrayBroadcast)}`);
+
+        const msg = m.pack();
+        arrayBroadcast.forEach((publicKeyPeer) => {
+          try {
+            if (this.peersOut[publicKeyPeer] && this.peersOut[publicKeyPeer].ws.readyState === 1) {
+              Network.send(this.peersOut[publicKeyPeer].ws, msg);
+            } else if (this.peersIn[publicKeyPeer] && this.peersIn[publicKeyPeer].ws.readyState === 1) {
+              Network.send(this.peersIn[publicKeyPeer].ws, msg);
+            }
+          } catch (error) {
+            Logger.warn('broadcast(): Websocket Error');
+            Logger.trace(JSON.stringify(error));
+          }
+        });
+      }
+    }
   }
 
   /*
@@ -227,50 +269,6 @@ export class Network {
     return this;
   }
   */
-  broadcast(message: Buffer | string, retry: number = BROADCAST_RETRY_MS) {
-    const m = new Message(message);
-    if (!m.isBroadcast()) {
-      return;
-    }
-
-    retry =
-      retry >= BROADCAST_RETRY_MS
-        ? retry <= BROADCAST_RETRY_MAX_MS
-          ? retry
-          : BROADCAST_RETRY_MAX_MS
-        : BROADCAST_RETRY_MS;
-
-    const ident = m.ident();
-    this.messages.indexOf(ident) < 0 && this.messages.push(ident);
-
-    const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
-      (publicKeyPeer) => {
-        return (
-          publicKeyPeer !== this.identity && (!this.ack[publicKeyPeer] || this.ack[publicKeyPeer].indexOf(ident) < 0)
-        );
-      }
-    );
-
-    if (arrayBroadcast.length) {
-      const msg = m.pack();
-      arrayBroadcast.forEach(async (publicKeyPeer) => {
-        try {
-          if (this.peersOut[publicKeyPeer] && this.peersOut[publicKeyPeer].ws.readyState === 1) {
-            await this.peersOut[publicKeyPeer].ws.send(msg);
-          } else if (this.peersIn[publicKeyPeer] && this.peersIn[publicKeyPeer].ws.readyState === 1) {
-            await this.peersIn[publicKeyPeer].ws.send(msg);
-          }
-        } catch (error) {
-          Logger.warn('broadcast(): Websocket Error');
-          Logger.trace(JSON.stringify(error));
-        }
-      });
-
-      setTimeout(() => {
-        this.broadcast(message, Math.floor(retry * BROADCAST_RETRY_FACTOR));
-      }, retry);
-    }
-  }
 
   private auth(ws: WebSocket, publicKeyPeer: string, origin: string) {
     if (this.peersIn[publicKeyPeer]) {
@@ -283,14 +281,14 @@ export class Network {
     }, TIMEOUT_AUTH_MS);
 
     const challenge = nanoid();
-    ws.send(new Challenge().create(challenge).pack());
+    Network.send(ws, new Challenge().create(challenge).pack());
 
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
 
       //@FIXME error handling, if message is not Auth (throw an Exception)
       //@TODO implement message validation
-      if (!new Auth(message).verify(challenge, publicKeyPeer)) {
+      if (!new Auth(message).isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
@@ -309,7 +307,7 @@ export class Network {
       ws.on('message', (message: Buffer) => {
         if (this.peersIn[publicKeyPeer]) {
           this.peersIn[publicKeyPeer].alive = Date.now();
-          this.processWebSocketMessage(ws, message, publicKeyPeer);
+          this.processMessage(message, publicKeyPeer, ws);
         }
       });
       ws.on('pong', () => {
@@ -340,10 +338,6 @@ export class Network {
       }
     }
 
-    if (this.messages.length > MAX_SIZE_MESSAGE_STACK) {
-      this.messages.splice(0, Math.floor(this.messages.length / 3));
-    }
-
     Object.keys(this.ack).forEach((publicKeyPeer) => {
       if (this.ack[publicKeyPeer].length > MAX_SIZE_ACK_STACK) {
         this.ack[publicKeyPeer].splice(0, Math.floor(this.ack[publicKeyPeer].length / 3));
@@ -357,7 +351,8 @@ export class Network {
     const address = 'ws://' + this.networkPeers[publicKeyPeer].host + ':' + this.networkPeers[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: false,
+      perMessageDeflate: true,
+      maxPayload: 64 * 1024, // 64KByte
       headers: {
         'diva-identity': this.identity,
         'diva-origin': this.networkPeers[this.identity].host + ':' + this.networkPeers[this.identity].port,
@@ -385,15 +380,15 @@ export class Network {
       //@FIXME error handling, if message is not a Challenge (throw an Exception)
       //@TODO implement message validation
       const challenge = new Challenge(message);
-      if (challenge.type() !== Message.TYPE_CHALLENGE) {
+      if (!challenge.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
-      ws.send(new Auth().create(this.wallet.sign(challenge.getChallenge())).pack());
+      Network.send(ws, new Auth().create(this.wallet.sign(challenge.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
           this.peersOut[publicKeyPeer].alive = Date.now();
-          this.processWebSocketMessage(ws, message, publicKeyPeer);
+          this.processMessage(message, publicKeyPeer, ws);
         }
       });
       ws.on('pong', () => {
@@ -418,22 +413,7 @@ export class Network {
     setTimeout(() => this.ping(), PING_INTERVAL_MS);
   }
 
-  private processWebSocketMessage(ws: WebSocket, message: Buffer, publicKeyPeer: string) {
-    const m = new Message(message);
-    const ident = m.ident();
-    !this.ack[m.origin()] && (this.ack[m.origin()] = []);
-    !this.ack[publicKeyPeer] && (this.ack[publicKeyPeer] = []);
-
-    let doAck = m.type() !== Message.TYPE_ACK && this.ack[publicKeyPeer].indexOf(ident) < 0;
-    if (this.messages.indexOf(ident) < 0) {
-      doAck = this._onMessage && this._onMessage(m.type(), message) && doAck;
-    }
-    doAck && ws.send(new Ack().create({ origin: this.identity, signature: this.wallet.sign(ident) }, m).pack());
-
-    this.ack[m.origin()].indexOf(ident) < 0 && this.ack[m.origin()].push(ident);
-    this.ack[publicKeyPeer].indexOf(ident) < 0 && this.ack[publicKeyPeer].push(ident);
-
-    // (re-)broadcast it (spread it all over) [gossiping]
-    this.broadcast(message);
+  private static send(ws: WebSocket, data: string) {
+    ws.send(data, WS_CLIENT_OPTIONS);
   }
 }

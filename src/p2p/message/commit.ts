@@ -25,8 +25,9 @@ import { MIN_APPROVALS } from '../../config';
 
 export type CommitStruct = {
   origin: string;
+  hash: string;
   votes: Array<VoteStruct>;
-  signature: string;
+  sig: string;
 };
 
 export class Commit extends Message {
@@ -49,9 +50,9 @@ export class Commit extends Message {
     //@FIXME logging
     Logger.trace(
       `Commit isValid(): ${
-        c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.signature, JSON.stringify(c.votes))
+        c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.sig, JSON.stringify(c.votes))
       }`
     );
-    return c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.signature, JSON.stringify(c.votes));
+    return c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.sig, JSON.stringify(c.votes));
   }
 }

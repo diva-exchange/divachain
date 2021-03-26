@@ -12,7 +12,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "signature": {
+    "sig": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     }
@@ -21,6 +21,6 @@
   "required": [
     "origin",
     "hash",
-    "signature"
+    "sig"
   ]
 }

@@ -22,8 +22,8 @@ import { Logger } from '../../logger';
 
 export type TransactionStruct = {
   origin: string;
-  transactions: Array<object>;
-  signature: string;
+  commands: Array<object>;
+  sig: string;
 };
 
 export class Transaction extends Message {

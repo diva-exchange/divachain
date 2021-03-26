@@ -25,13 +25,15 @@ export class Auth extends Message {
     super(message);
   }
 
-  create(signature: string): Auth {
+  create(sig: string): Auth {
     this.message.type = Message.TYPE_AUTH;
-    this.message.data = signature;
+    this.message.data = sig;
     return this;
   }
 
-  verify(challenge: string, publicKey: string): boolean {
-    return ChainUtil.verifySignature(publicKey, this.message.data, challenge);
+  isValid(challenge: string, publicKey: string): boolean {
+    return (
+      this.message.type === Message.TYPE_AUTH && ChainUtil.verifySignature(publicKey, this.message.data, challenge)
+    );
   }
 }

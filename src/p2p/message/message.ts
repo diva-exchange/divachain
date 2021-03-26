@@ -74,6 +74,10 @@ export class Message {
     return this.message.data.origin || '';
   }
 
+  hash(): string {
+    return this.message.data.hash || '';
+  }
+
   /**
    * @param {number} version
    * @return {string}

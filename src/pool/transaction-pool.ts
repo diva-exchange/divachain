@@ -32,14 +32,11 @@ export class TransactionPool {
   add(t: TransactionStruct) {
     if (this.list.indexOf(t) < 0 && TransactionPool.isValid(t)) {
       this.list.push(t);
-      this.list.sort((a: TransactionStruct, b: TransactionStruct) => {
-        return a.signature > b.signature ? 1 : -1;
-      });
     }
   }
 
-  get(): Array<TransactionStruct> {
-    return this.list;
+  get(): TransactionStruct {
+    return this.list[0] || {};
   }
 
   clear() {
@@ -48,7 +45,7 @@ export class TransactionPool {
 
   private static isValid(t: TransactionStruct): boolean {
     try {
-      return ChainUtil.verifySignature(t.origin, t.signature, JSON.stringify(t.transactions));
+      return ChainUtil.verifySignature(t.origin, t.sig, JSON.stringify(t.commands));
     } catch (e) {
       return false;
     }

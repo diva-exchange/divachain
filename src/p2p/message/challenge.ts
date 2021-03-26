@@ -33,4 +33,8 @@ export class Challenge extends Message {
   getChallenge(): string {
     return this.message.data;
   }
+
+  isValid(): boolean {
+    return this.message.type === Message.TYPE_CHALLENGE;
+  }
 }

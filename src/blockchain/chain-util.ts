@@ -33,13 +33,13 @@ export class ChainUtil {
 
   /**
    * @param {string} publicKey - Base64url encoded
-   * @param {string} signature - Base64url encoded
+   * @param {string} sig - Base64url encoded
    * @param {string} data
    * @returns {boolean}
    */
-  static verifySignature(publicKey: string, signature: string, data: string): boolean {
+  static verifySignature(publicKey: string, sig: string, data: string): boolean {
     return sodium.crypto_sign_verify_detached(
-      Buffer.from(base64url.unescape(signature), 'base64'),
+      Buffer.from(base64url.unescape(sig), 'base64'),
       Buffer.from(data),
       Buffer.from(base64url.unescape(publicKey), 'base64')
     );

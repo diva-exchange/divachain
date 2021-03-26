@@ -24,33 +24,39 @@ import path from 'path';
 import { Logger } from '../logger';
 
 export class Blockchain {
-  private latestBlock: BlockStruct;
-  private height: number = 0;
-  private db: InstanceType<typeof LevelUp>;
+  private static latestBlock: BlockStruct;
+  private static height: number = 0;
+  private static db: InstanceType<typeof LevelUp>;
+  private static hashes: Array<string> = [];
 
-  constructor(publicKey: string) {
-    this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', publicKey)), {
+  static async init(publicKey: string): Promise<void> {
+    // singleton
+    if (Blockchain.db) {
+      return Promise.resolve();
+    }
+
+    Blockchain.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', publicKey)), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
       cacheSize: 2 * 1024 * 1024, // 2 MB
     });
 
-    this.height = 1;
-    this.latestBlock = Block.genesis();
-    this.db.get(1).catch(() => {
-      this.db.put(this.height, JSON.stringify(this.latestBlock));
+    Blockchain.height = 1;
+    Blockchain.latestBlock = Block.genesis();
+    Blockchain.hashes.push(Blockchain.latestBlock.hash);
+    Blockchain.db.get(1).catch(() => {
+      Blockchain.db.put(Blockchain.height, JSON.stringify(Blockchain.latestBlock));
     });
-  }
 
-  async init(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.db
+      Blockchain.db
         .createReadStream()
         .on('data', (data) => {
-          if (Number(data.key) > this.height) {
-            this.height = Number(data.key);
-            this.latestBlock = JSON.parse(data.value) as BlockStruct;
+          if (Number(data.key) > Blockchain.height) {
+            Blockchain.height = Number(data.key);
+            Blockchain.latestBlock = JSON.parse(data.value) as BlockStruct;
+            Blockchain.hashes.push(Blockchain.latestBlock.hash);
           }
         })
         .on('end', resolve)
@@ -58,42 +64,42 @@ export class Blockchain {
     });
   }
 
-  async shutdown() {
-    await this.db.close();
+  static async shutdown() {
+    await Blockchain.db.close();
   }
 
-  isValid(block: BlockStruct): boolean {
+  static isValid(block: BlockStruct): boolean {
     Logger.trace(
       `Blockchain.isValid(): ${
-        this.height + 1 === block.height &&
-        block.previousHash === this.latestBlock.hash &&
+        Blockchain.height + 1 === block.height &&
+        block.previousHash === Blockchain.latestBlock.hash &&
         block.hash === Block.blockHash(block) &&
         Block.verifyBlock(block)
       }`
     );
     return (
-      this.height + 1 === block.height &&
-      block.previousHash === this.latestBlock.hash &&
+      Blockchain.height + 1 === block.height &&
+      block.previousHash === Blockchain.latestBlock.hash &&
       block.hash === Block.blockHash(block) &&
       Block.verifyBlock(block)
     );
   }
 
-  add(block: BlockStruct) {
-    this.db.put(block.height, JSON.stringify(block)).then(() => {
-      this.latestBlock = block;
-      this.height = block.height;
-    });
+  static has(hash: string): boolean {
+    return Blockchain.hashes.includes(hash);
   }
 
-  getHeight(): number {
-    return this.height;
+  static add(block: BlockStruct) {
+    Blockchain.latestBlock = block;
+    Blockchain.height = block.height;
+    Blockchain.hashes.push(Blockchain.latestBlock.hash);
+    Blockchain.db.put(block.height, JSON.stringify(block));
   }
 
-  async get(): Promise<Array<BlockStruct>> {
+  static async get(): Promise<Array<BlockStruct>> {
     const a: Array<BlockStruct> = [];
     return new Promise((resolve, reject) => {
-      this.db
+      Blockchain.db
         .createReadStream()
         .on('data', (data) => {
           a[Number(data.key) - 1] = JSON.parse(data.value) as BlockStruct;
@@ -105,7 +111,7 @@ export class Blockchain {
     });
   }
 
-  getLatestBlock(): BlockStruct {
-    return this.latestBlock;
+  static getLatestBlock(): BlockStruct {
+    return Blockchain.latestBlock;
   }
 }

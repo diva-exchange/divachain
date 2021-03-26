@@ -39,10 +39,10 @@ const VERSION = '0.1.0';
 export class Server {
   static readonly STATUS_OUT_OF_SYNC = 1;
   static readonly STATUS_ACCEPTING = 2;
-  static readonly STATUS_VOTING = 3;
+  static readonly STATUS_PROPOSING = 3;
+  static readonly STATUS_VOTING = 4;
 
   private readonly network: Network;
-  private readonly blockchain: Blockchain;
   private readonly transactionPool: TransactionPool;
   private readonly wallet: Wallet;
   private readonly blockPool: BlockPool;
@@ -54,7 +54,6 @@ export class Server {
 
   constructor() {
     this.wallet = new Wallet(process.env.SECRET || '');
-    this.blockchain = new Blockchain(this.wallet.getPublicKey());
     this.transactionPool = new TransactionPool();
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
@@ -64,8 +63,8 @@ export class Server {
         ip: P2P_IP,
         port: P2P_PORT,
         networkPeers: P2P_NETWORK,
-        onMessageCallback: (type: number, message: Buffer | string): boolean => {
-          return this.onMessage(type, message);
+        onMessageCallback: (type: number, message: Buffer | string) => {
+          this.onMessage(type, message);
         },
       },
       this.wallet
@@ -80,7 +79,7 @@ export class Server {
   }
 
   async listen(): Promise<void> {
-    await this.blockchain.init();
+    await Blockchain.init(this.wallet.getPublicKey());
 
     // catch all
     this.httpServer.route({
@@ -109,6 +108,14 @@ export class Server {
 
     this.httpServer.route({
       method: 'GET',
+      path: '/network',
+      handler: (request, h) => {
+        return h.response(this.network.getNetwork());
+      },
+    });
+
+    this.httpServer.route({
+      method: 'GET',
       path: '/health',
       handler: (request, h) => {
         return h.response(this.network.getHealth());
@@ -125,14 +132,6 @@ export class Server {
 
     this.httpServer.route({
       method: 'GET',
-      path: '/messages',
-      handler: (request, h) => {
-        return h.response(this.network.getMessages());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
       path: '/pool/transactions',
       handler: (request, h) => {
         return h.response(this.transactionPool.get());
@@ -143,7 +142,7 @@ export class Server {
       method: 'GET',
       path: '/pool/votes',
       handler: (request, h) => {
-        return h.response(this.votePool.get());
+        return h.response(this.votePool.getList());
       },
     });
 
@@ -159,7 +158,7 @@ export class Server {
       method: 'GET',
       path: '/blocks',
       handler: async (request, h) => {
-        return h.response(await this.blockchain.get());
+        return h.response(await Blockchain.get());
       },
     });
 
@@ -168,14 +167,13 @@ export class Server {
       path: '/create',
       handler: async (request, h) => {
         try {
-          const transactions = request.payload as Array<TransactionStruct>;
-          const data = new Transaction().create({
+          const commands = request.payload as Array<TransactionStruct>;
+          const transaction = new Transaction().create({
             origin: this.wallet.getPublicKey(),
-            transactions: transactions,
-            signature: this.wallet.sign(JSON.stringify(transactions)),
+            commands: commands,
+            sig: this.wallet.sign(JSON.stringify(commands)),
           });
-          this.processTransaction(data);
-          this.network.broadcast(data.pack());
+          this.createTransaction(transaction);
           return h.response().code(200);
         } catch (error) {
           Logger.trace(error);
@@ -216,48 +214,49 @@ export class Server {
 
   async shutdown(): Promise<void> {
     await this.network.shutdown();
-    await this.blockchain.shutdown();
+    await Blockchain.shutdown();
 
     if (typeof this.httpServer !== 'undefined' && this.httpServer) {
       await this.httpServer.stop();
     }
   }
 
-  private doPropose(): boolean {
-    return this.network.isLeader(this.blockchain.getHeight()) && this.transactionPool.get().length > 1;
-  }
-
-  private processTransaction(transaction: Transaction) {
+  private createTransaction(transaction: Transaction) {
     if (this.status !== Server.STATUS_ACCEPTING) {
       throw new Error('Not accepting transactions');
     }
+    this.status = Server.STATUS_PROPOSING;
 
-    this.transactionPool.add(transaction.get());
+    const t: TransactionStruct = transaction.get();
+    this.transactionPool.add(t);
 
-    if (this.doPropose()) {
-      const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get(), this.wallet);
-
-      this.status = Server.STATUS_VOTING;
-      const proposal = new Proposal().create(block.get());
-      this.processProposal(proposal);
-      this.network.broadcast(proposal.pack());
-    }
+    const block = new Block(Blockchain.getLatestBlock(), [t], this.wallet);
+    const proposal = new Proposal().create(block.get());
+    this.network.processMessage(proposal.pack());
   }
 
   private processProposal(proposal: Proposal) {
     const b: BlockStruct = proposal.get();
-    if (b.origin === this.network.getLeader(b.height - 1) && this.blockchain.isValid(b)) {
-      this.blockPool.set(b);
+    let localBlock = this.blockPool.get();
+    if (localBlock.sig != b.sig && Blockchain.isValid(b)) {
+      const t: TransactionStruct = this.transactionPool.get();
+      if (this.status === Server.STATUS_PROPOSING && !b.tx.find((_t) => _t.sig !== t.sig)) {
+        localBlock = new Block(Blockchain.getLatestBlock(), b.tx.concat(t), this.wallet).get();
+      }
+      this.status = Server.STATUS_VOTING;
 
-      //@FIXME logging
-      Logger.trace(`createVote for hash: ${b.hash}`);
-      const vote = new Vote().create({
-        origin: this.wallet.getPublicKey(),
-        hash: b.hash,
-        signature: this.wallet.sign(b.hash),
-      });
-      this.processVote(vote);
-      this.network.broadcast(vote.pack());
+      if (localBlock.tx.length !== b.tx.length) {
+        this.blockPool.set(b);
+
+        //@FIXME logging
+        Logger.trace(`createVote for hash: ${b.hash}`);
+        const vote = new Vote().create({
+          origin: this.wallet.getPublicKey(),
+          hash: b.hash,
+          sig: this.wallet.sign(b.hash),
+        });
+        this.network.processMessage(vote.pack());
+      }
     }
   }
 
@@ -265,54 +264,48 @@ export class Server {
     const v = vote.get();
     this.votePool.add(v);
 
-    if (this.status === Server.STATUS_VOTING && this.votePool.accepted()) {
-      const votes = this.votePool.get();
+    if (this.status === Server.STATUS_VOTING && this.votePool.accepted(v.hash)) {
+      const votes = this.votePool.get(v.hash);
 
       //@FIXME logging
       Logger.trace(`createCommit: ${JSON.stringify(votes)}`);
 
       const commit = new Commit().create({
         origin: this.wallet.getPublicKey(),
-        votes: this.votePool.get(),
-        signature: this.wallet.sign(JSON.stringify(votes)),
+        hash: v.hash,
+        votes: votes,
+        sig: this.wallet.sign(JSON.stringify(votes)),
       });
-      this.processCommit(commit);
-      this.network.broadcast(commit.pack());
+      this.network.processMessage(commit.pack());
     }
   }
 
   private processCommit(commit: Commit) {
     const block: BlockStruct = this.blockPool.get();
-    if (!this.blockchain.isValid(block)) {
+    if (!Blockchain.isValid(block)) {
       return;
     }
 
     const c = commit.get();
     if (Commit.isValid(c)) {
       this.blockPool.commit(c.votes);
-      this.blockchain.add(block);
-      this.clearPools();
+      Blockchain.add(block);
+      this.clearPools(c.hash);
       this.status = Server.STATUS_ACCEPTING;
     } else {
       this.status = Server.STATUS_OUT_OF_SYNC;
     }
   }
 
-  private clearPools() {
+  private clearPools(hash: string) {
     this.blockPool.clear();
-    this.votePool.clear();
+    this.votePool.clear(hash);
     this.transactionPool.clear();
   }
 
-  private onMessage(type: number, message: Buffer | string): boolean {
-    let r = true;
+  private onMessage(type: number, message: Buffer | string) {
     try {
       switch (type) {
-        case Message.TYPE_ACK:
-          break;
-        case Message.TYPE_TRANSACTION:
-          this.processTransaction(new Transaction(message));
-          break;
         case Message.TYPE_PROPOSAL:
           this.processProposal(new Proposal(message));
           break;
@@ -330,9 +323,6 @@ export class Server {
       }
     } catch (error) {
       Logger.trace(error);
-      r = false;
     }
-
-    return r;
   }
 }
