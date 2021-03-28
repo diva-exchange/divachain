@@ -4,20 +4,18 @@ A blockchain implementation using PBFT (practical byzantine fault tolerance) as 
 
 This is fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
-A PBFT consensus algo is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are travelling through the network.
+A PBFT consensus algo is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
 
-The peers in the network communicate via websockets. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all plain-vanilla and nothing exotic.  
+The peers in the network communicate via websockets. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
 
 ## Architecture / Flow
 
-1. Leader selection: modulo of "block height" / "number of peers in the network". Usage of the modulo as index on the array of peers. This is workin progress.
-2. New transactions proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network, including the leader.
-3. The leader initiates the voting, by hashing and signing the new block. The new hash contains the hash of previous block, version, timestamp, new height and the hashes of the serialized transactions. The new hash gets signed.
-4. The proposed new block gets broadcasted to the network (gossip)
-5. Voting: any peer in the network may participate in the vote for the new block.
-6. Vote signature: the vote gets signed using the hash of the proposed block and sent to the leader directly or via the network (gossip).
-7. Commit: as soon as the leader receives 2/3 of the peers voting for the block, it commits the block to the chain and sends out the commit message containing the block hash and all signed votes to the network (gossip).
-8. New Round: a new leader is selected (see 1.)
+The network itself is permission- and leaderless. It's a round-based system (state machine). Each round produces a block. The blocks do have a variable size and blocks are only produced on demand.
+
+1. New block proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network.
+2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add his own transactions once.
+3. As soon as one peer in the network understands that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
+4. The block gets committed and a new round starts.
 
 
 ## How to Start the Local Testnet (I2P based)
