@@ -10,7 +10,7 @@ The peers in the network communicate via websockets. The peers build the tunnels
 
 ## Architecture / Flow
 
-The network itself is permission- and leaderless. It's a round-based system (state machine). Each round produces a block. The blocks do have a variable size and blocks are only produced on demand.
+The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
 1. New block proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network.
 2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add his own transactions once.
@@ -18,7 +18,7 @@ The network itself is permission- and leaderless. It's a round-based system (sta
 4. The block gets committed and a new round starts.
 
 
-## How to Start the Local Testnet (I2P based)
+## How to Start the Local Testnet (I2P-based)
 
 ```
 sudo docker-compose -f docker-compose/i2p-testnet.yml up -d
