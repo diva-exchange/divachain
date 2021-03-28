@@ -48,6 +48,30 @@ bin/start-dev.sh
 bin/stop.sh
 ```
 
+## How to Clean-Up the System
+
+To **delete** all local storage files (blockstore), to remove all logs and to rebuild the complete codebase, use:
+
+```
+bin/clean.sh
+```
+
+## How to Run Unit Tests
+
+Unit tests can be executed using:
+
+```
+npm run test
+```
+Unit tests contain functional tests and will create some blocks within the local storage. The underlying network (like I2P) must be configured properly (the configuration is Work-In-Progress).
+
+
+To lint the code, use
+```
+npm run lint
+```
+
+
 ## Contact the Developers
 
 On [DIVA.EXCHANGE](https://www.diva.exchange) you'll find various options to get in touch with the team.
