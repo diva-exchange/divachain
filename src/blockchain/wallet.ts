@@ -42,13 +42,6 @@ export class Wallet {
   }
 
   /**
-   * @returns {string}
-   */
-  toString(): string {
-    return `Wallet - publicKey: ${base64url.escape(this.publicKey.toString('base64'))}`;
-  }
-
-  /**
    * @param data {string}
    * @returns {string} - base64url encoded signature
    */

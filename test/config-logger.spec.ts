@@ -18,17 +18,21 @@
  */
 
 import { suite, test } from '@testdeck/mocha';
-import chai from 'chai';
+import { expect } from 'chai';
 
-import { P2P_NETWORK } from '../src/config';
-
-const assert = chai.assert;
+import { Logger } from '../src/logger';
+import { CONFIG_SERVER } from '../src/config';
 
 @suite
-class TestMain {
+class TestConfigLogger {
+  @test
+  config() {
+    expect(Object.keys(CONFIG_SERVER.p2p_network).length > 0).is.true;
+  }
 
   @test
-  network() {
-    assert.equal(Object.keys(P2P_NETWORK).length, 7);
+  logger() {
+    process.env.NODE_ENV = 'development';
+    expect(Logger).is.not.undefined;
   }
 }

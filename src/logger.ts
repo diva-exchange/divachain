@@ -17,10 +17,28 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import Pino from 'pino';
+import pino from 'pino';
+import path from 'path';
 
-export const Logger = Pino(
+export const Logger = pino(
   process.env.NODE_ENV === 'development'
     ? { level: process.env.LOG_LEVEL || 'info', prettyPrint: { translateTime: true } }
-    : { level: process.env.LOG_LEVEL || 'warn' }
+    : { level: process.env.LOG_LEVEL || 'warn' },
+  pino.destination({ dest: path.join(__dirname, '../log/app.log') })
+);
+
+process.on(
+  'uncaughtException',
+  pino.final(Logger, (err, finalLogger) => {
+    finalLogger.error(err, 'uncaughtException');
+    process.exit(1);
+  })
+);
+
+process.on(
+  'unhandledRejection',
+  pino.final(Logger, (err, finalLogger) => {
+    finalLogger.error(err, 'unhandledRejection');
+    process.exit(1);
+  })
 );

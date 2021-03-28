@@ -17,7 +17,6 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { HTTP_IP, HTTP_PORT, P2P_IP, P2P_PORT, P2P_NETWORK } from '../config';
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 
@@ -36,15 +35,26 @@ import { Commit } from './message/commit';
 
 const VERSION = '0.1.0';
 
+export type ConfigServer = {
+  secret: string;
+  p2p_ip: string;
+  p2p_port: number;
+  p2p_network: { [publicKey: string]: { host: string; port: number } };
+  http_ip: string;
+  http_port: number;
+};
+
 export class Server {
   static readonly STATUS_OUT_OF_SYNC = 1;
   static readonly STATUS_ACCEPTING = 2;
   static readonly STATUS_PROPOSING = 3;
   static readonly STATUS_VOTING = 4;
 
+  private readonly config: ConfigServer;
   private readonly network: Network;
   private readonly transactionPool: TransactionPool;
   private readonly wallet: Wallet;
+  private readonly blockchain: Blockchain;
   private readonly blockPool: BlockPool;
   private readonly votePool: VotePool;
 
@@ -52,34 +62,39 @@ export class Server {
 
   private status: number;
 
-  constructor() {
-    this.wallet = new Wallet(process.env.SECRET || '');
+  //@FIXME remove secret
+  constructor(config: ConfigServer) {
+    this.config = config;
+
+    this.wallet = new Wallet(this.config.secret);
+    this.blockchain = new Blockchain(this.wallet.getPublicKey());
     this.transactionPool = new TransactionPool();
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
 
     this.network = new Network(
       {
-        ip: P2P_IP,
-        port: P2P_PORT,
-        networkPeers: P2P_NETWORK,
+        ip: this.config.p2p_ip,
+        port: this.config.p2p_port,
+        networkPeers: this.config.p2p_network,
         onMessageCallback: (type: number, message: Buffer | string) => {
           this.onMessage(type, message);
         },
       },
+      this.blockchain,
       this.wallet
     );
 
     this.httpServer = Hapi.server({
-      address: HTTP_IP,
-      port: HTTP_PORT,
+      address: this.config.http_ip,
+      port: this.config.http_port,
     });
 
     this.status = Server.STATUS_OUT_OF_SYNC;
   }
 
-  async listen(): Promise<void> {
-    await Blockchain.init(this.wallet.getPublicKey());
+  async listen(): Promise<Server> {
+    await this.blockchain.init();
 
     // catch all
     this.httpServer.route({
@@ -102,7 +117,7 @@ export class Server {
       method: 'GET',
       path: '/peers',
       handler: (request, h) => {
-        return h.response(this.network.getPeers());
+        return h.response(this.network.peers());
       },
     });
 
@@ -110,7 +125,7 @@ export class Server {
       method: 'GET',
       path: '/network',
       handler: (request, h) => {
-        return h.response(this.network.getNetwork());
+        return h.response(this.network.network());
       },
     });
 
@@ -118,7 +133,7 @@ export class Server {
       method: 'GET',
       path: '/health',
       handler: (request, h) => {
-        return h.response(this.network.getHealth());
+        return h.response(this.network.health());
       },
     });
 
@@ -126,7 +141,7 @@ export class Server {
       method: 'GET',
       path: '/ack',
       handler: (request, h) => {
-        return h.response(this.network.getAck());
+        return h.response(this.network.ack());
       },
     });
 
@@ -158,16 +173,17 @@ export class Server {
       method: 'GET',
       path: '/blocks',
       handler: async (request, h) => {
-        return h.response(await Blockchain.get());
+        return h.response(await this.blockchain.get());
       },
     });
 
     this.httpServer.route({
-      method: 'POST',
-      path: '/create',
+      method: 'PUT',
+      path: '/block',
       handler: async (request, h) => {
         try {
-          const commands = request.payload as Array<TransactionStruct>;
+          //@FIXME Array<object> is not specific enough, stateless validation needed using ajv
+          const commands = request.payload as Array<object>;
           const transaction = new Transaction().create({
             origin: this.wallet.getPublicKey(),
             commands: commands,
@@ -203,18 +219,20 @@ export class Server {
     });
 
     await this.httpServer.start();
-    Logger.info(`HTTP Server listening on ${HTTP_IP}:${HTTP_PORT}`);
+    Logger.info(`HTTP Server (${VERSION}) listening on ${this.config.http_ip}:${this.config.http_port}`);
 
     this.httpServer.events.on('stop', () => {
-      Logger.info(`HTTP Server (${VERSION}) closed`);
+      Logger.info(`HTTP Server (${VERSION}) on ${this.config.http_ip}:${this.config.http_port} closed`);
     });
 
     this.status = Server.STATUS_ACCEPTING;
+
+    return this;
   }
 
   async shutdown(): Promise<void> {
     await this.network.shutdown();
-    await Blockchain.shutdown();
+    await this.blockchain.shutdown();
 
     if (typeof this.httpServer !== 'undefined' && this.httpServer) {
       await this.httpServer.stop();
@@ -230,7 +248,7 @@ export class Server {
     const t: TransactionStruct = transaction.get();
     this.transactionPool.add(t);
 
-    const block = new Block(Blockchain.getLatestBlock(), [t], this.wallet);
+    const block = new Block(this.blockchain.getLatestBlock(), [t], this.wallet);
     const proposal = new Proposal().create(block.get());
     this.network.processMessage(proposal.pack());
   }
@@ -238,10 +256,10 @@ export class Server {
   private processProposal(proposal: Proposal) {
     const b: BlockStruct = proposal.get();
     let localBlock = this.blockPool.get();
-    if (localBlock.sig != b.sig && Blockchain.isValid(b)) {
+    if (localBlock.sig != b.sig && this.blockchain.isValid(b)) {
       const t: TransactionStruct = this.transactionPool.get();
       if (this.status === Server.STATUS_PROPOSING && !b.tx.find((_t) => _t.sig !== t.sig)) {
-        localBlock = new Block(Blockchain.getLatestBlock(), b.tx.concat(t), this.wallet).get();
+        localBlock = new Block(this.blockchain.getLatestBlock(), b.tx.concat(t), this.wallet).get();
       }
       this.status = Server.STATUS_VOTING;
 
@@ -282,14 +300,14 @@ export class Server {
 
   private processCommit(commit: Commit) {
     const block: BlockStruct = this.blockPool.get();
-    if (!Blockchain.isValid(block)) {
+    if (!this.blockchain.isValid(block)) {
       return;
     }
 
     const c = commit.get();
     if (Commit.isValid(c)) {
       this.blockPool.commit(c.votes);
-      Blockchain.add(block);
+      this.blockchain.add(block);
       this.clearPools(c.hash);
       this.status = Server.STATUS_ACCEPTING;
     } else {
@@ -319,7 +337,6 @@ export class Server {
           //@FIXME should be solved with generic message validation, using ajv
           //@FIXME logging
           Logger.error(`Unknown message type ${message.toString()}`);
-          return false;
       }
     } catch (error) {
       Logger.trace(error);

@@ -23,11 +23,11 @@
     "start": "tsc ; node dist/main.js",
     "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js",
     "start-dev-trace": "tsc ; NODE_ENV=development LOG_LEVEL=trace node --enable-source-maps dist/main.js",
-    "test": "TS_NODE_PROJECT=./test/tsconfig.json nyc mocha"
+    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
   },
   "dependencies": {
     "@hapi/hapi": "^20.1.2",
-    "ajv": "^7.2.4",
+    "ajv": "^8.0.1",
     "base64-url": "^2.3.3",
     "leveldown": "^5.6.0",
     "levelup": "^4.4.0",
@@ -47,7 +47,7 @@
     "@types/leveldown": "^4.0.2",
     "@types/levelup": "^4.3.0",
     "@types/mocha": "^8.2.2",
-    "@types/node": "^14.14.36",
+    "@types/node": "^14.14.37",
     "@types/pino": "^6.3.6",
     "@types/sodium-native": "^2.3.5",
     "@types/tunnel": "^0.0.2",
@@ -56,7 +56,8 @@
     "@typescript-eslint/parser": "^4.19.0",
     "ajv-cli": "^4.2.0",
     "chai": "^4.3.4",
-    "eslint": "^7.22.0",
+    "chai-http": "^4.3.0",
+    "eslint": "^7.23.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-prettier": "^3.3.1",
     "mocha": "^8.3.2",

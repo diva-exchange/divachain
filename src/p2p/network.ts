@@ -48,7 +48,7 @@ type NetworkPeer = {
   port: number;
 };
 
-type Config = {
+type configNetwork = {
   ip?: string;
   port?: number;
   networkPeers?: { [publicKey: string]: NetworkPeer };
@@ -62,6 +62,7 @@ interface Peer {
 }
 
 export class Network {
+  private readonly blockchain: Blockchain;
   private readonly wallet: Wallet;
   private readonly identity: string;
   private readonly ip: string;
@@ -74,15 +75,16 @@ export class Network {
   private peersOut: { [publicKey: string]: Peer } = {};
 
   private readonly _onMessage: Function | false;
-  private ack: { [publicKeyPeer: string]: Array<string> } = {};
+  private arrayAck: { [publicKeyPeer: string]: Array<string> } = {};
 
-  constructor(config: Config, wallet: Wallet) {
+  constructor(config: configNetwork, blockchain: Blockchain, wallet: Wallet) {
     this.ip = config.ip || '127.0.0.1';
     const _port = config.port || 17468;
     this.port = _port >= 1024 && _port <= 49151 ? _port : 17468;
     this.networkPeers = config.networkPeers || {};
     this._onMessage = config.onMessageCallback || false;
 
+    this.blockchain = blockchain;
     this.wallet = wallet;
     this.identity = this.wallet.getPublicKey();
     if (!this.networkPeers[this.identity]) {
@@ -163,7 +165,7 @@ export class Network {
     }
   }
 
-  getHealth() {
+  health() {
     const arrayIn = Object.keys(this.peersIn);
     const arrayOut = Object.keys(this.peersOut);
     const lN = [...new Set(arrayIn.concat(arrayOut))].length;
@@ -171,7 +173,7 @@ export class Network {
     return { in: arrayIn.length / lC, out: arrayOut.length / lC, total: lN / lC };
   }
 
-  getPeers() {
+  peers() {
     const peers: { in: Array<object>; out: Array<object> } = {
       in: [],
       out: [],
@@ -185,27 +187,27 @@ export class Network {
     return peers;
   }
 
-  getNetwork(): Array<string> {
+  network(): Array<string> {
     return Object.keys(this.networkPeers);
   }
 
-  getAck(): { [publicKey: string]: Array<string> } {
-    return this.ack;
+  ack(): { [publicKey: string]: Array<string> } {
+    return this.arrayAck;
   }
 
   processMessage(message: Buffer | string, publicKeyPeer?: string, ws?: WebSocket) {
     const m = new Message(message);
-    if (Blockchain.has(m.hash())) {
+    if (this.blockchain.has(m.hash())) {
       return;
     }
 
     const ident = m.ident();
     const origin = m.origin();
     const isAck = m.type() === Message.TYPE_ACK;
-    publicKeyPeer && !this.ack[publicKeyPeer] && (this.ack[publicKeyPeer] = []);
-    origin && !this.ack[origin] && (this.ack[origin] = []);
-    publicKeyPeer && this.ack[publicKeyPeer].indexOf(ident) < 0 && this.ack[publicKeyPeer].push(ident);
-    origin && this.ack[origin].indexOf(ident) < 0 && this.ack[origin].push(ident);
+    publicKeyPeer && !this.arrayAck[publicKeyPeer] && (this.arrayAck[publicKeyPeer] = []);
+    origin && !this.arrayAck[origin] && (this.arrayAck[origin] = []);
+    publicKeyPeer && this.arrayAck[publicKeyPeer].indexOf(ident) < 0 && this.arrayAck[publicKeyPeer].push(ident);
+    origin && this.arrayAck[origin].indexOf(ident) < 0 && this.arrayAck[origin].push(ident);
 
     // send ACK
     if (ws && !isAck) {
@@ -223,7 +225,8 @@ export class Network {
       const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
         (publicKeyPeer) => {
           return (
-            publicKeyPeer !== this.identity && (!this.ack[publicKeyPeer] || this.ack[publicKeyPeer].indexOf(ident) < 0)
+            publicKeyPeer !== this.identity &&
+            (!this.arrayAck[publicKeyPeer] || this.arrayAck[publicKeyPeer].indexOf(ident) < 0)
           );
         }
       );
@@ -338,9 +341,9 @@ export class Network {
       }
     }
 
-    Object.keys(this.ack).forEach((publicKeyPeer) => {
-      if (this.ack[publicKeyPeer].length > MAX_SIZE_ACK_STACK) {
-        this.ack[publicKeyPeer].splice(0, Math.floor(this.ack[publicKeyPeer].length / 3));
+    Object.keys(this.arrayAck).forEach((publicKeyPeer) => {
+      if (this.arrayAck[publicKeyPeer].length > MAX_SIZE_ACK_STACK) {
+        this.arrayAck[publicKeyPeer].splice(0, Math.floor(this.arrayAck[publicKeyPeer].length / 3));
       }
     });
 

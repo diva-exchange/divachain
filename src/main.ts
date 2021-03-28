@@ -18,16 +18,9 @@
  */
 
 import { Server } from './p2p/server';
-import { Logger } from './logger';
+import { CONFIG_SERVER } from './config';
 
-const server = new Server();
-
-server.listen().then(() => {
-  process.on('unhandledRejection', (error: Error) => {
-    Logger.trace(error);
-    process.exit(1);
-  });
-
+new Server(CONFIG_SERVER).listen().then((server) => {
   process.once('SIGINT', () => {
     server.shutdown().then(() => {
       process.exit(0);
