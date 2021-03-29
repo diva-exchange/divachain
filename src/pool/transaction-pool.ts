@@ -19,8 +19,8 @@
 
 'use strict';
 
-import { TransactionStruct } from '../p2p/message/transaction';
-import { ChainUtil } from '../blockchain/chain-util';
+import { TransactionStruct } from '../net/message/transaction';
+import { Util } from '../chain/util';
 
 export class TransactionPool {
   private list: Array<TransactionStruct>;
@@ -45,7 +45,7 @@ export class TransactionPool {
 
   private static isValid(t: TransactionStruct): boolean {
     try {
-      return ChainUtil.verifySignature(t.origin, t.sig, JSON.stringify(t.commands));
+      return Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands));
     } catch (e) {
       return false;
     }

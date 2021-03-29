@@ -17,32 +17,25 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Message } from './message';
-import { Logger } from '../../logger';
+import { suite, test, slow } from '@testdeck/mocha';
+import { expect } from 'chai';
+import { Validation } from '../../src/net/validation';
+import { Challenge } from '../../src/net/message/challenge';
+import { Message } from '../../src/net/message/message';
+import { nanoid } from 'nanoid';
 
-export type TransactionStruct = {
-  origin: string;
-  commands: Array<object>;
-  sig: string;
-};
+@suite
+class TestValidation {
+  private static validation: Validation;
 
-export class Transaction extends Message {
-  constructor(message?: Buffer | string) {
-    super(message);
+  @slow(500)
+  static before() {
+    TestValidation.validation = new Validation();
   }
 
-  create(struct: TransactionStruct): Transaction {
-    this.message.type = Message.TYPE_TRANSACTION;
-    this.message.data = struct;
-    this.message.isBroadcast = true;
-
-    //@FIXME logging
-    Logger.trace(`Transaction.create() ${JSON.stringify(this.message)}`);
-
-    return this;
-  }
-
-  get(): TransactionStruct {
-    return this.message.data as TransactionStruct;
+  @test
+  validateChallenge() {
+    const m = new Challenge().create(nanoid(26)).pack();
+    expect(TestValidation.validation.isValid(new Message(m))).to.be.true;
   }
 }

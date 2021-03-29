@@ -24,7 +24,7 @@ export type MessageStruct = {
   ident: string;
   type: number;
   data: any;
-  isBroadcast: boolean;
+  broadcast: boolean;
 };
 
 export class Message {
@@ -41,12 +41,7 @@ export class Message {
   static readonly TYPE_COMMIT = 6;
   static readonly TYPE_ACK = 9;
 
-  protected message: MessageStruct = {
-    ident: '',
-    type: 0,
-    data: {},
-    isBroadcast: false,
-  };
+  protected message: MessageStruct = {} as MessageStruct;
 
   /**
    * @param {Buffer|string} message
@@ -58,16 +53,20 @@ export class Message {
     }
   }
 
+  getMessage(): MessageStruct {
+    return this.message;
+  }
+
   ident(): string {
-    return this.message.ident;
+    return this.message.ident || '';
   }
 
   type(): number {
-    return this.message.type;
+    return this.message.type || 0;
   }
 
   isBroadcast(): boolean {
-    return this.message.isBroadcast;
+    return this.message.broadcast || false;
   }
 
   origin(): string {
@@ -85,6 +84,7 @@ export class Message {
    */
   pack(version?: number): string {
     this.message.ident = this.message.ident || nanoid(26);
+    this.message.broadcast = this.message.broadcast || false;
     return this._pack(version);
   }
 

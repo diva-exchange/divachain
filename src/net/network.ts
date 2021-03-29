@@ -25,8 +25,8 @@ import { nanoid } from 'nanoid';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
 import { Ack } from './message/ack';
-import { Wallet } from '../blockchain/wallet';
-import { Blockchain } from '../blockchain/blockchain';
+import { Wallet } from '../chain/wallet';
+import { Blockchain } from '../chain/blockchain';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.17.0.2';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -283,7 +283,7 @@ export class Network {
       ws.close(4005, 'Auth Timeout');
     }, TIMEOUT_AUTH_MS);
 
-    const challenge = nanoid();
+    const challenge = nanoid(26);
     Network.send(ws, new Challenge().create(challenge).pack());
 
     ws.once('message', (message: Buffer) => {

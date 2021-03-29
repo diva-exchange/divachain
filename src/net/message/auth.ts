@@ -18,7 +18,7 @@
  */
 
 import { Message } from './message';
-import { ChainUtil } from '../../blockchain/chain-util';
+import { Util } from '../../chain/util';
 
 export class Auth extends Message {
   constructor(message?: Buffer | string) {
@@ -32,8 +32,6 @@ export class Auth extends Message {
   }
 
   isValid(challenge: string, publicKey: string): boolean {
-    return (
-      this.message.type === Message.TYPE_AUTH && ChainUtil.verifySignature(publicKey, this.message.data, challenge)
-    );
+    return this.message.type === Message.TYPE_AUTH && Util.verifySignature(publicKey, this.message.data, challenge);
   }
 }

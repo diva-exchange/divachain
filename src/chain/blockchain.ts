@@ -17,11 +17,12 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Block, BlockStruct } from './block';
+import { BlockStruct } from './block';
+import { Util } from './util';
+import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import { Logger } from '../logger';
 
 export class Blockchain {
   private readonly publicKey: string;
@@ -33,7 +34,7 @@ export class Blockchain {
   constructor(publicKey: string) {
     this.publicKey = publicKey;
     this.height = 1;
-    this.latestBlock = Block.genesis();
+    this.latestBlock = Blockchain.genesis();
     this.hashes.push(this.latestBlock.hash);
 
     this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', this.publicKey)), {
@@ -69,19 +70,11 @@ export class Blockchain {
   }
 
   isValid(block: BlockStruct): boolean {
-    Logger.trace(
-      `this.isValid(): ${
-        this.height + 1 === block.height &&
-        block.previousHash === this.latestBlock.hash &&
-        block.hash === Block.blockHash(block) &&
-        Block.verifyBlock(block)
-      }`
-    );
     return (
       this.height + 1 === block.height &&
       block.previousHash === this.latestBlock.hash &&
-      block.hash === Block.blockHash(block) &&
-      Block.verifyBlock(block)
+      block.hash === Blockchain.blockHash(block) &&
+      Blockchain.verifyBlock(block)
     );
   }
 
@@ -113,5 +106,19 @@ export class Blockchain {
 
   getLatestBlock(): BlockStruct {
     return this.latestBlock;
+  }
+
+  static genesis(): BlockStruct {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString());
+  }
+
+  static blockHash(block: BlockStruct): string {
+    const { version, timestamp, previousHash, height, tx } = block;
+    return Util.hash(previousHash + version + timestamp + height + JSON.stringify(tx));
+  }
+
+  static verifyBlock(block: BlockStruct): boolean {
+    //@FIXME only one tx per origin
+    return Util.verifySignature(block.origin, block.sig, block.hash);
   }
 }

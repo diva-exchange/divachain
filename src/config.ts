@@ -16,7 +16,7 @@
  *
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
-import { ConfigServer } from './p2p/server';
+import { ConfigServer } from './net/server';
 
 export const CONFIG_SERVER: ConfigServer = {
   secret: process.env.SECRET || '',

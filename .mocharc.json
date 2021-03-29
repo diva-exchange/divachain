@@ -6,5 +6,6 @@
   "reporter": "list",
   "spec": "test/**/*.spec.ts",
   "exit": true,
-  "bail": false
+  "bail": false,
+  "fgrep": "TestValidation"
 }

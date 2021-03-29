@@ -19,7 +19,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "lint": "prettier -w \"{src/*.ts,src/**/*.ts}\" && eslint --fix src/ --ext .ts",
+    "lint": "prettier -w \"{src/*.ts,src/**/*.ts,test/*.ts,test/**/*.ts}\" && eslint --fix src/ test/ --ext .ts",
     "start": "tsc ; node dist/main.js",
     "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js",
     "start-dev-trace": "tsc ; NODE_ENV=development LOG_LEVEL=trace node --enable-source-maps dist/main.js",
@@ -54,7 +54,7 @@
     "@types/ws": "^7.4.0",
     "@typescript-eslint/eslint-plugin": "^4.19.0",
     "@typescript-eslint/parser": "^4.19.0",
-    "ajv-cli": "^4.2.0",
+    "ajv-cli": "^5.0.0",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
     "eslint": "^7.23.0",

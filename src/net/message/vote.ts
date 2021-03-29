@@ -33,7 +33,7 @@ export class Vote extends Message {
   create(vote: VoteStruct): Vote {
     this.message.type = Message.TYPE_VOTE;
     this.message.data = vote;
-    this.message.isBroadcast = true;
+    this.message.broadcast = true;
     return this;
   }
 

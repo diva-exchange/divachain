@@ -21,7 +21,7 @@ import { suite, test, slow, timeout } from '@testdeck/mocha';
 import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
 
-import { Server } from '../../src/p2p/server';
+import { Server } from '../../src/net/server';
 
 chai.use(chaiHttp);
 
@@ -30,7 +30,6 @@ const ipHTTP = '127.0.0.1';
 
 @suite
 class TestServer {
-
   static TEST_P2P_NETWORK = {
     NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI: {
       host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
@@ -63,13 +62,62 @@ class TestServer {
   };
 
   static TEST_CONFIG_SERVER = [
-    { secret: 'NODE1', p2p_ip: ipP2P, p2p_port: 17168, http_ip: ipHTTP, http_port: 17169, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
-    { secret: 'NODE2', p2p_ip: ipP2P, p2p_port: 17268, http_ip: ipHTTP, http_port: 17269, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
-    { secret: 'NODE3', p2p_ip: ipP2P, p2p_port: 17368, http_ip: ipHTTP, http_port: 17369, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
-    { secret: 'NODE4', p2p_ip: ipP2P, p2p_port: 17468, http_ip: ipHTTP, http_port: 17469, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
-    { secret: 'NODE5', p2p_ip: ipP2P, p2p_port: 17568, http_ip: ipHTTP, http_port: 17569, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
-    { secret: 'NODE6', p2p_ip: ipP2P, p2p_port: 17668, http_ip: ipHTTP, http_port: 17669, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
-    { secret: 'NODE7', p2p_ip: ipP2P, p2p_port: 17768, http_ip: ipHTTP, http_port: 17769, p2p_network: {...TestServer.TEST_P2P_NETWORK} },
+    {
+      secret: 'NODE1',
+      p2p_ip: ipP2P,
+      p2p_port: 17168,
+      http_ip: ipHTTP,
+      http_port: 17169,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
+    {
+      secret: 'NODE2',
+      p2p_ip: ipP2P,
+      p2p_port: 17268,
+      http_ip: ipHTTP,
+      http_port: 17269,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
+    {
+      secret: 'NODE3',
+      p2p_ip: ipP2P,
+      p2p_port: 17368,
+      http_ip: ipHTTP,
+      http_port: 17369,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
+    {
+      secret: 'NODE4',
+      p2p_ip: ipP2P,
+      p2p_port: 17468,
+      http_ip: ipHTTP,
+      http_port: 17469,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
+    {
+      secret: 'NODE5',
+      p2p_ip: ipP2P,
+      p2p_port: 17568,
+      http_ip: ipHTTP,
+      http_port: 17569,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
+    {
+      secret: 'NODE6',
+      p2p_ip: ipP2P,
+      p2p_port: 17668,
+      http_ip: ipHTTP,
+      http_port: 17669,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
+    {
+      secret: 'NODE7',
+      p2p_ip: ipP2P,
+      p2p_port: 17768,
+      http_ip: ipHTTP,
+      http_port: 17769,
+      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
+    },
   ];
 
   static arrayServer: Array<Server> = [];
@@ -89,7 +137,7 @@ class TestServer {
         await s.shutdown();
         c--;
         if (!c) {
-          setTimeout(resolve,500);
+          setTimeout(resolve, 500);
         }
       });
     });
@@ -173,17 +221,17 @@ class TestServer {
       // wait 30s to get the underlying I2P network ready
       setTimeout(() => {
         // issue 30 blocks, 1 every 4 seconds (=120 secs)
-        for (let i=1; i <= 30; i++) {
+        for (let i = 1; i <= 30; i++) {
           setTimeout(async () => {
             const port = (i % TestServer.arrayServer.length) + 1;
-            const res = await chai.request(`http://${ipHTTP}:17${port}69`)
+            const res = await chai
+              .request(`http://${ipHTTP}:17${port}69`)
               .put('/block')
               .send([{ id: i, hello: 'world' }]);
             expect(res).to.have.status(200);
           }, i * 4000);
         }
       }, 30000);
-
     });
   }
 }

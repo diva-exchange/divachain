@@ -1,0 +1,7 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/message/challenge.json",
+
+  "type": "string",
+  "pattern": "^[A-Za-z0-9_-]{26}$"
+}

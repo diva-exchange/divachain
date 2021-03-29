@@ -17,12 +17,10 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { ChainUtil } from './chain-util';
+import { Util } from './util';
 import { Wallet } from './wallet';
-import fs from 'fs';
-import path from 'path';
-import { VoteStruct } from '../p2p/message/vote';
-import { TransactionStruct } from '../p2p/message/transaction';
+import { VoteStruct } from '../net/message/vote';
+import { TransactionStruct } from '../net/message/transaction';
 
 export type BlockStruct = {
   version: number;
@@ -54,9 +52,7 @@ export class Block {
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
     this.tx = tx.sort((a, b) => (a.origin > b.origin ? 1 : -1));
-    this.hash = ChainUtil.hash(
-      this.previousHash + this.version + this.timestamp + this.height + JSON.stringify(this.tx)
-    );
+    this.hash = Util.hash(this.previousHash + this.version + this.timestamp + this.height + JSON.stringify(this.tx));
     this.origin = wallet.getPublicKey();
     this.sig = wallet.sign(this.hash);
   }
@@ -73,19 +69,5 @@ export class Block {
       height: this.height,
       votes: [],
     } as BlockStruct;
-  }
-
-  static genesis(): BlockStruct {
-    return JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString());
-  }
-
-  static blockHash(block: BlockStruct): string {
-    const { version, timestamp, previousHash, height, tx } = block;
-    return ChainUtil.hash(previousHash + version + timestamp + height + JSON.stringify(tx));
-  }
-
-  static verifyBlock(block: BlockStruct): boolean {
-    //@FIXME only one tx per origin
-    return ChainUtil.verifySignature(block.origin, block.sig, block.hash);
   }
 }

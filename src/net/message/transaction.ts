@@ -17,18 +17,32 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Server } from './net/server';
-import { CONFIG_SERVER } from './config';
+import { Message } from './message';
+import { Logger } from '../../logger';
 
-new Server(CONFIG_SERVER).listen().then((server) => {
-  process.once('SIGINT', () => {
-    server.shutdown().then(() => {
-      process.exit(0);
-    });
-  });
-  process.once('SIGTERM', () => {
-    server.shutdown().then(() => {
-      process.exit(0);
-    });
-  });
-});
+export type TransactionStruct = {
+  origin: string;
+  commands: Array<object>;
+  sig: string;
+};
+
+export class Transaction extends Message {
+  constructor(message?: Buffer | string) {
+    super(message);
+  }
+
+  create(struct: TransactionStruct): Transaction {
+    this.message.type = Message.TYPE_TRANSACTION;
+    this.message.data = struct;
+    this.message.broadcast = true;
+
+    //@FIXME logging
+    Logger.trace(`Transaction.create() ${JSON.stringify(this.message)}`);
+
+    return this;
+  }
+
+  get(): TransactionStruct {
+    return this.message.data as TransactionStruct;
+  }
+}

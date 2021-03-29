@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/message/message.json",
+
+  "type": "object",
+  "properties": {
+    "ident": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{26}$"
+    },
+    "type": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9
+    },
+    "data": {
+      "oneOf": [
+        {
+          "$ref": "auth.json"
+        },
+        {
+          "$ref": "challenge.json"
+        },
+        {
+          "$ref": "ack.json"
+        }
+      ]
+    },
+    "broadcast": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "ident",
+    "type",
+    "data",
+    "broadcast"
+  ],
+  "additionalProperties": false
+}

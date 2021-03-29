@@ -20,10 +20,10 @@
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 
-import { Block, BlockStruct } from '../blockchain/block';
-import { Blockchain } from '../blockchain/blockchain';
+import { Block, BlockStruct } from '../chain/block';
+import { Blockchain } from '../chain/blockchain';
 import { TransactionPool } from '../pool/transaction-pool';
-import { Wallet } from '../blockchain/wallet';
+import { Wallet } from '../chain/wallet';
 import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
 import { Network } from './network';
@@ -255,8 +255,13 @@ export class Server {
 
   private processProposal(proposal: Proposal) {
     const b: BlockStruct = proposal.get();
+    // invalid Block proposal
+    if (!this.blockchain.isValid(b)) {
+      return;
+    }
+
     let localBlock = this.blockPool.get();
-    if (localBlock.sig != b.sig && this.blockchain.isValid(b)) {
+    if (localBlock && localBlock.sig != b.sig) {
       const t: TransactionStruct = this.transactionPool.get();
       if (this.status === Server.STATUS_PROPOSING && !b.tx.find((_t) => _t.sig !== t.sig)) {
         localBlock = new Block(this.blockchain.getLatestBlock(), b.tx.concat(t), this.wallet).get();

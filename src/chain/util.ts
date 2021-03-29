@@ -20,7 +20,7 @@
 import base64url from 'base64-url';
 import sodium from 'sodium-native';
 
-export class ChainUtil {
+export class Util {
   /**
    * @param s {string}
    * @returns {string} - hash, base64url encoded

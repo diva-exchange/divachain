@@ -2,6 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "/schema/block/transaction/transactions.json",
 
+  "type": "object",
   "properties": {
     "origin": {
       "type": "string",
@@ -10,10 +11,10 @@
     "commands": {
       "anyOf": [
         {
-          "$ref": "addPeer.json"
+          "$ref": "/schema/block/transaction/addPeer.json"
         },
         {
-          "$ref": "removePeer.json"
+          "$ref": "/schema/block/transaction/removePeer.json"
         }
       ]
     },

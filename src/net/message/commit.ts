@@ -18,7 +18,7 @@
  */
 
 import { Message } from './message';
-import { ChainUtil } from '../../blockchain/chain-util';
+import { Util } from '../../chain/util';
 import { Logger } from '../../logger';
 import { VoteStruct } from './vote';
 import { MIN_APPROVALS } from '../../config';
@@ -38,7 +38,7 @@ export class Commit extends Message {
   create(commit: CommitStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
     this.message.data = commit;
-    this.message.isBroadcast = true;
+    this.message.broadcast = true;
     return this;
   }
 
@@ -50,9 +50,9 @@ export class Commit extends Message {
     //@FIXME logging
     Logger.trace(
       `Commit isValid(): ${
-        c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.sig, JSON.stringify(c.votes))
+        c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, JSON.stringify(c.votes))
       }`
     );
-    return c.votes.length >= MIN_APPROVALS && ChainUtil.verifySignature(c.origin, c.sig, JSON.stringify(c.votes));
+    return c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, JSON.stringify(c.votes));
   }
 }

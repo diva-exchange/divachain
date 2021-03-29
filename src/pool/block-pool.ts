@@ -17,21 +17,11 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { BlockStruct } from '../blockchain/block';
-import { VoteStruct } from '../p2p/message/vote';
+import { BlockStruct } from '../chain/block';
+import { VoteStruct } from '../net/message/vote';
 
 export class BlockPool {
-  private block: BlockStruct = {
-    version: 0,
-    timestamp: 0,
-    previousHash: '',
-    hash: '',
-    tx: [],
-    origin: '',
-    sig: '',
-    height: 0,
-    votes: [],
-  };
+  private block: BlockStruct = {} as BlockStruct;
 
   set(block: BlockStruct): void {
     this.block = block;
@@ -49,16 +39,6 @@ export class BlockPool {
   }
 
   clear() {
-    this.block = {
-      version: 0,
-      timestamp: 0,
-      previousHash: '',
-      hash: '',
-      tx: [],
-      origin: '',
-      sig: '',
-      height: 0,
-      votes: [],
-    };
+    this.block = {} as BlockStruct;
   }
 }

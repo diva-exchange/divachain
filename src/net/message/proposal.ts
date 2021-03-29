@@ -18,22 +18,21 @@
  */
 
 import { Message } from './message';
+import { BlockStruct } from '../../chain/block';
 
-export type AckStruct = {
-  origin: string;
-  sig: string;
-};
-
-export class Ack extends Message {
+export class Proposal extends Message {
   constructor(message?: Buffer | string) {
     super(message);
   }
 
-  create(ack: AckStruct, m: Message): Ack {
-    this.message.ident = m.ident();
-    this.message.type = Message.TYPE_ACK;
-    this.message.data = ack;
-    this.message.isBroadcast = true;
+  create(block: BlockStruct): Proposal {
+    this.message.type = Message.TYPE_PROPOSAL;
+    this.message.data = block;
+    this.message.broadcast = true;
     return this;
+  }
+
+  get(): BlockStruct {
+    return this.message.data as BlockStruct;
   }
 }

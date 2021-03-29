@@ -17,8 +17,8 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { ChainUtil } from '../blockchain/chain-util';
-import { VoteStruct } from '../p2p/message/vote';
+import { Util } from '../chain/util';
+import { VoteStruct } from '../net/message/vote';
 import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
@@ -48,6 +48,6 @@ export class VotePool {
   }
 
   private static isValid(vote: VoteStruct): boolean {
-    return ChainUtil.verifySignature(vote.origin, vote.sig, vote.hash);
+    return Util.verifySignature(vote.origin, vote.sig, vote.hash);
   }
 }
