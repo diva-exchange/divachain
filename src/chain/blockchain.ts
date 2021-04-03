@@ -73,7 +73,7 @@ export class Blockchain {
     return (
       this.height + 1 === block.height &&
       block.previousHash === this.latestBlock.hash &&
-      block.hash === Blockchain.blockHash(block) &&
+      block.hash === Blockchain.hashBlock(block) &&
       Blockchain.verifyBlock(block)
     );
   }
@@ -112,13 +112,13 @@ export class Blockchain {
     return JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString());
   }
 
-  static blockHash(block: BlockStruct): string {
-    const { version, timestamp, previousHash, height, tx } = block;
-    return Util.hash(previousHash + version + timestamp + height + JSON.stringify(tx));
+  static hashBlock(block: BlockStruct): string {
+    const { version, previousHash, height, tx } = block;
+    return Util.hash(previousHash + version + height + JSON.stringify(tx));
   }
 
   static verifyBlock(block: BlockStruct): boolean {
-    //@FIXME only one tx per origin
-    return Util.verifySignature(block.origin, block.sig, block.hash);
+    //@FIXME check the the transactions in the block (uniqueness of origins, signatures)
+    return true;
   }
 }

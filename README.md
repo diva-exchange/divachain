@@ -13,8 +13,8 @@ The peers in the network communicate via websockets. The peers build the tunnels
 The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
 1. New block proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network.
-2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add his own transactions once.
-3. As soon as one peer in the network understands that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
+2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add one stack of own transactions.
+3. As soon as one peer in the network detects that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
 4. The block gets committed and a new round starts.
 
 

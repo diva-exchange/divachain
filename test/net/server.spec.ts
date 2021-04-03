@@ -122,11 +122,15 @@ class TestServer {
 
   static arrayServer: Array<Server> = [];
 
-  @timeout(10000)
-  static async before() {
-    for (let i = 0; i < 7; i++) {
-      await TestServer.createServer(i);
-    }
+  @timeout(20000)
+  static before(): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(resolve, 19000);
+
+      for (let i = 0; i < TestServer.TEST_CONFIG_SERVER.length; i++) {
+        (async () => await TestServer.createServer(i))();
+      }
+    });
   }
 
   @timeout(60000)
@@ -186,50 +190,99 @@ class TestServer {
   }
 
   @test
-  async ack() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/ack');
+  async gossip() {
+    const res = await chai.request(`http://${ipHTTP}:17469`).get('/gossip');
     expect(res).to.have.status(200);
   }
 
   @test
-  async transactions() {
+  async poolTransactions() {
     const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/transactions');
     expect(res).to.have.status(200);
   }
 
   @test
-  async votes() {
+  async poolVotes() {
     const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/votes');
     expect(res).to.have.status(200);
   }
 
   @test
-  async blocks() {
+  async poolBlocks() {
     const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/blocks');
     expect(res).to.have.status(200);
   }
 
   @test
-  @slow(180000)
-  @timeout(180000)
+  async blocks() {
+    const res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks');
+    expect(res).to.have.status(200);
+  }
+
+  @test
+  @slow(60000)
+  @timeout(60000)
   createBlock(): Promise<void> {
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve();
-      }, 179000);
+      }, 59000);
 
       // wait 30s to get the underlying I2P network ready
       setTimeout(() => {
-        // issue 30 blocks, 1 every 4 seconds (=120 secs)
-        for (let i = 1; i <= 30; i++) {
+        // create 10 blocks, 1 every 2 seconds (=20 secs)
+        for (let i = 1; i <= 10; i++) {
           setTimeout(async () => {
             const port = (i % TestServer.arrayServer.length) + 1;
             const res = await chai
               .request(`http://${ipHTTP}:17${port}69`)
               .put('/block')
-              .send([{ id: i, hello: 'world' }]);
+              .send([
+                {
+                  id: '12345678901234567890123456',
+                  command: 'addPeer',
+                  host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
+                  port: 17168,
+                  publicKey: 'NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI',
+                },
+              ]);
             expect(res).to.have.status(200);
-          }, i * 4000);
+          }, i * 2000);
+        }
+      }, 30000);
+    });
+  }
+
+  @test
+  @slow(60000)
+  @timeout(60000)
+  createMultiTransactionBlock(): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 59000);
+
+      // wait 30s to get the underlying I2P network ready
+      setTimeout(() => {
+        // create 3 blocks containing multiple transactions, 1 every 5 seconds (=20 secs)
+        for (let i = 1; i <= 3; i++) {
+          for (let j = 1; j <= TestServer.arrayServer.length; j++) {
+            setTimeout(async () => {
+              const res = await chai
+                .request(`http://${ipHTTP}:17${j}69`)
+                .put('/block')
+                .send([
+                  {
+                    id: `${j}-123456789012345678901234`,
+                    command: 'addPeer',
+                    host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
+                    port: Number(`17${j}68`),
+                    publicKey: 'NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI',
+                  },
+                ]);
+              expect(res).to.have.status(200);
+            }, i * 5000);
+          }
         }
       }, 30000);
     });

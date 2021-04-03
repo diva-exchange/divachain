@@ -20,13 +20,13 @@
 import { Message } from './message';
 import { Util } from '../../chain/util';
 import { Logger } from '../../logger';
-import { VoteStruct } from './vote';
 import { MIN_APPROVALS } from '../../config';
+import { BlockStruct } from '../../chain/block';
 
 export type CommitStruct = {
   origin: string;
-  hash: string;
-  votes: Array<VoteStruct>;
+  block: BlockStruct;
+  votes: Array<{ origin: string; sig: string }>;
   sig: string;
 };
 
@@ -37,6 +37,7 @@ export class Commit extends Message {
 
   create(commit: CommitStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
+    this.message.ident = this.message.type + commit.block.hash;
     this.message.data = commit;
     this.message.broadcast = true;
     return this;
@@ -50,9 +51,11 @@ export class Commit extends Message {
     //@FIXME logging
     Logger.trace(
       `Commit isValid(): ${
-        c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, JSON.stringify(c.votes))
+        c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))
       }`
     );
-    return c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, JSON.stringify(c.votes));
+    return (
+      c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))
+    );
   }
 }

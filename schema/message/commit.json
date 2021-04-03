@@ -1,12 +1,23 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/message/ack.json",
+  "$id": "/schema/message/commit.json",
 
   "type": "object",
   "properties": {
     "origin": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "block": {
+      "$ref": "/schema/block/block.json"
+    },
+    "votes": {
+      "type": "array",
+      "items": {
+        "$ref": "/schema/block/votes.json"
+      },
+      "minItems": 1,
+      "uniqueItems": true
     },
     "sig": {
       "type": "string",
@@ -15,6 +26,8 @@
   },
   "required": [
     "origin",
+    "block",
+    "votes",
     "sig"
   ],
   "additionalProperties": false

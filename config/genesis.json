@@ -9,49 +9,49 @@
       "sig": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456",
       "commands": [
         {
-          "id": "genesis-1",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p",
           "port": 17168,
           "publicKey": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI"
         },
         {
-          "id": "genesis-2",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p",
           "port": 17268,
           "publicKey": "z2aVOeo_Mvt0vr0MKUz54N_zM_7jQYVLzedbuSTBcXA"
         },
         {
-          "id": "genesis-3",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p",
           "port": 17368,
           "publicKey": "Fd26iYIRxGRSz3wyK5vjQtoANEyEUl2_EcyCaRQMKIo"
         },
         {
-          "id": "genesis-4",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p",
           "port": 17468,
           "publicKey": "-4UR3gNsahU2ehP3CJLuiFLGe6mX2J7nwqjtg8Bvlng"
         },
         {
-          "id": "genesis-5",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p",
           "port": 17568,
           "publicKey": "fw4sKitin_9cwLTQfUEk9_vOQmYCndraGU_PK9PjXKI"
         },
         {
-          "id": "genesis-6",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p",
           "port": 17668,
           "publicKey": "5YHh90pMJOuWRXMK34DrWiUk20gHazd7TUT9bk6szDw"
         },
         {
-          "id": "genesis-7",
+          "id": "12345678901234567890123456",
           "command": "addPeer",
           "host": "6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p",
           "port": 17768,
@@ -60,14 +60,6 @@
       ]
     }
   ],
-  "origin": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI",
-  "sig": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456",
   "height": 1,
-  "votes": [
-    {
-      "origin": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI",
-      "hash": "1234567890123456789012345678901234567890123",
-      "sig": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456"
-    }
-  ]
+  "votes": []
 }

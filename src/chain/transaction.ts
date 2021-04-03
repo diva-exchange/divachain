@@ -17,23 +17,28 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Message } from './message';
+import { Wallet } from './wallet';
 
-export type AckStruct = {
+export type TransactionStruct = {
   origin: string;
+  timestamp: number;
+  commands: Array<object>;
   sig: string;
 };
 
-export class Ack extends Message {
-  constructor(message?: Buffer | string) {
-    super(message);
+export class Transaction {
+  private readonly structTransaction: TransactionStruct;
+
+  constructor(wallet: Wallet, commands: Array<object>) {
+    this.structTransaction = {
+      origin: wallet.getPublicKey(),
+      timestamp: Date.now(),
+      commands: commands,
+      sig: wallet.sign(JSON.stringify(commands)),
+    };
   }
 
-  create(ack: AckStruct, m: Message): Ack {
-    this.message.ident = m.ident();
-    this.message.type = Message.TYPE_ACK;
-    this.message.data = ack;
-    this.message.broadcast = true;
-    return this;
+  get(): TransactionStruct {
+    return this.structTransaction;
   }
 }

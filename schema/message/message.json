@@ -6,7 +6,7 @@
   "properties": {
     "ident": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{26}$"
+      "pattern": "^[A-Za-z0-9_-]+$"
     },
     "type": {
       "type": "integer",
@@ -22,7 +22,13 @@
           "$ref": "challenge.json"
         },
         {
-          "$ref": "ack.json"
+          "$ref": "proposal.json"
+        },
+        {
+          "$ref": "vote.json"
+        },
+        {
+          "$ref": "commit.json"
         }
       ]
     },

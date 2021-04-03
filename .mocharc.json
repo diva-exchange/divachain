@@ -7,5 +7,5 @@
   "spec": "test/**/*.spec.ts",
   "exit": true,
   "bail": false,
-  "fgrep": "TestValidation"
+  "fgrep": "TestLoad"
 }

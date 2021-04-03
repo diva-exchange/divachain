@@ -23,19 +23,84 @@ import { Validation } from '../../src/net/validation';
 import { Challenge } from '../../src/net/message/challenge';
 import { Message } from '../../src/net/message/message';
 import { nanoid } from 'nanoid';
+import { Auth } from '../../src/net/message/auth';
+import { Wallet } from '../../src/chain/wallet';
+import { Proposal } from '../../src/net/message/proposal';
+import { Blockchain } from '../../src/chain/blockchain';
+import { Commit } from '../../src/net/message/commit';
+import { Vote } from '../../src/net/message/vote';
+import { BlockStruct } from '../../src/chain/block';
 
 @suite
 class TestValidation {
-  private static validation: Validation;
+  private static wallet: Wallet;
+  private validation: Validation = {} as Validation;
 
-  @slow(500)
+  @slow(200)
   static before() {
-    TestValidation.validation = new Validation();
+    TestValidation.wallet = new Wallet('TEST-NODE');
+  }
+
+  @slow(100)
+  static after() {
+    TestValidation.wallet.close();
+  }
+
+  @slow(100)
+  before() {
+    this.validation = new Validation();
+  }
+
+  @test
+  validateAuth() {
+    const m = new Auth().create(TestValidation.wallet.sign('test'));
+    expect(this.validation.message(new Message(m.pack()))).to.be.true;
   }
 
   @test
   validateChallenge() {
-    const m = new Challenge().create(nanoid(26)).pack();
-    expect(TestValidation.validation.isValid(new Message(m))).to.be.true;
+    const m = new Challenge().create(nanoid(26));
+    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+  }
+
+  @test
+  validateProposal() {
+    const block = Blockchain.genesis();
+    const m = new Proposal().create({
+      origin: TestValidation.wallet.getPublicKey(),
+      block: block,
+      sig: TestValidation.wallet.sign(block.hash),
+    });
+    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+  }
+
+  @test
+  validateVote() {
+    const structBlock = Blockchain.genesis();
+    const structVote = {
+      origin: TestValidation.wallet.getPublicKey(),
+      hash: structBlock.hash,
+      sig: TestValidation.wallet.sign(structBlock.hash),
+    };
+    const m = new Vote().create(structVote);
+    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+  }
+
+  @test
+  validateCommit() {
+    const structBlock: BlockStruct = Blockchain.genesis();
+    const arrayVotes = [
+      {
+        origin: TestValidation.wallet.getPublicKey(),
+        sig: TestValidation.wallet.sign(structBlock.hash),
+      },
+    ];
+    const m = new Commit().create({
+      origin: TestValidation.wallet.getPublicKey(),
+      block: structBlock,
+      votes: arrayVotes,
+      sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(arrayVotes)),
+    });
+    expect(this.validation.message(new Message(m.pack()))).to.be.true;
   }
 }

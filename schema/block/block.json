@@ -8,10 +8,6 @@
       "type": "integer",
       "minimum": 1
     },
-    "timestamp": {
-      "type": "integer",
-      "minimum": 0
-    },
     "previousHash": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
@@ -23,18 +19,10 @@
     "tx": {
       "type": "array",
       "items": {
-        "$ref": "transaction/transactions.json"
+        "$ref": "transaction/tx.json"
       },
       "minItems": 1,
       "uniqueItems": true
-    },
-    "origin": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{43}$"
-    },
-    "sig": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{86}$"
     },
     "height": {
       "type": "integer",
@@ -45,18 +33,14 @@
       "items": {
         "$ref": "votes.json"
       },
-      "minItems": 1,
       "uniqueItems": true
     }
   },
   "required": [
     "version",
-    "timestamp",
     "previousHash",
     "hash",
-    "transactions",
-    "origin",
-    "sig",
+    "tx",
     "height",
     "votes"
   ],

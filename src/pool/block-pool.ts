@@ -18,27 +18,19 @@
  */
 
 import { BlockStruct } from '../chain/block';
-import { VoteStruct } from '../net/message/vote';
 
 export class BlockPool {
-  private block: BlockStruct = {} as BlockStruct;
+  private structBlock: BlockStruct = {} as BlockStruct;
 
-  set(block: BlockStruct): void {
-    this.block = block;
+  set(structBlock: BlockStruct): void {
+    this.structBlock = structBlock;
   }
 
   get(): BlockStruct {
-    return this.block;
-  }
-
-  commit(votes: Array<VoteStruct>) {
-    if (!this.block.version) {
-      throw new Error('invalid block');
-    }
-    this.block.votes = votes;
+    return this.structBlock;
   }
 
   clear() {
-    this.block = {} as BlockStruct;
+    this.structBlock = {} as BlockStruct;
   }
 }

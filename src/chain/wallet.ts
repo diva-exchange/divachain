@@ -39,6 +39,12 @@ export class Wallet {
     sodium.sodium_mlock(this.secretKey);
 
     sodium.crypto_sign_seed_keypair(this.publicKey, this.secretKey, bufferSeed);
+
+    sodium.sodium_munlock(bufferSeed);
+  }
+
+  close() {
+    sodium.sodium_munlock(this.secretKey);
   }
 
   /**

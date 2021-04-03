@@ -27,19 +27,19 @@ PROJECT_PATH=`pwd`/
 rm -rf ${PROJECT_PATH}dist/*
 rm -f ${PROJECT_PATH}log/*.log
 
-tsc
+node_modules/.bin/tsc
 
 SECRET=NODE1 HTTP_PORT=17169 P2P_IP=172.20.101.1 P2P_PORT=17168 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node1.log 2>&1 &
 SECRET=NODE2 HTTP_PORT=17269 P2P_IP=172.20.101.1 P2P_PORT=17268 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node2.log 2>&1 &
 SECRET=NODE3 HTTP_PORT=17369 P2P_IP=172.20.101.1 P2P_PORT=17368 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node3.log 2>&1 &
 SECRET=NODE4 HTTP_PORT=17469 P2P_IP=172.20.101.1 P2P_PORT=17468 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node4.log 2>&1 &
 SECRET=NODE5 HTTP_PORT=17569 P2P_IP=172.20.101.1 P2P_PORT=17568 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node5.log 2>&1 &
 SECRET=NODE6 HTTP_PORT=17669 P2P_IP=172.20.101.1 P2P_PORT=17668 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node6.log 2>&1 &
 SECRET=NODE7 HTTP_PORT=17769 P2P_IP=172.20.101.1 P2P_PORT=17768 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js &
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node7.log 2>&1 &

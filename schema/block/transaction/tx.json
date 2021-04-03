@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/block/transaction/tx.json",
+
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "addPeer.json"
+          },
+          {
+            "$ref": "removePeer.json"
+          },
+          {
+            "$ref": "testLoad.json"
+          }
+        ]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "sig": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$"
+    }
+  },
+  "required": [
+    "timestamp",
+    "origin",
+    "commands",
+    "sig"
+  ],
+  "additionalProperties": false
+}

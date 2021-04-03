@@ -19,7 +19,7 @@
 
 'use strict';
 
-import { TransactionStruct } from '../net/message/transaction';
+import { TransactionStruct } from '../chain/transaction';
 import { Util } from '../chain/util';
 
 export class TransactionPool {
@@ -29,14 +29,19 @@ export class TransactionPool {
     this.list = [];
   }
 
-  add(t: TransactionStruct) {
-    if (this.list.indexOf(t) < 0 && TransactionPool.isValid(t)) {
-      this.list.push(t);
-    }
+  add(arrayT: Array<TransactionStruct>): boolean {
+    let r = false;
+    arrayT.forEach((t) => {
+      if (!this.list.find((_t) => t.sig === _t.sig) && TransactionPool.isValid(t)) {
+        this.list.push(t);
+        r = true;
+      }
+    });
+    return r;
   }
 
-  get(): TransactionStruct {
-    return this.list[0] || {};
+  get(): Array<TransactionStruct> {
+    return this.list;
   }
 
   clear() {

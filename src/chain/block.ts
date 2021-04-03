@@ -18,54 +18,42 @@
  */
 
 import { Util } from './util';
-import { Wallet } from './wallet';
-import { VoteStruct } from '../net/message/vote';
-import { TransactionStruct } from '../net/message/transaction';
+import { TransactionStruct } from './transaction';
 
 export type BlockStruct = {
   version: number;
-  timestamp: number;
   previousHash: string;
   hash: string;
   tx: Array<TransactionStruct>;
-  origin: string;
-  sig: string;
   height: number;
-  votes: Array<VoteStruct>;
+  votes: Array<{ origin: string; sig: string }>;
 };
 
 export class Block {
   readonly previousBlock: BlockStruct;
   readonly version: number;
-  readonly timestamp: number;
   readonly height: number;
   readonly previousHash: string;
   readonly hash: string;
   readonly tx: Array<TransactionStruct>;
-  readonly origin: string;
-  readonly sig: string;
 
-  constructor(previousBlock: BlockStruct, tx: Array<TransactionStruct>, wallet: Wallet) {
+  constructor(previousBlock: BlockStruct, tx: Array<TransactionStruct>) {
     this.previousBlock = previousBlock;
     this.version = 1; //@FIXME
-    this.timestamp = Date.now();
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
-    this.tx = tx.sort((a, b) => (a.origin > b.origin ? 1 : -1));
-    this.hash = Util.hash(this.previousHash + this.version + this.timestamp + this.height + JSON.stringify(this.tx));
-    this.origin = wallet.getPublicKey();
-    this.sig = wallet.sign(this.hash);
+    this.tx = tx.sort((a, b) =>
+      a.timestamp === b.timestamp ? (a.origin > b.origin ? 1 : -1) : a.timestamp > b.timestamp ? 1 : -1
+    );
+    this.hash = Util.hash(this.previousHash + this.version + this.height + JSON.stringify(this.tx));
   }
 
   get(): BlockStruct {
     return {
       version: this.version,
-      timestamp: this.timestamp,
       previousHash: this.previousHash,
       hash: this.hash,
       tx: this.tx,
-      origin: this.origin,
-      sig: this.sig,
       height: this.height,
       votes: [],
     } as BlockStruct;

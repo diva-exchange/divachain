@@ -23,42 +23,51 @@ import { Logger } from '../logger';
 import { BlockStruct } from '../chain/block';
 
 export class Validation {
-  private readonly ajvBlock: ValidateFunction;
   private readonly ajvMessage: ValidateFunction;
 
   constructor() {
-    const schemaVotes: JSONSchemaType<BlockStruct> = require('../../schema/block/votes.json');
-    const schemaTransactions: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/transactions.json');
-    const schemaAddPeer: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/addPeer.json');
-    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/removePeer.json');
-    const schemaBlock: JSONSchemaType<BlockStruct> = require('../../schema/block/block.json');
-    this.ajvBlock = new Ajv({
-      schemas: [schemaVotes, schemaTransactions, schemaAddPeer, schemaRemovePeer],
-    }).compile(schemaBlock);
-
-    const schemaAck: JSONSchemaType<MessageStruct> = require('../../schema/message/ack.json');
+    const schemaMessage: JSONSchemaType<MessageStruct> = require('../../schema/message/message.json');
     const schemaAuth: JSONSchemaType<MessageStruct> = require('../../schema/message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require('../../schema/message/challenge.json');
-    const schemaMessage: JSONSchemaType<MessageStruct> = require('../../schema/message/message.json');
+    const schemaProposal: JSONSchemaType<MessageStruct> = require('../../schema/message/proposal.json');
+    const schemaVote: JSONSchemaType<MessageStruct> = require('../../schema/message/vote.json');
+    const schemaCommit: JSONSchemaType<MessageStruct> = require('../../schema/message/commit.json');
+    const schemaBlock: JSONSchemaType<BlockStruct> = require('../../schema/block/block.json');
+    const schemaVotes: JSONSchemaType<BlockStruct> = require('../../schema/block/votes.json');
+    const schemaTx: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/tx.json');
+    const schemaAddPeer: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/addPeer.json');
+    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/removePeer.json');
+
+    //@TODO
+    const schemaTestLoad: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/testLoad.json');
 
     this.ajvMessage = new Ajv({
-      schemas: [schemaAck, schemaAuth, schemaChallenge],
+      verbose: true,
+      schemas: [
+        schemaAuth,
+        schemaChallenge,
+        schemaProposal,
+        schemaVote,
+        schemaCommit,
+        schemaBlock,
+        schemaVotes,
+        schemaTx,
+        schemaAddPeer,
+        schemaRemovePeer,
+        schemaTestLoad,
+      ],
     }).compile(schemaMessage);
   }
 
-  // stateless validation
-  isValid(m: Message): boolean {
+  message(m: Message): boolean {
     switch (m.type()) {
       case Message.TYPE_CHALLENGE:
       case Message.TYPE_AUTH:
-      case Message.TYPE_TRANSACTION:
       case Message.TYPE_PROPOSAL:
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
-      case Message.TYPE_ACK:
         if (!this.ajvMessage(m.getMessage())) {
           //@FIXME logging
-          console.log(this.ajvMessage.errors);
           Logger.trace(this.ajvMessage.errors as object);
           return false;
         }

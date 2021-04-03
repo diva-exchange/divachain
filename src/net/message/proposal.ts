@@ -20,19 +20,26 @@
 import { Message } from './message';
 import { BlockStruct } from '../../chain/block';
 
+export type ProposalStruct = {
+  origin: string;
+  block: BlockStruct;
+  sig: string;
+};
+
 export class Proposal extends Message {
   constructor(message?: Buffer | string) {
     super(message);
   }
 
-  create(block: BlockStruct): Proposal {
+  create(proposal: ProposalStruct): Proposal {
     this.message.type = Message.TYPE_PROPOSAL;
-    this.message.data = block;
+    this.message.ident = this.message.type + proposal.block.hash;
+    this.message.data = proposal;
     this.message.broadcast = true;
     return this;
   }
 
-  get(): BlockStruct {
-    return this.message.data as BlockStruct;
+  get(): ProposalStruct {
+    return this.message.data as ProposalStruct;
   }
 }

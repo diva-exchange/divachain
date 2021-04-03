@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/votes.json",
+  "$id": "/schema/message/vote.json",
 
   "type": "object",
   "properties": {
@@ -8,14 +8,19 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
+    "hash": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$|^$"
+    },
     "sig": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     }
   },
-  "additionalProperties": false,
   "required": [
     "origin",
+    "hash",
     "sig"
-  ]
+  ],
+  "additionalProperties": false
 }

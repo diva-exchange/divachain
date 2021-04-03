@@ -35,11 +35,9 @@ export class Message {
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;
-  static readonly TYPE_TRANSACTION = 3;
-  static readonly TYPE_PROPOSAL = 4;
-  static readonly TYPE_VOTE = 5;
-  static readonly TYPE_COMMIT = 6;
-  static readonly TYPE_ACK = 9;
+  static readonly TYPE_PROPOSAL = 3;
+  static readonly TYPE_VOTE = 4;
+  static readonly TYPE_COMMIT = 5;
 
   protected message: MessageStruct = {} as MessageStruct;
 
@@ -73,6 +71,10 @@ export class Message {
     return this.message.data.origin || '';
   }
 
+  sig(): string {
+    return this.message.data.sig || '';
+  }
+
   hash(): string {
     return this.message.data.hash || '';
   }
@@ -83,7 +85,7 @@ export class Message {
    * @throws {Error}
    */
   pack(version?: number): string {
-    this.message.ident = this.message.ident || nanoid(26);
+    this.message.ident = this.message.ident || this.message.type + nanoid(16);
     this.message.broadcast = this.message.broadcast || false;
     return this._pack(version);
   }

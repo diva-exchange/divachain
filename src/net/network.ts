@@ -24,9 +24,9 @@ import { Message } from './message/message';
 import { nanoid } from 'nanoid';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
-import { Ack } from './message/ack';
 import { Wallet } from '../chain/wallet';
 import { Blockchain } from '../chain/blockchain';
+import { Validation } from './validation';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.17.0.2';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -36,7 +36,7 @@ const TIMEOUT_AUTH_MS = REFRESH_INTERVAL_MS * 10;
 const CLEAN_INTERVAL_MS = 60000; // 1 minute
 const PING_INTERVAL_MS = Math.floor(CLEAN_INTERVAL_MS / 2); // must be significantly lower than CLEAN_INTERVAL_MS
 
-const MAX_SIZE_ACK_STACK = 1000;
+const MAX_SIZE_GOSSIP_STACK = 1000;
 
 const WS_CLIENT_OPTIONS = {
   compress: true,
@@ -62,6 +62,7 @@ interface Peer {
 }
 
 export class Network {
+  private readonly validation: Validation;
   private readonly blockchain: Blockchain;
   private readonly wallet: Wallet;
   private readonly identity: string;
@@ -75,7 +76,7 @@ export class Network {
   private peersOut: { [publicKey: string]: Peer } = {};
 
   private readonly _onMessage: Function | false;
-  private arrayAck: { [publicKeyPeer: string]: Array<string> } = {};
+  private mapGossip: { [publicKeyPeer: string]: Array<string> } = {};
 
   constructor(config: configNetwork, blockchain: Blockchain, wallet: Wallet) {
     this.ip = config.ip || '127.0.0.1';
@@ -84,17 +85,24 @@ export class Network {
     this.networkPeers = config.networkPeers || {};
     this._onMessage = config.onMessageCallback || false;
 
-    this.blockchain = blockchain;
     this.wallet = wallet;
     this.identity = this.wallet.getPublicKey();
     if (!this.networkPeers[this.identity]) {
       throw new Error(`Invalid identity ${this.identity}`);
     }
 
+    this.validation = new Validation();
+    this.blockchain = blockchain;
+
+    // init Ack of complete known network
+    Object.keys(this.networkPeers).forEach((_pk) => {
+      this.mapGossip[_pk] = [];
+    });
+
     //@FIXME testing subnet
     const a = Object.keys(this.networkPeers);
     let i = 0;
-    while (i < 4) {
+    while (i < 2) {
       const k = a[Math.floor(Math.random() * a.length)];
       if (k !== this.identity && this.networkPeers[k]) {
         delete this.networkPeers[k];
@@ -191,63 +199,70 @@ export class Network {
     return Object.keys(this.networkPeers);
   }
 
-  ack(): { [publicKey: string]: Array<string> } {
-    return this.arrayAck;
+  gossip(): { [publicKey: string]: Array<string> } {
+    return this.mapGossip;
   }
 
-  processMessage(message: Buffer | string, publicKeyPeer?: string, ws?: WebSocket) {
+  stopGossip(ident: string) {
+    Object.keys(this.mapGossip).forEach((publicKeyPeer) => {
+      !this.mapGossip[publicKeyPeer].includes(ident) && this.mapGossip[publicKeyPeer].push(ident);
+    });
+  }
+
+  processMessage(message: Buffer | string, publicKeyPeer?: string) {
     const m = new Message(message);
-    if (this.blockchain.has(m.hash())) {
+    const ident = m.ident();
+    const type = m.type();
+    const hash = m.hash();
+    const origin = m.origin();
+
+    if (!this.validation.message(m) || this.blockchain.has(hash)) {
+      //@FIXME logging
+      Logger.trace(`Message denied: ${ident}`);
       return;
     }
 
-    const ident = m.ident();
-    const origin = m.origin();
-    const isAck = m.type() === Message.TYPE_ACK;
-    publicKeyPeer && !this.arrayAck[publicKeyPeer] && (this.arrayAck[publicKeyPeer] = []);
-    origin && !this.arrayAck[origin] && (this.arrayAck[origin] = []);
-    publicKeyPeer && this.arrayAck[publicKeyPeer].indexOf(ident) < 0 && this.arrayAck[publicKeyPeer].push(ident);
-    origin && this.arrayAck[origin].indexOf(ident) < 0 && this.arrayAck[origin].push(ident);
-
-    // send ACK
-    if (ws && !isAck) {
-      Network.send(ws, new Ack().create({ origin: this.identity, sig: this.wallet.sign(ident) }, m).pack());
-      //@TODO add spam measures here...
-    }
+    // populate Ack array
+    publicKeyPeer && !this.mapGossip[publicKeyPeer].includes(ident) && this.mapGossip[publicKeyPeer].push(ident);
+    origin && !this.mapGossip[origin].includes(ident) && this.mapGossip[origin].push(ident);
 
     // process message handler callback
-    if (!isAck && this._onMessage) {
-      this._onMessage(m.type(), message);
+    if (this._onMessage) {
+      this._onMessage(type, message);
     }
 
     // broadcasting / gossip
     if (m.isBroadcast()) {
-      const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
-        (publicKeyPeer) => {
-          return (
-            publicKeyPeer !== this.identity &&
-            (!this.arrayAck[publicKeyPeer] || this.arrayAck[publicKeyPeer].indexOf(ident) < 0)
-          );
+      this.broadcast(m);
+    }
+  }
+
+  private broadcast(m: Message) {
+    const ident = m.ident();
+    const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter((_pk) => {
+      return _pk !== this.identity && !this.mapGossip[_pk].includes(ident);
+    });
+
+    //@FIXME logging
+    arrayBroadcast.length &&
+      Logger.trace(`Broadcasting "${m.ident()}" (${m.type()}) to ${JSON.stringify(arrayBroadcast)}`);
+
+    for (const _pk of arrayBroadcast) {
+      try {
+        if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
+          Network.send(this.peersOut[_pk].ws, m.pack());
+        } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
+          Network.send(this.peersIn[_pk].ws, m.pack());
+        } else {
+          //@TODO maye a retry here...?
+          //@FIXME logging
+          Logger.trace(`Broadcasting failed "${m.ident()}" to ${_pk}`);
+          continue;
         }
-      );
-
-      if (arrayBroadcast.length) {
-        //@FIXME logging
-        Logger.trace(`Broadcasting "${ident}" (${m.type()}) to ${JSON.stringify(arrayBroadcast)}`);
-
-        const msg = m.pack();
-        arrayBroadcast.forEach((publicKeyPeer) => {
-          try {
-            if (this.peersOut[publicKeyPeer] && this.peersOut[publicKeyPeer].ws.readyState === 1) {
-              Network.send(this.peersOut[publicKeyPeer].ws, msg);
-            } else if (this.peersIn[publicKeyPeer] && this.peersIn[publicKeyPeer].ws.readyState === 1) {
-              Network.send(this.peersIn[publicKeyPeer].ws, msg);
-            }
-          } catch (error) {
-            Logger.warn('broadcast(): Websocket Error');
-            Logger.trace(JSON.stringify(error));
-          }
-        });
+        !this.mapGossip[_pk].includes(ident) && this.mapGossip[_pk].push(ident);
+      } catch (error) {
+        Logger.warn('broadcast(): Websocket Error');
+        Logger.trace(JSON.stringify(error));
       }
     }
   }
@@ -310,7 +325,7 @@ export class Network {
       ws.on('message', (message: Buffer) => {
         if (this.peersIn[publicKeyPeer]) {
           this.peersIn[publicKeyPeer].alive = Date.now();
-          this.processMessage(message, publicKeyPeer, ws);
+          this.processMessage(message, publicKeyPeer);
         }
       });
       ws.on('pong', () => {
@@ -341,9 +356,9 @@ export class Network {
       }
     }
 
-    Object.keys(this.arrayAck).forEach((publicKeyPeer) => {
-      if (this.arrayAck[publicKeyPeer].length > MAX_SIZE_ACK_STACK) {
-        this.arrayAck[publicKeyPeer].splice(0, Math.floor(this.arrayAck[publicKeyPeer].length / 3));
+    Object.keys(this.mapGossip).forEach((publicKeyPeer) => {
+      if (this.mapGossip[publicKeyPeer].length > MAX_SIZE_GOSSIP_STACK) {
+        this.mapGossip[publicKeyPeer].splice(0, Math.floor(this.mapGossip[publicKeyPeer].length / 3));
       }
     });
 
@@ -391,7 +406,7 @@ export class Network {
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
           this.peersOut[publicKeyPeer].alive = Date.now();
-          this.processMessage(message, publicKeyPeer, ws);
+          this.processMessage(message, publicKeyPeer);
         }
       });
       ws.on('pong', () => {

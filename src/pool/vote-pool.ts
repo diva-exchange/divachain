@@ -22,24 +22,26 @@ import { VoteStruct } from '../net/message/vote';
 import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
-  private readonly list: { [hash: string]: Array<VoteStruct> } = {};
+  private readonly list: { [hash: string]: Array<{ origin: string; sig: string }> } = {};
 
-  add(vote: VoteStruct) {
+  add(vote: VoteStruct): boolean {
     !this.list[vote.hash] && (this.list[vote.hash] = []);
-    !this.list[vote.hash].some((_v) => _v.origin === vote.origin) &&
+    return (
+      !this.list[vote.hash].some((_v) => _v.origin === vote.origin) &&
       VotePool.isValid(vote) &&
-      this.list[vote.hash].push(vote);
+      this.list[vote.hash].push({ origin: vote.origin, sig: vote.sig }) > 0
+    );
   }
 
   accepted(hash: string): boolean {
     return this.list[hash] && this.list[hash].length >= MIN_APPROVALS;
   }
 
-  get(hash: string): Array<VoteStruct> {
+  get(hash: string): Array<{ origin: string; sig: string }> {
     return this.list[hash];
   }
 
-  getList(): { [hash: string]: Array<VoteStruct> } {
+  getList(): { [hash: string]: Array<{ origin: string; sig: string }> } {
     return this.list;
   }
 

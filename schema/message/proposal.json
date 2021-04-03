@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/transaction/transactions.json",
+  "$id": "/schema/message/proposal.json",
 
   "type": "object",
   "properties": {
@@ -8,19 +8,18 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "commands": {
-      "anyOf": [
-        {
-          "$ref": "/schema/block/transaction/addPeer.json"
-        },
-        {
-          "$ref": "/schema/block/transaction/removePeer.json"
-        }
-      ]
+    "block": {
+      "$ref": "/schema/block/block.json"
     },
     "sig": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     }
-  }
+  },
+  "required": [
+    "origin",
+    "block",
+    "sig"
+  ],
+  "additionalProperties": false
 }

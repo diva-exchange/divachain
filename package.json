@@ -23,7 +23,8 @@
     "start": "tsc ; node dist/main.js",
     "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js",
     "start-dev-trace": "tsc ; NODE_ENV=development LOG_LEVEL=trace node --enable-source-maps dist/main.js",
-    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
+    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha",
+    "test-load": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=testload LOG_LEVEL=trace nyc mocha -f \"TestLoad\""
   },
   "dependencies": {
     "@hapi/hapi": "^20.1.2",
