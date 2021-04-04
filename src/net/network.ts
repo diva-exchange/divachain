@@ -28,7 +28,7 @@ import { Wallet } from '../chain/wallet';
 import { Blockchain } from '../chain/blockchain';
 import { Validation } from './validation';
 
-const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.17.0.2';
+const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.20.101.201';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
 
 const REFRESH_INTERVAL_MS = 3000; // 3 secs
@@ -209,17 +209,15 @@ export class Network {
     });
   }
 
-  processMessage(message: Buffer | string, publicKeyPeer?: string) {
+  processMessage(message: Buffer | string, publicKeyPeer: string = '', retry: number = 0) {
     const m = new Message(message);
     const ident = m.ident();
     const type = m.type();
     const hash = m.hash();
     const origin = m.origin();
 
-    if (!this.validation.message(m) || this.blockchain.has(hash)) {
-      //@FIXME logging
-      Logger.trace(`Message denied: ${ident}`);
-      return;
+    if (this.blockchain.has(hash) || !this.validation.message(m)) {
+      return this.stopGossip(ident);
     }
 
     // populate Ack array
@@ -232,8 +230,15 @@ export class Network {
     }
 
     // broadcasting / gossip
-    if (m.isBroadcast()) {
-      this.broadcast(m);
+    if (m.isBroadcast() && !this.broadcast(m)) {
+      //@FIXME logging
+      Logger.trace(`!! Will retry to broadcast ${m.ident()}`);
+      retry = retry > 0 ? retry : 0;
+      if (retry < 3) {
+        setTimeout(() => {
+          this.processMessage(message, publicKeyPeer, retry + 1);
+        }, (retry + 1) * 1000);
+      }
     }
   }
 
@@ -243,10 +248,7 @@ export class Network {
       return _pk !== this.identity && !this.mapGossip[_pk].includes(ident);
     });
 
-    //@FIXME logging
-    arrayBroadcast.length &&
-      Logger.trace(`Broadcasting "${m.ident()}" (${m.type()}) to ${JSON.stringify(arrayBroadcast)}`);
-
+    let doRetry = false;
     for (const _pk of arrayBroadcast) {
       try {
         if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
@@ -254,17 +256,18 @@ export class Network {
         } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
           Network.send(this.peersIn[_pk].ws, m.pack());
         } else {
-          //@TODO maye a retry here...?
-          //@FIXME logging
-          Logger.trace(`Broadcasting failed "${m.ident()}" to ${_pk}`);
+          doRetry = true;
           continue;
         }
         !this.mapGossip[_pk].includes(ident) && this.mapGossip[_pk].push(ident);
       } catch (error) {
         Logger.warn('broadcast(): Websocket Error');
         Logger.trace(JSON.stringify(error));
+        doRetry = true;
       }
     }
+
+    return !doRetry;
   }
 
   /*

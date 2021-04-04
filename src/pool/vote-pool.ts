@@ -22,31 +22,24 @@ import { VoteStruct } from '../net/message/vote';
 import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
-  private readonly list: { [hash: string]: Array<{ origin: string; sig: string }> } = {};
+  private list: Array<{ origin: string; sig: string }> = [];
 
-  add(vote: VoteStruct): boolean {
-    !this.list[vote.hash] && (this.list[vote.hash] = []);
-    return (
-      !this.list[vote.hash].some((_v) => _v.origin === vote.origin) &&
+  add(vote: VoteStruct) {
+    !this.list.some((_v) => _v.origin === vote.origin) &&
       VotePool.isValid(vote) &&
-      this.list[vote.hash].push({ origin: vote.origin, sig: vote.sig }) > 0
-    );
+      this.list.push({ origin: vote.origin, sig: vote.sig });
   }
 
-  accepted(hash: string): boolean {
-    return this.list[hash] && this.list[hash].length >= MIN_APPROVALS;
+  accepted(): boolean {
+    return this.list.length >= MIN_APPROVALS;
   }
 
-  get(hash: string): Array<{ origin: string; sig: string }> {
-    return this.list[hash];
+  get(): Array<{ origin: string; sig: string }> {
+    return this.list.sort((a, b) => (a.origin > b.origin ? 1 : -1));
   }
 
-  getList(): { [hash: string]: Array<{ origin: string; sig: string }> } {
-    return this.list;
-  }
-
-  clear(hash: string) {
-    delete this.list[hash];
+  clear() {
+    this.list = [];
   }
 
   private static isValid(vote: VoteStruct): boolean {
