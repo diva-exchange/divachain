@@ -20,6 +20,7 @@
 import { suite, test, slow, timeout } from '@testdeck/mocha';
 import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
+import { nanoid } from 'nanoid';
 
 chai.use(chaiHttp);
 
@@ -119,20 +120,57 @@ class TestLoad {
   ];
 
   @test
-  @slow(10000)
-  @timeout(10000)
+  @slow(6000)
+  @timeout(6000)
   createMultiTransactionBlock(): Promise<void> {
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve();
-      }, 9000);
+      }, 5000);
 
       // create a block containing multiple transactions
       for (let j = 1; j <= TestLoad.TEST_CONFIG_SERVER.length; j++) {
         setTimeout(async () => {
-          const res = await chai.request(`http://${ipHTTP}:17${j}69`).put('/block').send([j]);
+          const res = await chai
+            .request(`http://${ipHTTP}:17${j}69`)
+            .put('/transaction')
+            .send([
+              {
+                id: nanoid(5),
+                timestamp: Date.now(),
+              },
+            ]);
           expect(res).to.have.status(200);
-        }, 3000);
+        }, 2500);
+      }
+    });
+  }
+
+  @test
+  @slow(20000)
+  @timeout(20000)
+  stressMultiTransactionBlock(): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 19500);
+
+      // create multiple blocks containing multiple transactions
+      for (let i = 1; i <= 100; i++) {
+        for (let j = 1; j <= TestLoad.TEST_CONFIG_SERVER.length; j++) {
+          setTimeout(async () => {
+            const res = await chai
+              .request(`http://${ipHTTP}:17${j}69`)
+              .put('/transaction')
+              .send([
+                {
+                  id: nanoid(5),
+                  timestamp: Date.now(),
+                },
+              ]);
+            expect(res).to.have.status(200);
+          }, 3000 + i * 150);
+        }
       }
     });
   }

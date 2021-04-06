@@ -2,6 +2,20 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "/schema/block/transaction/testLoad.json",
 
-  "type": "integer",
-  "minimum": 1
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-_]+$"
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "timestamp"
+  ]
 }

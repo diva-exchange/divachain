@@ -236,7 +236,7 @@ class TestServer {
             const port = (i % TestServer.arrayServer.length) + 1;
             const res = await chai
               .request(`http://${ipHTTP}:17${port}69`)
-              .put('/block')
+              .put('/transaction')
               .send([
                 {
                   id: '12345678901234567890123456',
@@ -270,7 +270,7 @@ class TestServer {
             setTimeout(async () => {
               const res = await chai
                 .request(`http://${ipHTTP}:17${j}69`)
-                .put('/block')
+                .put('/transaction')
                 .send([
                   {
                     id: `${j}-123456789012345678901234`,
