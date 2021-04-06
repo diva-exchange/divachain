@@ -19,7 +19,6 @@
 
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
-
 import { Block, BlockStruct } from '../chain/block';
 import { Blockchain } from '../chain/blockchain';
 import { TransactionPool } from '../pool/transaction-pool';
@@ -28,11 +27,11 @@ import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
 import { Network } from './network';
 import { Message } from './message/message';
-import { Transaction, TransactionStruct } from '../chain/transaction';
 import { Proposal, ProposalStruct } from './message/proposal';
 import { Vote } from './message/vote';
 import { Commit } from './message/commit';
 import { VOTE_DELAY } from '../config';
+import { Api } from './api';
 
 const VERSION = '0.1.0';
 
@@ -49,20 +48,19 @@ export class Server {
   static readonly STATUS_ACCEPTING = 1;
   static readonly STATUS_VOTING = 2;
   static readonly STATUS_COMMITTING = 3;
-
   static readonly STATUS_OUT_OF_SYNC = 9;
 
+  public readonly httpServer: Hapi.Server;
+  public readonly network: Network;
+  public readonly blockchain: Blockchain;
+  public readonly transactionPool: TransactionPool;
+  public readonly votePool: VotePool;
+  public readonly blockPool: BlockPool;
+  public status: number;
+
   private readonly config: ConfigServer;
-  private readonly network: Network;
-  private readonly transactionPool: TransactionPool;
   private readonly wallet: Wallet;
-  private readonly blockchain: Blockchain;
-  private readonly blockPool: BlockPool;
-  private readonly votePool: VotePool;
-
-  private readonly httpServer: Hapi.Server;
-
-  private status: number;
+  private readonly api: Api;
 
   //@FIXME remove secret
   constructor(config: ConfigServer) {
@@ -93,125 +91,14 @@ export class Server {
     });
 
     this.status = Server.STATUS_OUT_OF_SYNC;
+
+    this.api = new Api(this, this.wallet);
   }
 
   async listen(): Promise<Server> {
     await this.blockchain.init();
 
-    // catch all
-    this.httpServer.route({
-      method: '*',
-      path: '/{any*}',
-      handler: (request, h) => {
-        return h.response('404 - Not Found').code(404);
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/status',
-      handler: (request, h) => {
-        return h.response({ status: this.status });
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/peers',
-      handler: (request, h) => {
-        return h.response(this.network.peers());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/network',
-      handler: (request, h) => {
-        return h.response(this.network.network());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/health',
-      handler: (request, h) => {
-        return h.response(this.network.health());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/gossip',
-      handler: (request, h) => {
-        return h.response(this.network.gossip());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/pool/transactions',
-      handler: (request, h) => {
-        return h.response(this.transactionPool.get());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/pool/votes',
-      handler: (request, h) => {
-        return h.response(this.votePool.get());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/pool/blocks',
-      handler: (request, h) => {
-        return h.response(this.blockPool.get());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'GET',
-      path: '/blocks',
-      handler: async (request, h) => {
-        return h.response(await this.blockchain.get());
-      },
-    });
-
-    this.httpServer.route({
-      method: 'PUT',
-      path: '/block',
-      handler: async (request, h) => {
-        try {
-          this.createTransaction(new Transaction(this.wallet, request.payload as Array<TransactionStruct>));
-          return h.response().code(200);
-        } catch (error) {
-          Logger.trace(error);
-          throw error;
-        }
-      },
-    });
-
-    this.httpServer.route({
-      method: 'POST',
-      path: '/peer/add',
-      handler: (request, h) => {
-        //@FIXME logging
-        Logger.trace(request.payload.toString());
-        return h.response().code(200);
-      },
-    });
-
-    this.httpServer.route({
-      method: 'POST',
-      path: '/peer/remove',
-      handler: (request, h) => {
-        //@FIXME logging
-        Logger.trace(request.payload.toString());
-        return h.response().code(200);
-      },
-    });
+    this.api.init();
 
     await this.httpServer.start();
     Logger.info(`HTTP Server (${VERSION}) listening on ${this.config.http_ip}:${this.config.http_port}`);
@@ -236,17 +123,15 @@ export class Server {
     }
   }
 
-  private createTransaction(transaction: Transaction) {
-    const t: TransactionStruct = transaction.get();
-    if (!this.transactionPool.add([t])) {
-      //@FIXME logging
-      Logger.trace('Could not add transaction');
+  createProposal() {
+    if (!this.transactionPool.get().length) {
       return;
     }
+
     const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get());
 
     //@FIXME logging
-    Logger.trace('createTransaction()');
+    Logger.trace('createProposal()');
     this.network.processMessage(
       new Proposal()
         .create({
@@ -300,8 +185,6 @@ export class Server {
 
   private doVote(ident: string, hash: string) {
     if (this.blockPool.get().hash !== hash) {
-      //@FIXME logging
-      Logger.trace(`Proposal rejected: ${ident}`);
       return this.network.stopGossip(ident);
     }
 
@@ -356,6 +239,7 @@ export class Server {
       this.blockchain.add(c.block);
       this.clearPools();
       this.status = Server.STATUS_ACCEPTING;
+      this.createProposal();
     } else {
       this.network.stopGossip(commit.ident());
     }

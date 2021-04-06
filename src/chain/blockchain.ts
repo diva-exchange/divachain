@@ -89,16 +89,17 @@ export class Blockchain {
     this.db.put(block.height, JSON.stringify(block));
   }
 
-  async get(): Promise<Array<BlockStruct>> {
-    const a: Array<BlockStruct> = [];
+  async get(limit: number = -1): Promise<Array<BlockStruct>> {
+    const a: Map<number, BlockStruct> = new Map();
     return new Promise((resolve, reject) => {
       this.db
-        .createReadStream()
+        .createReadStream({ reverse: true, limit: limit > 0 ? limit : -1 })
         .on('data', (data) => {
-          a[Number(data.key) - 1] = JSON.parse(data.value) as BlockStruct;
+          a.set(Number(data.key), JSON.parse(data.value) as BlockStruct);
         })
         .on('end', () => {
-          resolve(a);
+          resolve(Array.from(a.values()));
+          // resolve(limit > 0 ? a.splice(limit * -1) : a);
         })
         .on('error', reject);
     });

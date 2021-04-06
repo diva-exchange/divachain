@@ -19,21 +19,33 @@
 
 'use strict';
 
-import { TransactionStruct } from '../chain/transaction';
+import { Transaction, TransactionStruct } from '../chain/transaction';
 import { Util } from '../chain/util';
+import { Wallet } from '../chain/wallet';
 
 export class TransactionPool {
-  private list: Array<TransactionStruct>;
+  private current: Array<TransactionStruct> = [];
+  private next: TransactionStruct = {} as TransactionStruct;
 
-  constructor() {
-    this.list = [];
+  addOwn(t: TransactionStruct, wallet: Wallet): boolean {
+    if (!TransactionPool.isValid(t)) {
+      return false;
+    }
+
+    const _pk = wallet.getPublicKey();
+    const r = !this.current.some((_t) => _t.origin === _pk) && this.current.push(t) > 0;
+    if (!r) {
+      this.next = new Transaction(wallet, (this.next.commands || []).concat(t.commands)).get();
+    }
+
+    return r;
   }
 
   add(arrayT: Array<TransactionStruct>): boolean {
     let r = false;
     arrayT.forEach((t) => {
-      if (!this.list.find((_t) => t.sig === _t.sig) && TransactionPool.isValid(t)) {
-        this.list.push(t);
+      if (!this.current.some((_t) => _t.origin === t.origin) && TransactionPool.isValid(t)) {
+        this.current.push(t);
         r = true;
       }
     });
@@ -41,11 +53,12 @@ export class TransactionPool {
   }
 
   get(): Array<TransactionStruct> {
-    return this.list;
+    return this.current;
   }
 
   clear() {
-    this.list = [];
+    this.current = this.next.timestamp ? [this.next] : [];
+    this.next = {} as TransactionStruct;
   }
 
   private static isValid(t: TransactionStruct): boolean {
