@@ -23,6 +23,7 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
+import { Logger } from '../logger';
 
 export class Blockchain {
   private readonly publicKey: string;
@@ -89,17 +90,18 @@ export class Blockchain {
     this.db.put(block.height, JSON.stringify(block));
   }
 
+  //@FIXME limit: -1, might become a very large array
   async get(limit: number = -1): Promise<Array<BlockStruct>> {
     const a: Map<number, BlockStruct> = new Map();
+    const l: number = Number(limit) > 0 ? Number(limit) : -1;
     return new Promise((resolve, reject) => {
       this.db
-        .createReadStream({ reverse: true, limit: limit > 0 ? limit : -1 })
+        .createReadStream(l > 0 ? { reverse: true, limit: l } : {})
         .on('data', (data) => {
           a.set(Number(data.key), JSON.parse(data.value) as BlockStruct);
         })
         .on('end', () => {
           resolve(Array.from(a.values()));
-          // resolve(limit > 0 ? a.splice(limit * -1) : a);
         })
         .on('error', reject);
     });
@@ -113,13 +115,26 @@ export class Blockchain {
     return JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString());
   }
 
-  static hashBlock(block: BlockStruct): string {
+  private static hashBlock(block: BlockStruct): string {
     const { version, previousHash, height, tx } = block;
     return Util.hash(previousHash + version + height + JSON.stringify(tx));
   }
 
-  static verifyBlock(block: BlockStruct): boolean {
-    //@FIXME check the the transactions in the block (uniqueness of origins, signatures)
+  private static verifyBlock(block: BlockStruct): boolean {
+    const arrayOrigin: Array<string> = [];
+    for (const t of block.tx) {
+      if (arrayOrigin.includes(t.origin)) {
+        //@FIXME logging
+        Logger.trace(`!! Block invalid: double origin ${t.origin}`);
+        return false;
+      }
+      arrayOrigin.push(t.origin);
+      if (!Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands))) {
+        //@FIXME logging
+        Logger.trace(`!! Block invalid: invalid signature ${t.origin}`);
+        return false;
+      }
+    }
     return true;
   }
 }

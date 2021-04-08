@@ -54,13 +54,13 @@ class TestValidation {
   @test
   validateAuth() {
     const m = new Auth().create(TestValidation.wallet.sign('test'));
-    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
   validateChallenge() {
     const m = new Challenge().create(nanoid(26));
-    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
@@ -71,7 +71,7 @@ class TestValidation {
       block: block,
       sig: TestValidation.wallet.sign(block.hash),
     });
-    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
@@ -83,7 +83,7 @@ class TestValidation {
       sig: TestValidation.wallet.sign(structBlock.hash),
     };
     const m = new Vote().create(structVote);
-    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
@@ -101,6 +101,6 @@ class TestValidation {
       votes: arrayVotes,
       sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(arrayVotes)),
     });
-    expect(this.validation.message(new Message(m.pack()))).to.be.true;
+    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
   }
 }

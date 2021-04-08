@@ -216,7 +216,7 @@ export class Network {
     const hash = m.hash();
     const origin = m.origin();
 
-    if (this.blockchain.has(hash) || !this.validation.message(m)) {
+    if (this.blockchain.has(hash) || !this.validation.isValidMessage(m)) {
       return this.stopGossip(ident);
     }
 
@@ -231,8 +231,6 @@ export class Network {
 
     // broadcasting / gossip
     if (m.isBroadcast() && !this.broadcast(m)) {
-      //@FIXME logging
-      Logger.trace(`!! Will retry to broadcast ${m.ident()}`);
       retry = retry > 0 ? retry : 0;
       if (retry < 3) {
         setTimeout(() => {
@@ -307,9 +305,8 @@ export class Network {
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
 
-      //@FIXME error handling, if message is not Auth (throw an Exception)
-      //@TODO implement message validation
-      if (!new Auth(message).isValid(challenge, publicKeyPeer)) {
+      const mA = new Auth(message);
+      if (!this.validation.isValidMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
@@ -398,13 +395,11 @@ export class Network {
       ws.close();
     });
     ws.once('message', (message: Buffer) => {
-      //@FIXME error handling, if message is not a Challenge (throw an Exception)
-      //@TODO implement message validation
-      const challenge = new Challenge(message);
-      if (!challenge.isValid()) {
+      const mC = new Challenge(message);
+      if (!this.validation.isValidMessage(mC) || !mC.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
-      Network.send(ws, new Auth().create(this.wallet.sign(challenge.getChallenge())).pack());
+      Network.send(ws, new Auth().create(this.wallet.sign(mC.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {

@@ -109,7 +109,7 @@ export class Api {
       method: 'GET',
       path: '/blocks',
       handler: async (request, h) => {
-        return h.response(await this.server.blockchain.get());
+        return h.response(await this.server.blockchain.get(request.query.limit));
       },
     });
 

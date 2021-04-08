@@ -156,7 +156,7 @@ class TestLoad {
       }, 19500);
 
       // create multiple blocks containing multiple transactions
-      for (let i = 1; i <= 100; i++) {
+      for (let i = 1; i <= 300; i++) {
         for (let j = 1; j <= TestLoad.TEST_CONFIG_SERVER.length; j++) {
           setTimeout(async () => {
             const res = await chai
@@ -169,7 +169,7 @@ class TestLoad {
                 },
               ]);
             expect(res).to.have.status(200);
-          }, 3000 + i * 150);
+          }, 3000 + i * 50);
         }
       }
     });

@@ -42,7 +42,7 @@ export class Validation {
     const schemaTestLoad: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/testLoad.json');
 
     this.ajvMessage = new Ajv({
-      verbose: true,
+      verbose: false,
       schemas: [
         schemaAuth,
         schemaChallenge,
@@ -59,7 +59,7 @@ export class Validation {
     }).compile(schemaMessage);
   }
 
-  message(m: Message): boolean {
+  isValidMessage(m: Message): boolean {
     switch (m.type()) {
       case Message.TYPE_CHALLENGE:
       case Message.TYPE_AUTH:

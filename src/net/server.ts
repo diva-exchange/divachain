@@ -130,8 +130,6 @@ export class Server {
 
     const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get());
 
-    //@FIXME logging
-    Logger.trace('createProposal()');
     this.network.processMessage(
       new Proposal()
         .create({
@@ -188,9 +186,6 @@ export class Server {
       return this.network.stopGossip(ident);
     }
 
-    //@FIXME logging
-    Logger.trace(`createVote: ${Message.TYPE_VOTE + hash} length: ${this.blockPool.get().tx.length}`);
-
     const vote = new Vote().create({
       origin: this.wallet.getPublicKey(),
       hash: hash,
@@ -203,8 +198,6 @@ export class Server {
     const v = vote.get();
     const b: BlockStruct = this.blockPool.get();
     if (b.hash !== v.hash) {
-      //@FIXME logging
-      Logger.trace(`stop voting: ${vote.ident()}`);
       return this.network.stopGossip(vote.ident());
     }
 
@@ -214,9 +207,6 @@ export class Server {
       this.status = Server.STATUS_COMMITTING;
 
       const votes = this.votePool.get();
-
-      //@FIXME logging
-      Logger.trace(`createCommit: ${Message.TYPE_COMMIT + b.hash}, votes ${JSON.stringify(votes)}`);
 
       const commit = new Commit().create({
         origin: this.wallet.getPublicKey(),
@@ -234,7 +224,7 @@ export class Server {
       return;
     }
 
-    if (Commit.isValid(c)) {
+    if (Commit.isValid(c) && this.blockchain.isValid(c.block)) {
       c.block.votes = c.votes;
       this.blockchain.add(c.block);
       this.clearPools();
@@ -252,24 +242,18 @@ export class Server {
   }
 
   private onMessage(type: number, message: Buffer | string) {
-    try {
-      switch (type) {
-        case Message.TYPE_PROPOSAL:
-          this.processProposal(new Proposal(message));
-          break;
-        case Message.TYPE_VOTE:
-          this.processVote(new Vote(message));
-          break;
-        case Message.TYPE_COMMIT:
-          this.processCommit(new Commit(message));
-          break;
-        default:
-          //@FIXME should be solved with generic message validation, using ajv
-          //@FIXME logging
-          Logger.error(`Unknown message type ${message.toString()}`);
-      }
-    } catch (error) {
-      Logger.trace(error);
+    switch (type) {
+      case Message.TYPE_PROPOSAL:
+        this.processProposal(new Proposal(message));
+        break;
+      case Message.TYPE_VOTE:
+        this.processVote(new Vote(message));
+        break;
+      case Message.TYPE_COMMIT:
+        this.processCommit(new Commit(message));
+        break;
+      default:
+        throw new Error('Invalid message type');
     }
   }
 }
