@@ -19,7 +19,7 @@
 
 import { Logger } from '../logger';
 import { Server } from './server';
-import { Transaction } from '../chain/transaction';
+import {ArrayComand, Transaction, TransactionStruct} from '../chain/transaction';
 import { Wallet } from '../chain/wallet';
 
 export class Api {
@@ -114,14 +114,28 @@ export class Api {
     });
 
     this.server.httpServer.route({
-      method: 'PUT',
-      path: '/transaction',
+      method: 'GET',
+      path: '/transaction/{origin}/{ident}',
       handler: async (request, h) => {
-        const transaction = new Transaction(this.wallet, request.payload as Array<object>);
-        if (this.server.transactionPool.addOwn(transaction.get(), this.wallet)) {
-          this.server.createProposal();
-        }
-        return h.response(this.server.transactionPool.get());
+        return h.response(await this.server.blockchain.getTransaction(request.params.origin, request.params.ident));
+      },
+    });
+
+    this.server.httpServer.route({
+      method: 'PUT',
+      path: '/transaction/{ident?}',
+      handler: async (request, h) => {
+        //@FIXME loggging
+        Logger.trace(request.payload as ArrayComand);
+
+        const t: TransactionStruct = new Transaction(
+          this.wallet,
+          request.payload as ArrayComand,
+          request.params.ident
+        ).get();
+        this.server.transactionPool.addOwn(t, this.wallet);
+        this.server.createProposal();
+        return h.response(t);
       },
     });
 

@@ -24,7 +24,7 @@
     "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js",
     "start-dev-trace": "tsc ; NODE_ENV=development LOG_LEVEL=trace node --enable-source-maps dist/main.js",
     "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha",
-    "test-load": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=testload LOG_LEVEL=trace nyc mocha -f \"TestLoad\""
+    "test-load": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=testload LOG_LEVEL=trace nyc mocha -f \"stressMultiTransaction\""
   },
   "dependencies": {
     "@hapi/hapi": "^20.1.2",
@@ -46,10 +46,10 @@
     "@types/chai": "^4.2.16",
     "@types/hapi__hapi": "^20.0.5",
     "@types/leveldown": "^4.0.2",
-    "@types/levelup": "^4.3.0",
+    "@types/levelup": "^4.3.1",
     "@types/mocha": "^8.2.2",
     "@types/node": "^14.14.37",
-    "@types/pino": "^6.3.6",
+    "@types/pino": "^6.3.7",
     "@types/sodium-native": "^2.3.5",
     "@types/tunnel": "^0.0.2",
     "@types/ws": "^7.4.1",

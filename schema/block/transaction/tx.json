@@ -4,13 +4,17 @@
 
   "type": "object",
   "properties": {
-    "timestamp": {
-      "type": "integer",
-      "minimum": 0
+    "ident": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]+$"
     },
     "origin": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0
     },
     "commands": {
       "type": "array",
@@ -36,8 +40,9 @@
     }
   },
   "required": [
-    "timestamp",
+    "ident",
     "origin",
+    "timestamp",
     "commands",
     "sig"
   ],

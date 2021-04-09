@@ -19,7 +19,6 @@
 
 import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
-import { Logger } from '../logger';
 import { BlockStruct } from '../chain/block';
 
 export class Validation {
@@ -59,7 +58,7 @@ export class Validation {
     }).compile(schemaMessage);
   }
 
-  isValidMessage(m: Message): boolean {
+  validateMessage(m: Message) {
     switch (m.type()) {
       case Message.TYPE_CHALLENGE:
       case Message.TYPE_AUTH:
@@ -67,13 +66,11 @@ export class Validation {
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
         if (!this.ajvMessage(m.getMessage())) {
-          //@FIXME logging
-          Logger.trace(this.ajvMessage.errors as object);
-          return false;
+          throw this.ajvMessage.errors;
         }
-        return true;
+        break;
       default:
-        return false;
+        throw new Error('Unknown message');
     }
   }
 }

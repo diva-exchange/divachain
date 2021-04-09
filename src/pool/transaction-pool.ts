@@ -27,18 +27,16 @@ export class TransactionPool {
   private current: Array<TransactionStruct> = [];
   private next: TransactionStruct = {} as TransactionStruct;
 
-  addOwn(t: TransactionStruct, wallet: Wallet): boolean {
+  addOwn(t: TransactionStruct, wallet: Wallet) {
     if (!TransactionPool.isValid(t)) {
-      return false;
+      return;
     }
-
-    const _pk = wallet.getPublicKey();
-    const r = !this.current.some((_t) => _t.origin === _pk) && this.current.push(t) > 0;
-    if (!r) {
-      this.next = new Transaction(wallet, (this.next.commands || []).concat(t.commands)).get();
+    if (!this.current.some((_t) => _t.origin === wallet.getPublicKey()) && this.current.push(t) > 0) {
+      return;
     }
-
-    return r;
+    const commands = (this.next.commands || []).concat(t.commands);
+    t.ident = this.next.ident || t.ident;
+    this.next = new Transaction(wallet, commands, t.ident).get();
   }
 
   add(arrayT: Array<TransactionStruct>): boolean {

@@ -4,9 +4,9 @@
 
   "type": "object",
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9-_]{26}$"
+    "seq": {
+      "type": "integer",
+      "minimum": 1
     },
     "command": {
       "type": "string",
@@ -28,7 +28,7 @@
   },
   "additionalProperties": false,
   "required": [
-    "id",
+    "seq",
     "command",
     "host",
     "port",

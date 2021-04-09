@@ -213,11 +213,15 @@ export class Network {
     const m = new Message(message);
     const ident = m.ident();
     const type = m.type();
-    const hash = m.hash();
     const origin = m.origin();
 
-    if (this.blockchain.has(hash) || !this.validation.isValidMessage(m)) {
-      return this.stopGossip(ident);
+    try {
+      this.validation.validateMessage(m);
+    } catch (error) {
+      //@FIXME logging
+      Logger.trace(error);
+      this.stopGossip(ident);
+      throw new Error(error);
     }
 
     // populate Ack array
@@ -306,7 +310,12 @@ export class Network {
       clearTimeout(timeout);
 
       const mA = new Auth(message);
-      if (!this.validation.isValidMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
+      try {
+        this.validation.validateMessage(mA);
+        mA.isValid(challenge, publicKeyPeer);
+      } catch (error) {
+        //@FIXME logging
+        Logger.trace(error);
         return ws.close(4003, 'Auth Failed');
       }
 
@@ -396,7 +405,12 @@ export class Network {
     });
     ws.once('message', (message: Buffer) => {
       const mC = new Challenge(message);
-      if (!this.validation.isValidMessage(mC) || !mC.isValid()) {
+      try {
+        this.validation.validateMessage(mC);
+        mC.isValid();
+      } catch (error) {
+        //@FIXME logging
+        Logger.trace(error);
         return ws.close(4003, 'Challenge Failed');
       }
       Network.send(ws, new Auth().create(this.wallet.sign(mC.getChallenge())).pack());

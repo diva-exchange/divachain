@@ -18,19 +18,46 @@
  */
 
 import { Wallet } from './wallet';
+import { nanoid } from 'nanoid';
+
+const MAX_LENGTH_IDENT = 32;
+
+interface Command {
+  seq: number;
+}
+
+interface CommandTestLoad extends Command {
+  timestamp: number;
+}
+
+interface CommandAddPeer extends Command {
+  command: string;
+  host: string;
+  port: number;
+  publicKey: string;
+}
+
+interface CommandRemovePeer extends Command {
+  command: string;
+  publicKey: string;
+}
+
+export type ArrayComand = Array<CommandTestLoad | CommandAddPeer | CommandRemovePeer>;
 
 export type TransactionStruct = {
+  ident: string;
   origin: string;
   timestamp: number;
-  commands: Array<object>;
+  commands: ArrayComand;
   sig: string;
 };
 
 export class Transaction {
   private readonly structTransaction: TransactionStruct;
 
-  constructor(wallet: Wallet, commands: Array<object>) {
+  constructor(wallet: Wallet, commands: ArrayComand, ident: string = '') {
     this.structTransaction = {
+      ident: ident.length > 0 && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(8),
       origin: wallet.getPublicKey(),
       timestamp: Date.now(),
       commands: commands,

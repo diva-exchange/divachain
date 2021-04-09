@@ -19,7 +19,6 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { Logger } from '../../logger';
 import { MIN_APPROVALS } from '../../config';
 import { BlockStruct } from '../../chain/block';
 
@@ -47,15 +46,10 @@ export class Commit extends Message {
     return this.message.data as CommitStruct;
   }
 
-  static isValid(c: CommitStruct): boolean {
-    //@FIXME logging
-    Logger.trace(
-      `Commit isValid(): ${
-        c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))
-      }`
-    );
-    return (
-      c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))
-    );
+  static isValid(c: CommitStruct) {
+    if (c.votes.length < MIN_APPROVALS ||
+      !Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))) {
+      throw new Error('Commit invalid');
+    }
   }
 }

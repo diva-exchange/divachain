@@ -17,8 +17,6 @@
 #
 # Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
 #
-# -e  Exit immediately if a simple command exits with a non-zero status
-set -e
 
 PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
 cd ${PROJECT_PATH}

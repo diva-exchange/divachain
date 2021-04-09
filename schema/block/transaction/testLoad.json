@@ -4,9 +4,9 @@
 
   "type": "object",
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9-_]+$"
+    "seq": {
+      "type": "integer",
+      "minimum": 1
     },
     "timestamp": {
       "type": "integer",
@@ -15,7 +15,7 @@
   },
   "additionalProperties": false,
   "required": [
-    "id",
+    "seq",
     "timestamp"
   ]
 }

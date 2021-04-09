@@ -24,19 +24,18 @@ import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
 import { Logger } from '../logger';
+import { TransactionStruct } from './transaction';
 
 export class Blockchain {
   private readonly publicKey: string;
-  private latestBlock: BlockStruct;
   private height: number;
   private db: InstanceType<typeof LevelUp>;
-  private hashes: Array<string> = [];
+  private blocks: Array<BlockStruct> = [];
 
   constructor(publicKey: string) {
     this.publicKey = publicKey;
     this.height = 1;
-    this.latestBlock = Blockchain.genesis();
-    this.hashes.push(this.latestBlock.hash);
+    this.blocks[this.height - 1] = Blockchain.genesis();
 
     this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', this.publicKey)), {
       createIfMissing: true,
@@ -48,17 +47,17 @@ export class Blockchain {
 
   async init(): Promise<void> {
     this.db.get(1).catch(() => {
-      this.db.put(this.height, JSON.stringify(this.latestBlock));
+      this.db.put(this.height, JSON.stringify(this.blocks[this.height - 1]));
     });
 
     return new Promise((resolve, reject) => {
       this.db
         .createReadStream()
         .on('data', (data) => {
-          if (Number(data.key) > this.height) {
-            this.height = Number(data.key);
-            this.latestBlock = JSON.parse(data.value) as BlockStruct;
-            this.hashes.push(this.latestBlock.hash);
+          const k = Number(data.key);
+          this.blocks[k - 1] = JSON.parse(data.value) as BlockStruct;
+          if (k > this.height) {
+            this.height = k;
           }
         })
         .on('end', resolve)
@@ -71,32 +70,40 @@ export class Blockchain {
   }
 
   isValid(block: BlockStruct): boolean {
+    //@FIXME loggging
+    Logger.trace(this.blocks[this.height - 1]);
+    Logger.trace(block);
     return (
       this.height + 1 === block.height &&
-      block.previousHash === this.latestBlock.hash &&
+      block.previousHash === this.blocks[this.height - 1].hash &&
       block.hash === Blockchain.hashBlock(block) &&
       Blockchain.verifyBlock(block)
     );
   }
 
-  has(hash: string): boolean {
-    return this.hashes.includes(hash);
-  }
-
-  add(block: BlockStruct) {
-    this.latestBlock = block;
+  async add(block: BlockStruct) {
+    if (!this.isValid(block)) {
+      throw new Error('Invalid block');
+    }
+    this.blocks.push(block);
     this.height = block.height;
-    this.hashes.push(this.latestBlock.hash);
-    this.db.put(block.height, JSON.stringify(block));
+    await this.db.put(block.height, JSON.stringify(block));
   }
 
   //@FIXME limit: -1, might become a very large array
   async get(limit: number = -1): Promise<Array<BlockStruct>> {
+    const lmt: number = Number(limit) > 0 ? Number(limit) : -1;
+    if (lmt > 0 && this.blocks.length < lmt) {
+      return [...this.blocks].reverse().slice(0, lmt);
+    } else if (lmt === -1 && this.blocks.length === this.height) {
+      return [...this.blocks].reverse();
+    }
+
+    // fallback disk
     const a: Map<number, BlockStruct> = new Map();
-    const l: number = Number(limit) > 0 ? Number(limit) : -1;
     return new Promise((resolve, reject) => {
       this.db
-        .createReadStream(l > 0 ? { reverse: true, limit: l } : {})
+        .createReadStream(lmt > 0 ? { reverse: true, limit: lmt } : {})
         .on('data', (data) => {
           a.set(Number(data.key), JSON.parse(data.value) as BlockStruct);
         })
@@ -107,8 +114,37 @@ export class Blockchain {
     });
   }
 
+  async getTransaction(origin: string, ident: string): Promise<TransactionStruct> {
+    // in memory
+    for (const b of this.blocks) {
+      const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+      if (t) {
+        return Promise.resolve(t);
+      }
+    }
+    if (this.blocks.length === this.height) {
+      return Promise.reject(new Error('not found'));
+    }
+
+    // fallback disk
+    return new Promise((resolve, reject) => {
+      this.db
+        .createReadStream()
+        .on('data', (data) => {
+          const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
+          const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+          t && resolve(t);
+        })
+        .on('end', () => {
+          //@FIXME
+          reject(new Error('not found'));
+        })
+        .on('error', reject);
+    });
+  }
+
   getLatestBlock(): BlockStruct {
-    return this.latestBlock;
+    return this.blocks[this.height - 1];
   }
 
   static genesis(): BlockStruct {

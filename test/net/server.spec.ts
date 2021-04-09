@@ -220,71 +220,44 @@ class TestServer {
   }
 
   @test
-  @slow(60000)
-  @timeout(60000)
-  createBlock(): Promise<void> {
+  @slow(30000)
+  @timeout(30000)
+  stressMultiTransaction(): Promise<void> {
     return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 59000);
+      const arrayTransactions: Array<string> = [];
 
-      // wait 30s to get the underlying I2P network ready
-      setTimeout(() => {
-        // create 10 blocks, 1 every 2 seconds (=20 secs)
-        for (let i = 1; i <= 10; i++) {
-          setTimeout(async () => {
-            const port = (i % TestServer.arrayServer.length) + 1;
+      // create blocks containing multiple transactions
+      for (let i = 0; i < 10; i++) {
+        setTimeout(async () => {
+          for (let j = 0; j < TestServer.TEST_CONFIG_SERVER.length; j++) {
+            const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
+            const seq = i * TestServer.TEST_CONFIG_SERVER.length + j + 1;
             const res = await chai
-              .request(`http://${ipHTTP}:17${port}69`)
+              .request(`http://${ipHTTP}:17${p}69`)
               .put('/transaction')
               .send([
                 {
-                  id: '12345678901234567890123456',
-                  command: 'addPeer',
-                  host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
-                  port: 17168,
-                  publicKey: 'NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI',
+                  seq: seq,
+                  timestamp: Date.now(),
                 },
               ]);
             expect(res).to.have.status(200);
-          }, i * 2000);
-        }
-      }, 30000);
-    });
-  }
 
-  @test
-  @slow(60000)
-  @timeout(60000)
-  createMultiTransactionBlock(): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 59000);
-
-      // wait 30s to get the underlying I2P network ready
-      setTimeout(() => {
-        // create 3 blocks containing multiple transactions, 1 every 5 seconds (=20 secs)
-        for (let i = 1; i <= 3; i++) {
-          for (let j = 1; j <= TestServer.arrayServer.length; j++) {
-            setTimeout(async () => {
-              const res = await chai
-                .request(`http://${ipHTTP}:17${j}69`)
-                .put('/transaction')
-                .send([
-                  {
-                    id: `${j}-123456789012345678901234`,
-                    command: 'addPeer',
-                    host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
-                    port: Number(`17${j}68`),
-                    publicKey: 'NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI',
-                  },
-                ]);
-              expect(res).to.have.status(200);
-            }, i * 5000);
+            const originIdent = Object.keys(TestServer.TEST_P2P_NETWORK)[p - 1] + '/' + res.body.ident;
+            arrayTransactions.includes(originIdent) || arrayTransactions.push(originIdent);
           }
+        }, 10000 + i * 100);
+      }
+
+      // test availability of transactions
+      setTimeout(async () => {
+        for (const originIdent of arrayTransactions) {
+          const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
+          const res = await chai.request(`http://${ipHTTP}:17${p}69`).get(`/transaction/${originIdent}`);
+          expect(res).to.have.status(200);
         }
-      }, 30000);
+        resolve();
+      }, 20000);
     });
   }
 }

@@ -32,6 +32,7 @@ import { Vote } from './message/vote';
 import { Commit } from './message/commit';
 import { VOTE_DELAY } from '../config';
 import { Api } from './api';
+import { TransactionStruct } from '../chain/transaction';
 
 const VERSION = '0.1.0';
 
@@ -77,8 +78,8 @@ export class Server {
         ip: this.config.p2p_ip,
         port: this.config.p2p_port,
         networkPeers: this.config.p2p_network,
-        onMessageCallback: (type: number, message: Buffer | string) => {
-          this.onMessage(type, message);
+        onMessageCallback: async (type: number, message: Buffer | string) => {
+          await this.onMessage(type, message);
         },
       },
       this.blockchain,
@@ -124,18 +125,22 @@ export class Server {
   }
 
   createProposal() {
-    if (!this.transactionPool.get().length) {
+    const t: Array<TransactionStruct> = this.transactionPool.get();
+    if (!t.length) {
       return;
     }
 
-    const block = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get());
+    const structBlock: BlockStruct = new Block(this.blockchain.getLatestBlock(), t).get();
+    if (structBlock.hash === this.blockPool.get().hash) {
+      return;
+    }
 
     this.network.processMessage(
       new Proposal()
         .create({
           origin: this.wallet.getPublicKey(),
-          block: block.get(),
-          sig: this.wallet.sign(block.get().hash),
+          block: structBlock,
+          sig: this.wallet.sign(structBlock.hash),
         })
         .pack()
     );
@@ -218,19 +223,18 @@ export class Server {
     }
   }
 
-  private processCommit(commit: Commit) {
+  private async processCommit(commit: Commit) {
     const c = commit.get();
-    if (this.blockchain.has(c.block.hash)) {
-      return;
-    }
-
-    if (Commit.isValid(c) && this.blockchain.isValid(c.block)) {
+    try {
+      Commit.isValid(c);
       c.block.votes = c.votes;
-      this.blockchain.add(c.block);
+      await this.blockchain.add(c.block);
       this.clearPools();
       this.status = Server.STATUS_ACCEPTING;
       this.createProposal();
-    } else {
+    } catch (error) {
+      //@FIXME logging
+      Logger.trace(error);
       this.network.stopGossip(commit.ident());
     }
   }
@@ -241,7 +245,7 @@ export class Server {
     this.transactionPool.clear();
   }
 
-  private onMessage(type: number, message: Buffer | string) {
+  private async onMessage(type: number, message: Buffer | string) {
     switch (type) {
       case Message.TYPE_PROPOSAL:
         this.processProposal(new Proposal(message));
@@ -250,7 +254,7 @@ export class Server {
         this.processVote(new Vote(message));
         break;
       case Message.TYPE_COMMIT:
-        this.processCommit(new Commit(message));
+        await this.processCommit(new Commit(message));
         break;
       default:
         throw new Error('Invalid message type');
