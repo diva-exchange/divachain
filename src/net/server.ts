@@ -156,34 +156,30 @@ export class Server {
 
     const arrayTx = this.blockPool.get().tx || [];
 
-    if (arrayTx.length <= p.block.tx.length) {
-      if (this.transactionPool.add(p.block.tx)) {
-        // instruct the network to not further propagate the old proposal
-        this.network.stopGossip(proposal.ident());
+    if (this.transactionPool.add(p.block.tx)) {
+      // instruct the network to not further propagate the old proposal
+      this.network.stopGossip(proposal.ident());
 
-        const updatedBlock = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get());
+      const updatedBlock = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get());
 
-        this.network.processMessage(
-          new Proposal()
-            .create({
-              origin: this.wallet.getPublicKey(),
-              block: updatedBlock.get(),
-              sig: this.wallet.sign(updatedBlock.get().hash),
-            })
-            .pack()
-        );
-      } else if (arrayTx.length < p.block.tx.length) {
-        this.blockPool.set(p.block);
-        const ident = proposal.ident();
-        setTimeout(() => {
-          this.doVote(ident, p.block.hash);
-        }, VOTE_DELAY);
-      }
-
-      return;
+      this.network.processMessage(
+        new Proposal()
+          .create({
+            origin: this.wallet.getPublicKey(),
+            block: updatedBlock.get(),
+            sig: this.wallet.sign(updatedBlock.get().hash),
+          })
+          .pack()
+      );
+    } else if (arrayTx.length < p.block.tx.length) {
+      this.blockPool.set(p.block);
+      const ident = proposal.ident();
+      setTimeout(() => {
+        this.doVote(ident, p.block.hash);
+      }, VOTE_DELAY);
+    } else {
+      this.network.stopGossip(proposal.ident());
     }
-
-    this.network.stopGossip(proposal.ident());
   }
 
   private doVote(ident: string, hash: string) {
@@ -225,18 +221,13 @@ export class Server {
 
   private async processCommit(commit: Commit) {
     const c = commit.get();
-    try {
-      Commit.isValid(c);
-      c.block.votes = c.votes;
-      await this.blockchain.add(c.block);
-      this.clearPools();
-      this.status = Server.STATUS_ACCEPTING;
-      this.createProposal();
-    } catch (error) {
-      //@FIXME logging
-      Logger.trace(error);
-      this.network.stopGossip(commit.ident());
+    c.block.votes = c.votes;
+    if (!Commit.isValid(c) || !(await this.blockchain.add(c.block))) {
+      return this.network.stopGossip(commit.ident());
     }
+    this.clearPools();
+    this.status = Server.STATUS_ACCEPTING;
+    this.createProposal();
   }
 
   private clearPools() {

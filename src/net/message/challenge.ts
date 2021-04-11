@@ -34,9 +34,7 @@ export class Challenge extends Message {
     return this.message.data;
   }
 
-  isValid() {
-    if (this.message.type !== Message.TYPE_CHALLENGE) {
-      throw new Error('Challenge invalid');
-    }
+  isValid(): boolean {
+    return this.message.type === Message.TYPE_CHALLENGE;
   }
 }

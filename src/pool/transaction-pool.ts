@@ -22,21 +22,30 @@
 import { Transaction, TransactionStruct } from '../chain/transaction';
 import { Util } from '../chain/util';
 import { Wallet } from '../chain/wallet';
+import { Validation } from '../net/validation';
 
 export class TransactionPool {
   private current: Array<TransactionStruct> = [];
   private next: TransactionStruct = {} as TransactionStruct;
 
-  addOwn(t: TransactionStruct, wallet: Wallet) {
+  addOwn(t: TransactionStruct, wallet: Wallet): boolean {
     if (!TransactionPool.isValid(t)) {
-      return;
+      return false;
     }
-    if (!this.current.some((_t) => _t.origin === wallet.getPublicKey()) && this.current.push(t) > 0) {
-      return;
+    const _pk = wallet.getPublicKey();
+    if (this.current.some((_t) => _t.origin === _pk)) {
+      this.next = new Transaction(
+        wallet,
+        (this.next.commands || []).concat(t.commands),
+        this.next.ident || t.ident
+      ).get();
+      t.ident = this.next.ident;
+      t.timestamp = this.next.timestamp;
+      t.commands = this.next.commands;
+    } else {
+      this.current.push(t);
     }
-    const commands = (this.next.commands || []).concat(t.commands);
-    t.ident = this.next.ident || t.ident;
-    this.next = new Transaction(wallet, commands, t.ident).get();
+    return true;
   }
 
   add(arrayT: Array<TransactionStruct>): boolean {
@@ -61,7 +70,7 @@ export class TransactionPool {
 
   private static isValid(t: TransactionStruct): boolean {
     try {
-      return Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands));
+      return Validation.validateTx(t) && Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands));
     } catch (e) {
       return false;
     }

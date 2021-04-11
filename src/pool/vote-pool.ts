@@ -43,6 +43,10 @@ export class VotePool {
   }
 
   private static isValid(vote: VoteStruct): boolean {
-    return Util.verifySignature(vote.origin, vote.sig, vote.hash);
+    try {
+      return Util.verifySignature(vote.origin, vote.sig, vote.hash);
+    } catch (error) {
+      return false;
+    }
   }
 }

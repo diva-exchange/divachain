@@ -46,10 +46,13 @@ export class Commit extends Message {
     return this.message.data as CommitStruct;
   }
 
-  static isValid(c: CommitStruct) {
-    if (c.votes.length < MIN_APPROVALS ||
-      !Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))) {
-      throw new Error('Commit invalid');
+  static isValid(c: CommitStruct): boolean {
+    try {
+      return (
+        c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))
+      );
+    } catch (error) {
+      return false;
     }
   }
 }

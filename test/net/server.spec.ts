@@ -122,6 +122,7 @@ class TestServer {
 
   static arrayServer: Array<Server> = [];
 
+  /*
   @timeout(20000)
   static before(): Promise<void> {
     return new Promise((resolve) => {
@@ -153,6 +154,7 @@ class TestServer {
     TestServer.arrayServer.push(s);
     return s;
   }
+*/
 
   @test
   isAvailable() {
@@ -220,44 +222,57 @@ class TestServer {
   }
 
   @test
-  @slow(30000)
-  @timeout(30000)
+  @slow(90000)
+  @timeout(90000)
   stressMultiTransaction(): Promise<void> {
     return new Promise((resolve) => {
-      const arrayTransactions: Array<string> = [];
+      const _outer = 200;
+      const _inner = 20;
+
+      const mapTransactions: Map<string, number> = new Map();
 
       // create blocks containing multiple transactions
-      for (let i = 0; i < 10; i++) {
+      let seq = 1;
+      for (let i = 0; i < _outer; i++) {
         setTimeout(async () => {
-          for (let j = 0; j < TestServer.TEST_CONFIG_SERVER.length; j++) {
+          for (let j = 0; j < _inner; j++) {
             const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
-            const seq = i * TestServer.TEST_CONFIG_SERVER.length + j + 1;
             const res = await chai
               .request(`http://${ipHTTP}:17${p}69`)
               .put('/transaction')
               .send([
                 {
-                  seq: seq,
+                  seq: seq++,
                   timestamp: Date.now(),
                 },
               ]);
             expect(res).to.have.status(200);
 
             const originIdent = Object.keys(TestServer.TEST_P2P_NETWORK)[p - 1] + '/' + res.body.ident;
-            arrayTransactions.includes(originIdent) || arrayTransactions.push(originIdent);
+            mapTransactions.set(originIdent, res.body.commands.length);
           }
-        }, 10000 + i * 100);
+        }, 10000 + i * 50);
       }
 
       // test availability of transactions
       setTimeout(async () => {
-        for (const originIdent of arrayTransactions) {
+        let total = 0;
+        for (const originIdent of mapTransactions.keys()) {
           const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
           const res = await chai.request(`http://${ipHTTP}:17${p}69`).get(`/transaction/${originIdent}`);
+          total = total + (mapTransactions.get(originIdent) || 0);
           expect(res).to.have.status(200);
         }
+
+        expect(total, 'Total Commmands').eq(_outer * _inner);
+
+        for (let p = 1; p <= TestServer.TEST_CONFIG_SERVER.length; p++) {
+          const res = await chai.request(`http://${ipHTTP}:17${p}69`).get('/status');
+          expect(res.body.status, 'Status').eq(1);
+        }
+
         resolve();
-      }, 20000);
+      }, 50000);
     });
   }
 }

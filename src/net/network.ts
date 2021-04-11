@@ -62,7 +62,6 @@ interface Peer {
 }
 
 export class Network {
-  private readonly validation: Validation;
   private readonly blockchain: Blockchain;
   private readonly wallet: Wallet;
   private readonly identity: string;
@@ -91,7 +90,7 @@ export class Network {
       throw new Error(`Invalid identity ${this.identity}`);
     }
 
-    this.validation = new Validation();
+    Validation.init();
     this.blockchain = blockchain;
 
     // init Ack of complete known network
@@ -118,7 +117,6 @@ export class Network {
       port: this.port,
       clientTracking: false,
       perMessageDeflate: true,
-      maxPayload: 64 * 1024, // 64KByte
     });
 
     // incoming connection
@@ -212,25 +210,19 @@ export class Network {
   processMessage(message: Buffer | string, publicKeyPeer: string = '', retry: number = 0) {
     const m = new Message(message);
     const ident = m.ident();
-    const type = m.type();
-    const origin = m.origin();
 
-    try {
-      this.validation.validateMessage(m);
-    } catch (error) {
-      //@FIXME logging
-      Logger.trace(error);
-      this.stopGossip(ident);
-      throw new Error(error);
+    if (!Validation.validateMessage(m)) {
+      return this.stopGossip(ident);
     }
 
     // populate Ack array
+    const origin = m.origin();
     publicKeyPeer && !this.mapGossip[publicKeyPeer].includes(ident) && this.mapGossip[publicKeyPeer].push(ident);
     origin && !this.mapGossip[origin].includes(ident) && this.mapGossip[origin].push(ident);
 
     // process message handler callback
     if (this._onMessage) {
-      this._onMessage(type, message);
+      this._onMessage(m.type(), message);
     }
 
     // broadcasting / gossip
@@ -244,7 +236,7 @@ export class Network {
     }
   }
 
-  private broadcast(m: Message) {
+  private broadcast(m: Message): boolean {
     const ident = m.ident();
     const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter((_pk) => {
       return _pk !== this.identity && !this.mapGossip[_pk].includes(ident);
@@ -310,12 +302,7 @@ export class Network {
       clearTimeout(timeout);
 
       const mA = new Auth(message);
-      try {
-        this.validation.validateMessage(mA);
-        mA.isValid(challenge, publicKeyPeer);
-      } catch (error) {
-        //@FIXME logging
-        Logger.trace(error);
+      if (!Validation.validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
@@ -379,7 +366,6 @@ export class Network {
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
       perMessageDeflate: true,
-      maxPayload: 64 * 1024, // 64KByte
       headers: {
         'diva-identity': this.identity,
         'diva-origin': this.networkPeers[this.identity].host + ':' + this.networkPeers[this.identity].port,
@@ -405,12 +391,7 @@ export class Network {
     });
     ws.once('message', (message: Buffer) => {
       const mC = new Challenge(message);
-      try {
-        this.validation.validateMessage(mC);
-        mC.isValid();
-      } catch (error) {
-        //@FIXME logging
-        Logger.trace(error);
+      if (!Validation.validateMessage(mC) || !mC.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
       Network.send(ws, new Auth().create(this.wallet.sign(mC.getChallenge())).pack());

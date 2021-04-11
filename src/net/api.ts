@@ -19,7 +19,7 @@
 
 import { Logger } from '../logger';
 import { Server } from './server';
-import {ArrayComand, Transaction, TransactionStruct} from '../chain/transaction';
+import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Wallet } from '../chain/wallet';
 
 export class Api {
@@ -125,17 +125,18 @@ export class Api {
       method: 'PUT',
       path: '/transaction/{ident?}',
       handler: async (request, h) => {
-        //@FIXME loggging
-        Logger.trace(request.payload as ArrayComand);
-
         const t: TransactionStruct = new Transaction(
           this.wallet,
           request.payload as ArrayComand,
           request.params.ident
         ).get();
-        this.server.transactionPool.addOwn(t, this.wallet);
-        this.server.createProposal();
-        return h.response(t);
+
+        if (this.server.transactionPool.addOwn(t, this.wallet)) {
+          this.server.createProposal();
+          return h.response(t);
+        } else {
+          return h.response().code(403);
+        }
       },
     });
 

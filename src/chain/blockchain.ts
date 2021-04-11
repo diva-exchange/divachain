@@ -31,11 +31,13 @@ export class Blockchain {
   private height: number;
   private db: InstanceType<typeof LevelUp>;
   private blocks: Array<BlockStruct> = [];
+  private hashes: Array<string> = [];
 
   constructor(publicKey: string) {
     this.publicKey = publicKey;
     this.height = 1;
-    this.blocks[this.height - 1] = Blockchain.genesis();
+    this.blocks.push(Blockchain.genesis());
+    this.hashes.push(Blockchain.genesis().hash);
 
     this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', this.publicKey)), {
       createIfMissing: true,
@@ -47,7 +49,7 @@ export class Blockchain {
 
   async init(): Promise<void> {
     this.db.get(1).catch(() => {
-      this.db.put(this.height, JSON.stringify(this.blocks[this.height - 1]));
+      this.db.put(this.height, JSON.stringify(Blockchain.genesis()));
     });
 
     return new Promise((resolve, reject) => {
@@ -55,10 +57,10 @@ export class Blockchain {
         .createReadStream()
         .on('data', (data) => {
           const k = Number(data.key);
-          this.blocks[k - 1] = JSON.parse(data.value) as BlockStruct;
-          if (k > this.height) {
-            this.height = k;
-          }
+          const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
+          this.blocks[k - 1] = b;
+          this.hashes[k - 1] = b.hash;
+          this.height > k || (this.height = k);
         })
         .on('end', resolve)
         .on('error', reject);
@@ -70,64 +72,67 @@ export class Blockchain {
   }
 
   isValid(block: BlockStruct): boolean {
-    //@FIXME loggging
-    Logger.trace(this.blocks[this.height - 1]);
-    Logger.trace(block);
     return (
       this.height + 1 === block.height &&
-      block.previousHash === this.blocks[this.height - 1].hash &&
+      block.previousHash === this.hashes[this.height - 1] &&
       block.hash === Blockchain.hashBlock(block) &&
+      !this.hashes.includes(block.hash) &&
       Blockchain.verifyBlock(block)
     );
   }
 
-  async add(block: BlockStruct) {
+  async add(block: BlockStruct): Promise<boolean> {
     if (!this.isValid(block)) {
-      throw new Error('Invalid block');
+      return false;
     }
-    this.blocks.push(block);
     this.height = block.height;
-    await this.db.put(block.height, JSON.stringify(block));
+    this.blocks.push(block);
+    this.hashes.push(block.hash);
+    await this.db.put(this.height, JSON.stringify(block));
+    //@FIXME logging
+    Logger.trace('Block added: ' + block.hash);
+    return true;
   }
 
   //@FIXME limit: -1, might become a very large array
   async get(limit: number = -1): Promise<Array<BlockStruct>> {
-    const lmt: number = Number(limit) > 0 ? Number(limit) : -1;
-    if (lmt > 0 && this.blocks.length < lmt) {
-      return [...this.blocks].reverse().slice(0, lmt);
-    } else if (lmt === -1 && this.blocks.length === this.height) {
-      return [...this.blocks].reverse();
-    }
-
-    // fallback disk
-    const a: Map<number, BlockStruct> = new Map();
     return new Promise((resolve, reject) => {
+      // in memory
+      const lmt: number = Number(limit) > 0 ? Number(limit) : -1;
+      if (lmt > 0 && this.blocks.length >= lmt) {
+        resolve([...this.blocks.slice(lmt * -1)].reverse());
+      } else if (lmt === -1 && this.blocks.length === this.height) {
+        resolve([...this.blocks].reverse());
+      }
+
+      // fallback, read from disk
+      const a: Array<BlockStruct> = [];
       this.db
         .createReadStream(lmt > 0 ? { reverse: true, limit: lmt } : {})
         .on('data', (data) => {
-          a.set(Number(data.key), JSON.parse(data.value) as BlockStruct);
+          a.push(JSON.parse(data.value) as BlockStruct);
         })
         .on('end', () => {
-          resolve(Array.from(a.values()));
+          resolve(a);
         })
         .on('error', reject);
     });
   }
 
   async getTransaction(origin: string, ident: string): Promise<TransactionStruct> {
-    // in memory
-    for (const b of this.blocks) {
-      const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
-      if (t) {
-        return Promise.resolve(t);
-      }
-    }
-    if (this.blocks.length === this.height) {
-      return Promise.reject(new Error('not found'));
-    }
-
-    // fallback disk
     return new Promise((resolve, reject) => {
+      // in memory
+      for (const b of this.blocks) {
+        const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+        if (t) {
+          resolve(t);
+        }
+      }
+      if (this.blocks.length === this.height) {
+        reject(new Error('Not found'));
+      }
+
+      // fallback, search on disk
       this.db
         .createReadStream()
         .on('data', (data) => {
@@ -136,8 +141,7 @@ export class Blockchain {
           t && resolve(t);
         })
         .on('end', () => {
-          //@FIXME
-          reject(new Error('not found'));
+          reject(new Error('Not found'));
         })
         .on('error', reject);
     });
@@ -158,19 +162,25 @@ export class Blockchain {
 
   private static verifyBlock(block: BlockStruct): boolean {
     const arrayOrigin: Array<string> = [];
-    for (const t of block.tx) {
-      if (arrayOrigin.includes(t.origin)) {
-        //@FIXME logging
-        Logger.trace(`!! Block invalid: double origin ${t.origin}`);
-        return false;
+    try {
+      for (const t of block.tx) {
+        if (arrayOrigin.includes(t.origin)) {
+          //@FIXME logging
+          Logger.trace(`!! Block invalid: double origin ${t.origin}`);
+          return false;
+        }
+        arrayOrigin.push(t.origin);
+        if (!Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands))) {
+          //@FIXME logging
+          Logger.trace(`!! Block invalid: invalid signature ${t.origin}`);
+          return false;
+        }
       }
-      arrayOrigin.push(t.origin);
-      if (!Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands))) {
-        //@FIXME logging
-        Logger.trace(`!! Block invalid: invalid signature ${t.origin}`);
-        return false;
-      }
+      return true;
+    } catch (error) {
+      //@FIXME logging
+      Logger.trace(error);
+      return false;
     }
-    return true;
   }
 }

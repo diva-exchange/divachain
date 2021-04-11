@@ -31,9 +31,7 @@ export class Auth extends Message {
     return this;
   }
 
-  isValid(challenge: string, publicKey: string) {
-    if (this.message.type !== Message.TYPE_AUTH || !Util.verifySignature(publicKey, this.message.data, challenge)) {
-      throw new Error('Auth invalid');
-    }
+  isValid(challenge: string, publicKey: string): boolean {
+    return this.message.type === Message.TYPE_AUTH && Util.verifySignature(publicKey, this.message.data, challenge);
   }
 }

@@ -34,7 +34,6 @@ import { BlockStruct } from '../../src/chain/block';
 @suite
 class TestValidation {
   private static wallet: Wallet;
-  private validation: Validation = {} as Validation;
 
   @slow(200)
   static before() {
@@ -46,21 +45,16 @@ class TestValidation {
     TestValidation.wallet.close();
   }
 
-  @slow(100)
-  before() {
-    this.validation = new Validation();
-  }
-
   @test
   validateAuth() {
     const m = new Auth().create(TestValidation.wallet.sign('test'));
-    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
+    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
   validateChallenge() {
     const m = new Challenge().create(nanoid(26));
-    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
+    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
@@ -71,7 +65,7 @@ class TestValidation {
       block: block,
       sig: TestValidation.wallet.sign(block.hash),
     });
-    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
+    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
@@ -83,7 +77,7 @@ class TestValidation {
       sig: TestValidation.wallet.sign(structBlock.hash),
     };
     const m = new Vote().create(structVote);
-    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
+    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
@@ -101,6 +95,6 @@ class TestValidation {
       votes: arrayVotes,
       sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(arrayVotes)),
     });
-    expect(this.validation.isValidMessage(new Message(m.pack()))).to.be.true;
+    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 }

@@ -20,11 +20,14 @@
 import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
 import { BlockStruct } from '../chain/block';
+import { Logger } from '../logger';
+import { TransactionStruct } from '../chain/transaction';
 
 export class Validation {
-  private readonly ajvMessage: ValidateFunction;
+  private static message: ValidateFunction;
+  private static tx: ValidateFunction;
 
-  constructor() {
+  static init() {
     const schemaMessage: JSONSchemaType<MessageStruct> = require('../../schema/message/message.json');
     const schemaAuth: JSONSchemaType<MessageStruct> = require('../../schema/message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require('../../schema/message/challenge.json');
@@ -40,8 +43,7 @@ export class Validation {
     //@TODO
     const schemaTestLoad: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/testLoad.json');
 
-    this.ajvMessage = new Ajv({
-      verbose: false,
+    Validation.message = new Ajv({
       schemas: [
         schemaAuth,
         schemaChallenge,
@@ -56,21 +58,46 @@ export class Validation {
         schemaTestLoad,
       ],
     }).compile(schemaMessage);
+
+    Validation.tx = new Ajv({
+      schemas: [schemaAddPeer, schemaRemovePeer, schemaTestLoad],
+    }).compile(schemaTx);
   }
 
-  validateMessage(m: Message) {
+  static validateMessage(m: Message): boolean {
+    if (!Validation.message) {
+      Validation.init();
+    }
+
     switch (m.type()) {
       case Message.TYPE_CHALLENGE:
       case Message.TYPE_AUTH:
       case Message.TYPE_PROPOSAL:
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
-        if (!this.ajvMessage(m.getMessage())) {
-          throw this.ajvMessage.errors;
+        if (!Validation.message(m.getMessage())) {
+          //@FIXME logging
+          Logger.trace(Validation.message.errors as object);
+          return false;
         }
         break;
       default:
-        throw new Error('Unknown message');
+        Logger.error('Unknown message type');
+        return false;
     }
+    return true;
+  }
+
+  static validateTx(tx: TransactionStruct): boolean {
+    if (!Validation.tx) {
+      Validation.init();
+    }
+
+    if (!Validation.tx(tx)) {
+      //@FIXME logging
+      Logger.trace(Validation.tx.errors as object);
+      return false;
+    }
+    return true;
   }
 }
