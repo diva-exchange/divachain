@@ -17,36 +17,30 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Util } from '../chain/util';
 import { VoteStruct } from '../net/message/vote';
 import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
-  private list: Array<{ origin: string; sig: string }> = [];
+  private mapVotes: Map<string, Array<{ origin: string; sig: string }>> = new Map();
 
-  add(vote: VoteStruct) {
-    !this.list.some((_v) => _v.origin === vote.origin) &&
-      VotePool.isValid(vote) &&
-      this.list.push({ origin: vote.origin, sig: vote.sig });
-  }
-
-  accepted(): boolean {
-    return this.list.length >= MIN_APPROVALS;
-  }
-
-  get(): Array<{ origin: string; sig: string }> {
-    return this.list.sort((a, b) => (a.origin > b.origin ? 1 : -1));
-  }
-
-  clear() {
-    this.list = [];
-  }
-
-  private static isValid(vote: VoteStruct): boolean {
-    try {
-      return Util.verifySignature(vote.origin, vote.sig, vote.hash);
-    } catch (error) {
+  add(vote: VoteStruct): boolean {
+    const aVotes = this.mapVotes.get(vote.block.hash) || [];
+    if (aVotes.length >= MIN_APPROVALS) {
       return false;
     }
+    if (!aVotes.some((v) => v.origin === vote.origin)) {
+      aVotes.push({ origin: vote.origin, sig: vote.sig });
+      this.mapVotes.set(vote.block.hash, aVotes);
+      return (this.mapVotes.get(vote.block.hash) || []).length >= MIN_APPROVALS;
+    }
+    return false;
+  }
+
+  get(hash: string): Array<{ origin: string; sig: string }> {
+    return this.mapVotes.get(hash) || [];
+  }
+
+  getAll(): Array<any> {
+    return [...this.mapVotes.entries()];
   }
 }

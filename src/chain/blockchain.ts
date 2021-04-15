@@ -81,9 +81,11 @@ export class Blockchain {
     );
   }
 
-  async add(block: BlockStruct): Promise<boolean> {
+  async add(block: BlockStruct): Promise<void> {
     if (!this.isValid(block)) {
-      return false;
+      throw new Error(
+        `Blockchain.add(): failed to add block ${block.hash}, height ${block.height} === ${this.height + 1} ?`
+      );
     }
     this.height = block.height;
     this.blocks.push(block);
@@ -91,7 +93,6 @@ export class Blockchain {
     await this.db.put(this.height, JSON.stringify(block));
     //@FIXME logging
     Logger.trace('Block added: ' + block.hash);
-    return true;
   }
 
   //@FIXME limit: -1, might become a very large array
@@ -151,6 +152,10 @@ export class Blockchain {
     return this.blocks[this.height - 1];
   }
 
+  getHeight() {
+    return this.height;
+  }
+
   static genesis(): BlockStruct {
     return JSON.parse(fs.readFileSync(path.join(__dirname, '../../config/genesis.json')).toString());
   }
@@ -170,7 +175,7 @@ export class Blockchain {
           return false;
         }
         arrayOrigin.push(t.origin);
-        if (!Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands))) {
+        if (!Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))) {
           //@FIXME logging
           Logger.trace(`!! Block invalid: invalid signature ${t.origin}`);
           return false;

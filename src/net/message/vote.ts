@@ -18,10 +18,12 @@
  */
 
 import { Message } from './message';
+import { Util } from '../../chain/util';
+import { BlockStruct } from '../../chain/block';
 
 export type VoteStruct = {
   origin: string;
-  hash: string; // hash of the block
+  block: BlockStruct;
   sig: string;
 };
 
@@ -32,7 +34,7 @@ export class Vote extends Message {
 
   create(vote: VoteStruct): Vote {
     this.message.type = Message.TYPE_VOTE;
-    this.message.ident = this.message.type + vote.sig;
+    this.message.ident = this.message.type + vote.origin + vote.block.hash;
     this.message.data = vote;
     this.message.broadcast = true;
     return this;
@@ -40,5 +42,13 @@ export class Vote extends Message {
 
   get(): VoteStruct {
     return this.message.data as VoteStruct;
+  }
+
+  static isValid(vote: VoteStruct): boolean {
+    try {
+      return Util.verifySignature(vote.origin, vote.sig, vote.block.hash);
+    } catch (error) {
+      return false;
+    }
   }
 }

@@ -32,6 +32,7 @@
         ]
       },
       "minItems": 1,
+      "maxItems": 64,
       "uniqueItems": true
     },
     "sig": {

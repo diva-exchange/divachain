@@ -22,13 +22,7 @@
           "$ref": "challenge.json"
         },
         {
-          "$ref": "proposal.json"
-        },
-        {
           "$ref": "vote.json"
-        },
-        {
-          "$ref": "commit.json"
         }
       ]
     },

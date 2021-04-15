@@ -19,6 +19,8 @@
 
 import { Wallet } from './wallet';
 import { nanoid } from 'nanoid';
+import { Validation } from '../net/validation';
+import { Util } from './util';
 
 const MAX_LENGTH_IDENT = 32;
 
@@ -56,16 +58,29 @@ export class Transaction {
   private readonly structTransaction: TransactionStruct;
 
   constructor(wallet: Wallet, commands: ArrayComand, ident: string = '') {
+    const _ident = ident.length > 0 && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(8);
+    const _ts = Date.now();
     this.structTransaction = {
-      ident: ident.length > 0 && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(8),
+      ident: _ident,
       origin: wallet.getPublicKey(),
-      timestamp: Date.now(),
+      timestamp: _ts,
       commands: commands,
-      sig: wallet.sign(JSON.stringify(commands)),
+      sig: wallet.sign(_ident + _ts + JSON.stringify(commands)),
     };
   }
 
   get(): TransactionStruct {
     return this.structTransaction;
+  }
+
+  static isValid(t: TransactionStruct): boolean {
+    try {
+      return (
+        Validation.validateTx(t) &&
+        Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))
+      );
+    } catch (e) {
+      return false;
+    }
   }
 }

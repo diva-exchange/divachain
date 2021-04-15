@@ -8,9 +8,8 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "hash": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{43}$|^$"
+    "block": {
+      "$ref": "/schema/block/block.json"
     },
     "sig": {
       "type": "string",
@@ -19,7 +18,7 @@
   },
   "required": [
     "origin",
-    "hash",
+    "block",
     "sig"
   ],
   "additionalProperties": false

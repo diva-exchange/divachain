@@ -31,9 +31,7 @@ export class Validation {
     const schemaMessage: JSONSchemaType<MessageStruct> = require('../../schema/message/message.json');
     const schemaAuth: JSONSchemaType<MessageStruct> = require('../../schema/message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require('../../schema/message/challenge.json');
-    const schemaProposal: JSONSchemaType<MessageStruct> = require('../../schema/message/proposal.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require('../../schema/message/vote.json');
-    const schemaCommit: JSONSchemaType<MessageStruct> = require('../../schema/message/commit.json');
     const schemaBlock: JSONSchemaType<BlockStruct> = require('../../schema/block/block.json');
     const schemaVotes: JSONSchemaType<BlockStruct> = require('../../schema/block/votes.json');
     const schemaTx: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/tx.json');
@@ -47,9 +45,7 @@ export class Validation {
       schemas: [
         schemaAuth,
         schemaChallenge,
-        schemaProposal,
         schemaVote,
-        schemaCommit,
         schemaBlock,
         schemaVotes,
         schemaTx,
@@ -57,10 +53,12 @@ export class Validation {
         schemaRemovePeer,
         schemaTestLoad,
       ],
+      verbose: true,
     }).compile(schemaMessage);
 
     Validation.tx = new Ajv({
       schemas: [schemaAddPeer, schemaRemovePeer, schemaTestLoad],
+      verbose: true,
     }).compile(schemaTx);
   }
 
@@ -72,9 +70,9 @@ export class Validation {
     switch (m.type()) {
       case Message.TYPE_CHALLENGE:
       case Message.TYPE_AUTH:
-      case Message.TYPE_PROPOSAL:
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
+      case Message.TYPE_CONFIRM:
         if (!Validation.message(m.getMessage())) {
           //@FIXME logging
           Logger.trace(Validation.message.errors as object);

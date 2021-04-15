@@ -27,12 +27,12 @@ import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
 import { Network } from './network';
 import { Message } from './message/message';
-import { Proposal, ProposalStruct } from './message/proposal';
-import { Vote } from './message/vote';
+import { Vote, VoteStruct } from './message/vote';
 import { Commit } from './message/commit';
-import { VOTE_DELAY } from '../config';
 import { Api } from './api';
 import { TransactionStruct } from '../chain/transaction';
+import { CommitPool } from '../pool/commit-pool';
+import { Confirm } from './message/confirm';
 
 const VERSION = '0.1.0';
 
@@ -46,18 +46,13 @@ export type ConfigServer = {
 };
 
 export class Server {
-  static readonly STATUS_ACCEPTING = 1;
-  static readonly STATUS_VOTING = 2;
-  static readonly STATUS_COMMITTING = 3;
-  static readonly STATUS_OUT_OF_SYNC = 9;
-
   public readonly httpServer: Hapi.Server;
   public readonly network: Network;
   public readonly blockchain: Blockchain;
   public readonly transactionPool: TransactionPool;
-  public readonly votePool: VotePool;
   public readonly blockPool: BlockPool;
-  public status: number;
+  public readonly votePool: VotePool;
+  public readonly commitPool: CommitPool;
 
   private readonly config: ConfigServer;
   private readonly wallet: Wallet;
@@ -69,9 +64,10 @@ export class Server {
 
     this.wallet = new Wallet(this.config.secret);
     this.blockchain = new Blockchain(this.wallet.getPublicKey());
-    this.transactionPool = new TransactionPool();
+    this.transactionPool = new TransactionPool(this.wallet);
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
+    this.commitPool = new CommitPool();
 
     this.network = new Network(
       {
@@ -91,8 +87,6 @@ export class Server {
       port: this.config.http_port,
     });
 
-    this.status = Server.STATUS_OUT_OF_SYNC;
-
     this.api = new Api(this, this.wallet);
   }
 
@@ -108,8 +102,6 @@ export class Server {
       Logger.info(`HTTP Server (${VERSION}) on ${this.config.http_ip}:${this.config.http_port} closed`);
     });
 
-    this.status = Server.STATUS_ACCEPTING;
-
     return this;
   }
 
@@ -124,128 +116,148 @@ export class Server {
     }
   }
 
-  createProposal() {
-    const t: Array<TransactionStruct> = this.transactionPool.get();
-    if (!t.length) {
+  stackTransaction(t: TransactionStruct): boolean {
+    if (!this.transactionPool.stack(t)) {
+      return false;
+    }
+
+    setTimeout(() => {
+      this.createProposal();
+    }, 1);
+    return true;
+  }
+
+  private createProposal() {
+    if (!this.transactionPool.release()) {
       return;
     }
 
-    const structBlock: BlockStruct = new Block(this.blockchain.getLatestBlock(), t).get();
-    if (structBlock.hash === this.blockPool.get().hash) {
-      return;
-    }
+    const newBlock: BlockStruct = new Block(
+      this.blockchain.getLatestBlock(),
+      this.transactionPool.get().concat(this.transactionPool.getInTransit())
+    ).get();
+    this.blockPool.set(newBlock);
 
-    this.network.processMessage(
-      new Proposal()
-        .create({
-          origin: this.wallet.getPublicKey(),
-          block: structBlock,
-          sig: this.wallet.sign(structBlock.hash),
-        })
-        .pack()
-    );
-  }
-
-  private processProposal(proposal: Proposal) {
-    const p: ProposalStruct = proposal.get();
-    // invalid Block proposal
-    if (!this.blockchain.isValid(p.block)) {
-      return this.network.stopGossip(proposal.ident());
-    }
-    this.status = Server.STATUS_VOTING;
-
-    const arrayTx = this.blockPool.get().tx || [];
-
-    if (this.transactionPool.add(p.block.tx)) {
-      // instruct the network to not further propagate the old proposal
-      this.network.stopGossip(proposal.ident());
-
-      const updatedBlock = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get());
-
-      this.network.processMessage(
-        new Proposal()
-          .create({
-            origin: this.wallet.getPublicKey(),
-            block: updatedBlock.get(),
-            sig: this.wallet.sign(updatedBlock.get().hash),
-          })
-          .pack()
-      );
-    } else if (arrayTx.length < p.block.tx.length) {
-      this.blockPool.set(p.block);
-      const ident = proposal.ident();
-      setTimeout(() => {
-        this.doVote(ident, p.block.hash);
-      }, VOTE_DELAY);
-    } else {
-      this.network.stopGossip(proposal.ident());
-    }
-  }
-
-  private doVote(ident: string, hash: string) {
-    if (this.blockPool.get().hash !== hash) {
-      return this.network.stopGossip(ident);
-    }
-
-    const vote = new Vote().create({
-      origin: this.wallet.getPublicKey(),
-      hash: hash,
-      sig: this.wallet.sign(hash),
-    });
-    this.network.processMessage(vote.pack());
+    // vote for the best available version
+    this.doVote(newBlock);
   }
 
   private processVote(vote: Vote) {
     const v = vote.get();
-    const b: BlockStruct = this.blockPool.get();
-    if (b.hash !== v.hash) {
+    if (!Vote.isValid(v) || !this.blockchain.isValid(v.block)) {
       return this.network.stopGossip(vote.ident());
     }
 
-    this.votePool.add(v);
-
-    if (this.votePool.accepted()) {
-      this.status = Server.STATUS_COMMITTING;
-
-      const votes = this.votePool.get();
-
-      const commit = new Commit().create({
-        origin: this.wallet.getPublicKey(),
-        block: b,
-        votes: votes,
-        sig: this.wallet.sign(b.hash + JSON.stringify(votes)),
-      });
-      this.network.processMessage(commit.pack());
+    if (v.block.hash === this.blockPool.get().hash) {
+      if (this.votePool.add(v)) {
+        v.block.votes = this.votePool.get(v.block.hash);
+        this.network.processMessage(
+          new Commit()
+            .create({
+              origin: this.wallet.getPublicKey(),
+              block: v.block,
+              sig: this.wallet.sign(v.block.hash + JSON.stringify(v.block.votes)),
+            })
+            .pack()
+        );
+      }
+      return;
     }
+
+    if (!this.transactionPool.add(v.block.tx)) {
+      return this.network.stopGossip(vote.ident());
+    }
+
+    const newBlock = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get()).get();
+    this.blockPool.set(newBlock);
+
+    // vote for the best available version
+    this.doVote(newBlock);
   }
 
-  private async processCommit(commit: Commit) {
-    const c = commit.get();
-    c.block.votes = c.votes;
-    if (!Commit.isValid(c) || !(await this.blockchain.add(c.block))) {
+  private doVote(block: BlockStruct) {
+    // vote for the best available version
+    setTimeout(() => {
+      this.network.processMessage(
+        new Vote()
+          .create({
+            origin: this.wallet.getPublicKey(),
+            block: block,
+            sig: this.wallet.sign(block.hash),
+          })
+          .pack()
+      );
+    }, 1);
+  }
+
+  private processCommit(commit: Commit) {
+    const c: VoteStruct = commit.get();
+    if (this.blockchain.getHeight() >= c.block.height) {
+      return;
+    }
+
+    if (!Commit.isValid(c)) {
+      //@FIXME logging
+      Logger.trace(`processCommit(): invalid commit ${commit.ident()}`);
       return this.network.stopGossip(commit.ident());
     }
-    this.clearPools();
-    this.status = Server.STATUS_ACCEPTING;
-    this.createProposal();
+
+    if (!this.commitPool.add(c)) {
+      return;
+    }
+
+    const blockAccepted: BlockStruct | false = this.commitPool.accepted();
+    if (blockAccepted) {
+      this.network.processMessage(
+        new Confirm()
+          .create({
+            origin: this.wallet.getPublicKey(),
+            block: blockAccepted,
+            sig: this.wallet.sign(blockAccepted.hash + JSON.stringify(blockAccepted.votes)),
+          })
+          .pack()
+      );
+    }
   }
 
-  private clearPools() {
-    this.blockPool.clear();
-    this.votePool.clear();
-    this.transactionPool.clear();
+  private processConfirm(confirm: Confirm) {
+    const c: VoteStruct = confirm.get();
+    if (this.blockchain.getHeight() >= c.block.height) {
+      return;
+    }
+
+    if (!Commit.isValid(c)) {
+      //@FIXME logging
+      Logger.trace(`processConfirm(): invalid commit ${confirm.ident()}`);
+      return this.network.stopGossip(confirm.ident());
+    }
+
+    this.blockchain.add(c.block).then(() => {
+      this.commitPool.clear(c.block);
+      this.blockPool.clear();
+      this.transactionPool.clear(c.block);
+
+      const nextBlock = this.commitPool.best();
+      if (c.block.height + 1 === nextBlock.height) {
+        this.transactionPool.add(nextBlock.tx);
+      }
+      // if there should be another transaction on the stack: release and process it!
+      setTimeout(() => {
+        this.createProposal();
+      }, 1);
+    });
   }
 
   private async onMessage(type: number, message: Buffer | string) {
     switch (type) {
-      case Message.TYPE_PROPOSAL:
-        this.processProposal(new Proposal(message));
-        break;
       case Message.TYPE_VOTE:
         this.processVote(new Vote(message));
         break;
       case Message.TYPE_COMMIT:
-        await this.processCommit(new Commit(message));
+        this.processCommit(new Commit(message));
+        break;
+      case Message.TYPE_CONFIRM:
+        this.processConfirm(new Confirm(message));
         break;
       default:
         throw new Error('Invalid message type');

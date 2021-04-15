@@ -43,14 +43,6 @@ export class Api {
 
     this.server.httpServer.route({
       method: 'GET',
-      path: '/status',
-      handler: (request, h) => {
-        return h.response({ status: this.server.status });
-      },
-    });
-
-    this.server.httpServer.route({
-      method: 'GET',
       path: '/peers',
       handler: (request, h) => {
         return h.response(this.server.network.peers());
@@ -83,6 +75,14 @@ export class Api {
 
     this.server.httpServer.route({
       method: 'GET',
+      path: '/stack/transactions',
+      handler: (request, h) => {
+        return h.response(this.server.transactionPool.getStack());
+      },
+    });
+
+    this.server.httpServer.route({
+      method: 'GET',
       path: '/pool/transactions',
       handler: (request, h) => {
         return h.response(this.server.transactionPool.get());
@@ -91,17 +91,25 @@ export class Api {
 
     this.server.httpServer.route({
       method: 'GET',
-      path: '/pool/votes',
+      path: '/pool/blocks',
       handler: (request, h) => {
-        return h.response(this.server.votePool.get());
+        return h.response(this.server.blockPool.get());
       },
     });
 
     this.server.httpServer.route({
       method: 'GET',
-      path: '/pool/blocks',
+      path: '/pool/votes',
       handler: (request, h) => {
-        return h.response(this.server.blockPool.get());
+        return h.response(this.server.votePool.getAll());
+      },
+    });
+
+    this.server.httpServer.route({
+      method: 'GET',
+      path: '/pool/commits',
+      handler: (request, h) => {
+        return h.response(this.server.commitPool.get());
       },
     });
 
@@ -131,8 +139,7 @@ export class Api {
           request.params.ident
         ).get();
 
-        if (this.server.transactionPool.addOwn(t, this.wallet)) {
-          this.server.createProposal();
+        if (this.server.stackTransaction(t)) {
           return h.response(t);
         } else {
           return h.response().code(403);

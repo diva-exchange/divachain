@@ -56,5 +56,8 @@ export const CONFIG_SERVER: ConfigServer = {
   http_port: Number(process.env.HTTP_PORT) || 17169,
 };
 
-export const VOTE_DELAY = 1000; // 1 sec
+export const VOTE_DELAY = 1000; // 1000ms
 export const MIN_APPROVALS = 2 * (Object.keys(CONFIG_SERVER.p2p_network).length / 3); // PBFT
+
+//network config
+export const PER_MESSAGE_DEFLATE = true;

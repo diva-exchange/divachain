@@ -27,6 +27,7 @@ import WebSocket from 'ws';
 import { Wallet } from '../chain/wallet';
 import { Blockchain } from '../chain/blockchain';
 import { Validation } from './validation';
+import { PER_MESSAGE_DEFLATE } from '../config';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.20.101.201';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -93,9 +94,9 @@ export class Network {
     Validation.init();
     this.blockchain = blockchain;
 
-    // init Ack of complete known network
+    // init Gossipping map of complete known network
     Object.keys(this.networkPeers).forEach((_pk) => {
-      this.mapGossip[_pk] = [];
+      _pk !== this.identity && (this.mapGossip[_pk] = []);
     });
 
     //@FIXME testing subnet
@@ -116,7 +117,7 @@ export class Network {
       host: this.ip,
       port: this.port,
       clientTracking: false,
-      perMessageDeflate: true,
+      perMessageDeflate: PER_MESSAGE_DEFLATE,
     });
 
     // incoming connection
@@ -215,10 +216,14 @@ export class Network {
       return this.stopGossip(ident);
     }
 
-    // populate Ack array
+    // populate Gossiping map
+    if (publicKeyPeer && publicKeyPeer !== this.identity && !this.mapGossip[publicKeyPeer].includes(ident)) {
+      this.mapGossip[publicKeyPeer].push(ident);
+    }
     const origin = m.origin();
-    publicKeyPeer && !this.mapGossip[publicKeyPeer].includes(ident) && this.mapGossip[publicKeyPeer].push(ident);
-    origin && !this.mapGossip[origin].includes(ident) && this.mapGossip[origin].push(ident);
+    if (origin && origin !== this.identity && !this.mapGossip[origin].includes(ident)) {
+      this.mapGossip[origin].push(ident);
+    }
 
     // process message handler callback
     if (this._onMessage) {
@@ -228,10 +233,13 @@ export class Network {
     // broadcasting / gossip
     if (m.isBroadcast() && !this.broadcast(m)) {
       retry = retry > 0 ? retry : 0;
-      if (retry < 3) {
+      if (retry < 50) {
         setTimeout(() => {
           this.processMessage(message, publicKeyPeer, retry + 1);
-        }, (retry + 1) * 1000);
+        }, (retry + 1) * 250);
+      } else {
+        //@FIXME logging
+        Logger.trace('!! Retry timed out');
       }
     }
   }
@@ -365,7 +373,7 @@ export class Network {
     const address = 'ws://' + this.networkPeers[publicKeyPeer].host + ':' + this.networkPeers[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: true,
+      perMessageDeflate: PER_MESSAGE_DEFLATE,
       headers: {
         'diva-identity': this.identity,
         'diva-origin': this.networkPeers[this.identity].host + ':' + this.networkPeers[this.identity].port,

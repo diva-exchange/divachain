@@ -18,28 +18,22 @@
  */
 
 import { Message } from './message';
-import { BlockStruct } from '../../chain/block';
+import { VoteStruct } from './vote';
 
-export type ProposalStruct = {
-  origin: string;
-  block: BlockStruct;
-  sig: string;
-};
-
-export class Proposal extends Message {
+export class Confirm extends Message {
   constructor(message?: Buffer | string) {
     super(message);
   }
 
-  create(proposal: ProposalStruct): Proposal {
-    this.message.type = Message.TYPE_PROPOSAL;
-    this.message.ident = this.message.type + proposal.block.hash;
-    this.message.data = proposal;
+  create(confirm: VoteStruct): Confirm {
+    this.message.type = Message.TYPE_CONFIRM;
+    this.message.ident = this.message.type + confirm.block.hash;
+    this.message.data = confirm;
     this.message.broadcast = true;
     return this;
   }
 
-  get(): ProposalStruct {
-    return this.message.data as ProposalStruct;
+  get(): VoteStruct {
+    return this.message.data as VoteStruct;
   }
 }

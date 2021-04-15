@@ -35,9 +35,9 @@ export class Message {
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;
-  static readonly TYPE_PROPOSAL = 3;
-  static readonly TYPE_VOTE = 4;
-  static readonly TYPE_COMMIT = 5;
+  static readonly TYPE_VOTE = 3;
+  static readonly TYPE_COMMIT = 4;
+  static readonly TYPE_CONFIRM = 5;
 
   protected message: MessageStruct = {} as MessageStruct;
 

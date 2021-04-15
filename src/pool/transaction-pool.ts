@@ -20,39 +20,49 @@
 'use strict';
 
 import { Transaction, TransactionStruct } from '../chain/transaction';
-import { Util } from '../chain/util';
 import { Wallet } from '../chain/wallet';
-import { Validation } from '../net/validation';
+import { BlockStruct } from '../chain/block';
 
 export class TransactionPool {
-  private current: Array<TransactionStruct> = [];
-  private next: TransactionStruct = {} as TransactionStruct;
+  private readonly wallet: Wallet;
+  private readonly publicKey: string;
 
-  addOwn(t: TransactionStruct, wallet: Wallet): boolean {
-    if (!TransactionPool.isValid(t)) {
+  private stackTransaction: Array<TransactionStruct> = [];
+  private inTransit: TransactionStruct = {} as TransactionStruct;
+
+  private current: Map<string, TransactionStruct> = new Map();
+
+  constructor(wallet: Wallet) {
+    this.wallet = wallet;
+    this.publicKey = this.wallet.getPublicKey();
+  }
+
+  stack(t: TransactionStruct): boolean {
+    return t.origin === this.publicKey && Transaction.isValid(t) && this.stackTransaction.push(t) > 0;
+  }
+
+  getStack() {
+    return this.stackTransaction;
+  }
+
+  release(): boolean {
+    if (this.inTransit.timestamp) {
       return false;
     }
-    const _pk = wallet.getPublicKey();
-    if (this.current.some((_t) => _t.origin === _pk)) {
-      this.next = new Transaction(
-        wallet,
-        (this.next.commands || []).concat(t.commands),
-        this.next.ident || t.ident
-      ).get();
-      t.ident = this.next.ident;
-      t.timestamp = this.next.timestamp;
-      t.commands = this.next.commands;
-    } else {
-      this.current.push(t);
-    }
-    return true;
+    this.inTransit = this.stackTransaction.shift() || ({} as TransactionStruct);
+    return this.inTransit.timestamp > 0;
+  }
+
+  getInTransit() {
+    return this.inTransit;
   }
 
   add(arrayT: Array<TransactionStruct>): boolean {
     let r = false;
     arrayT.forEach((t) => {
-      if (!this.current.some((_t) => _t.origin === t.origin) && TransactionPool.isValid(t)) {
-        this.current.push(t);
+      // Per block (=round), each origin can only once add a TransactionStruct to the pool
+      if (!this.current.has(t.origin) && Transaction.isValid(t)) {
+        this.current.set(t.origin, t);
         r = true;
       }
     });
@@ -60,19 +70,17 @@ export class TransactionPool {
   }
 
   get(): Array<TransactionStruct> {
-    return this.current;
+    return Array.from(this.current.values());
   }
 
-  clear() {
-    this.current = this.next.timestamp ? [this.next] : [];
-    this.next = {} as TransactionStruct;
-  }
-
-  private static isValid(t: TransactionStruct): boolean {
-    try {
-      return Validation.validateTx(t) && Util.verifySignature(t.origin, t.sig, JSON.stringify(t.commands));
-    } catch (e) {
-      return false;
+  clear(block: BlockStruct) {
+    this.current = new Map();
+    const hasTx = block.tx.some((t) => {
+      return t.origin === this.inTransit.origin && t.sig === this.inTransit.sig;
+    });
+    if (!hasTx) {
+      this.stackTransaction.unshift(this.inTransit);
     }
+    this.inTransit = {} as TransactionStruct;
   }
 }

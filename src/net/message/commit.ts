@@ -20,21 +20,15 @@
 import { Message } from './message';
 import { Util } from '../../chain/util';
 import { MIN_APPROVALS } from '../../config';
-import { BlockStruct } from '../../chain/block';
-
-export type CommitStruct = {
-  origin: string;
-  block: BlockStruct;
-  votes: Array<{ origin: string; sig: string }>;
-  sig: string;
-};
+import { Logger } from '../../logger';
+import { VoteStruct } from './vote';
 
 export class Commit extends Message {
   constructor(message?: Buffer | string) {
     super(message);
   }
 
-  create(commit: CommitStruct): Commit {
+  create(commit: VoteStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
     this.message.ident = this.message.type + commit.block.hash;
     this.message.data = commit;
@@ -42,16 +36,23 @@ export class Commit extends Message {
     return this;
   }
 
-  get(): CommitStruct {
-    return this.message.data as CommitStruct;
+  get(): VoteStruct {
+    return this.message.data as VoteStruct;
   }
 
-  static isValid(c: CommitStruct): boolean {
+  static isValid(c: VoteStruct): boolean {
     try {
-      return (
-        c.votes.length >= MIN_APPROVALS && Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.votes))
-      );
+      let _a: Array<{ origin: string; sig: string }> = [];
+      if (
+        c.block.votes.length >= MIN_APPROVALS &&
+        Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.block.votes))
+      ) {
+        _a = c.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, c.block.hash));
+      }
+      return _a.length >= MIN_APPROVALS && _a.length === c.block.votes.length;
     } catch (error) {
+      //@FIXME logging
+      Logger.trace(`Commit.isValid Exception: ${error}`);
       return false;
     }
   }
