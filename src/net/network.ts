@@ -99,6 +99,7 @@ export class Network {
       _pk !== this.identity && (this.mapGossip[_pk] = []);
     });
 
+    /*
     //@FIXME testing subnet
     const a = Object.keys(this.networkPeers);
     let i = 0;
@@ -109,6 +110,7 @@ export class Network {
         i++;
       }
     }
+    */
 
     Logger.info(`Identity: ${this.identity}`);
     Logger.info(`Network: ${JSON.stringify(this.networkPeers)}`);

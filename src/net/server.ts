@@ -121,9 +121,9 @@ export class Server {
       return false;
     }
 
-    setTimeout(() => {
+    setImmediate(() => {
       this.createProposal();
-    }, 1);
+    });
     return true;
   }
 
@@ -144,8 +144,11 @@ export class Server {
 
   private processVote(vote: Vote) {
     const v = vote.get();
-    if (!Vote.isValid(v) || !this.blockchain.isValid(v.block)) {
+    if (!Vote.isValid(v)) {
       return this.network.stopGossip(vote.ident());
+    }
+    if (this.blockchain.getHeight() + 1 !== v.block.height) {
+      return;
     }
 
     if (v.block.hash === this.blockPool.get().hash) {
@@ -177,7 +180,7 @@ export class Server {
 
   private doVote(block: BlockStruct) {
     // vote for the best available version
-    setTimeout(() => {
+    setImmediate(() => {
       this.network.processMessage(
         new Vote()
           .create({
@@ -187,7 +190,7 @@ export class Server {
           })
           .pack()
       );
-    }, 1);
+    });
   }
 
   private processCommit(commit: Commit) {
@@ -233,6 +236,7 @@ export class Server {
     }
 
     this.blockchain.add(c.block).then(() => {
+      this.votePool.clear();
       this.commitPool.clear(c.block);
       this.blockPool.clear();
       this.transactionPool.clear(c.block);
@@ -242,9 +246,9 @@ export class Server {
         this.transactionPool.add(nextBlock.tx);
       }
       // if there should be another transaction on the stack: release and process it!
-      setTimeout(() => {
+      setImmediate(() => {
         this.createProposal();
-      }, 1);
+      });
     });
   }
 

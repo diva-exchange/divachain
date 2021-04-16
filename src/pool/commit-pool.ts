@@ -18,7 +18,6 @@
  */
 
 import { MIN_APPROVALS } from '../config';
-import { Logger } from '../logger';
 import { BlockStruct } from '../chain/block';
 import { VoteStruct } from '../net/message/vote';
 
@@ -57,9 +56,6 @@ export class CommitPool {
 
   accepted(): BlockStruct | false {
     const block = this.best();
-    Logger.trace(
-      `CommitPool.accepted(): ${block.hash} ${block.height} ${(this.mapVotes.get(block.hash) || []).length}`
-    );
     return (this.mapVotes.get(block.hash) || []).length >= MIN_APPROVALS ? block : false;
   }
 

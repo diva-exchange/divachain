@@ -37,6 +37,11 @@ Before you can start the blockchain, the peers have to be configured. Add your l
 
 ## How to Start the Blockchain
 
+Install the dependencies (full development environment), use:
+```
+npm i
+```
+
 To start the blockchain application in verbose developer mode, use:
 ```
 bin/start-dev.sh

@@ -219,7 +219,7 @@ class TestServer {
   @slow(30000)
   @timeout(30000)
   stressMultiTransaction(done: Function) {
-    const _outer = 100;
+    const _outer = 500;
     const _inner = 64;
 
     const mapTransactions: Map<string, number> = new Map();
