@@ -22,42 +22,11 @@ export const CONFIG_SERVER: ConfigServer = {
   secret: process.env.SECRET || '',
   p2p_ip: process.env.P2P_IP || '127.0.0.1',
   p2p_port: Number(process.env.P2P_PORT) || 17168,
-  p2p_network: {
-    NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI: {
-      host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
-      port: 17168,
-    },
-    z2aVOeo_Mvt0vr0MKUz54N_zM_7jQYVLzedbuSTBcXA: {
-      host: 'o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p',
-      port: 17268,
-    },
-    Fd26iYIRxGRSz3wyK5vjQtoANEyEUl2_EcyCaRQMKIo: {
-      host: 'yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p',
-      port: 17368,
-    },
-    '-4UR3gNsahU2ehP3CJLuiFLGe6mX2J7nwqjtg8Bvlng': {
-      host: 'xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p',
-      port: 17468,
-    },
-    fw4sKitin_9cwLTQfUEk9_vOQmYCndraGU_PK9PjXKI: {
-      host: '2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p',
-      port: 17568,
-    },
-    '5YHh90pMJOuWRXMK34DrWiUk20gHazd7TUT9bk6szDw': {
-      host: 'lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p',
-      port: 17668,
-    },
-    'KxUiHLdHf_ZyFmEXB-FuJDgB62H2neAzuzQ1cl8Q17I': {
-      host: '6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p',
-      port: 17768,
-    },
-  },
   http_ip: process.env.HTTP_IP || '127.0.0.1',
   http_port: Number(process.env.HTTP_PORT) || 17169,
 };
 
-export const VOTE_DELAY = 1000; // 1000ms
-export const MIN_APPROVALS = 2 * (Object.keys(CONFIG_SERVER.p2p_network).length / 3); // PBFT
+export const MAX_BLOCKS_IN_MEMORY = 1000;
 
 //network config
 export const PER_MESSAGE_DEFLATE = true;

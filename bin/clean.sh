@@ -26,6 +26,7 @@ PROJECT_PATH=`pwd`/
 
 rm -rf ${PROJECT_PATH}dist/*
 rm -rf ${PROJECT_PATH}blockstore/*
+rm -rf ${PROJECT_PATH}state/*
 rm -f ${PROJECT_PATH}log/*
 
 npm run lint

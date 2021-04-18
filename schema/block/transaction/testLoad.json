@@ -8,6 +8,10 @@
       "type": "integer",
       "minimum": 1
     },
+    "command": {
+      "type": "string",
+      "pattern": "^testLoad$"
+    },
     "timestamp": {
       "type": "integer",
       "minimum": 0

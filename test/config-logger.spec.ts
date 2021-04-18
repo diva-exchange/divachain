@@ -27,7 +27,7 @@ import { CONFIG_SERVER } from '../src/config';
 class TestConfigLogger {
   @test
   config() {
-    expect(Object.keys(CONFIG_SERVER.p2p_network).length > 0).is.true;
+    expect(CONFIG_SERVER.p2p_ip).is.not.empty;
   }
 
   @test

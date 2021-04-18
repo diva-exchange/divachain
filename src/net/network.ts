@@ -25,7 +25,6 @@ import { nanoid } from 'nanoid';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
 import { Wallet } from '../chain/wallet';
-import { Blockchain } from '../chain/blockchain';
 import { Validation } from './validation';
 import { PER_MESSAGE_DEFLATE } from '../config';
 
@@ -44,7 +43,7 @@ const WS_CLIENT_OPTIONS = {
   binary: true,
 };
 
-type NetworkPeer = {
+export type NetworkPeer = {
   host: string;
   port: number;
 };
@@ -63,12 +62,11 @@ interface Peer {
 }
 
 export class Network {
-  private readonly blockchain: Blockchain;
   private readonly wallet: Wallet;
   private readonly identity: string;
   private readonly ip: string;
   private readonly port: number;
-  private readonly networkPeers: { [publicKey: string]: NetworkPeer };
+  private readonly mapPeer: Map<string, NetworkPeer> = new Map(); //{ [publicKey: string]: NetworkPeer };
 
   private readonly wss: WebSocket.Server;
 
@@ -78,42 +76,16 @@ export class Network {
   private readonly _onMessage: Function | false;
   private mapGossip: { [publicKeyPeer: string]: Array<string> } = {};
 
-  constructor(config: configNetwork, blockchain: Blockchain, wallet: Wallet) {
+  constructor(config: configNetwork, wallet: Wallet) {
     this.ip = config.ip || '127.0.0.1';
     const _port = config.port || 17468;
     this.port = _port >= 1024 && _port <= 49151 ? _port : 17468;
-    this.networkPeers = config.networkPeers || {};
     this._onMessage = config.onMessageCallback || false;
 
     this.wallet = wallet;
     this.identity = this.wallet.getPublicKey();
-    if (!this.networkPeers[this.identity]) {
-      throw new Error(`Invalid identity ${this.identity}`);
-    }
 
     Validation.init();
-    this.blockchain = blockchain;
-
-    // init Gossipping map of complete known network
-    Object.keys(this.networkPeers).forEach((_pk) => {
-      _pk !== this.identity && (this.mapGossip[_pk] = []);
-    });
-
-    /*
-    //@FIXME testing subnet
-    const a = Object.keys(this.networkPeers);
-    let i = 0;
-    while (i < 2) {
-      const k = a[Math.floor(Math.random() * a.length)];
-      if (k !== this.identity && this.networkPeers[k]) {
-        delete this.networkPeers[k];
-        i++;
-      }
-    }
-    */
-
-    Logger.info(`Identity: ${this.identity}`);
-    Logger.info(`Network: ${JSON.stringify(this.networkPeers)}`);
 
     this.wss = new WebSocket.Server({
       host: this.ip,
@@ -121,6 +93,8 @@ export class Network {
       clientTracking: false,
       perMessageDeflate: PER_MESSAGE_DEFLATE,
     });
+
+    Logger.info(`Identity: ${this.identity}`);
 
     // incoming connection
     this.wss.on('connection', (ws, request) => {
@@ -174,11 +148,50 @@ export class Network {
     }
   }
 
+  getIdentity(): string {
+    return this.identity;
+  }
+
+  addPeer(publicKey: string, peer: NetworkPeer): boolean {
+    if (this.mapPeer.has(publicKey)) {
+      return false;
+    }
+
+    this.mapPeer.set(publicKey, peer);
+
+    // initialize gossip map
+    publicKey !== this.identity && (this.mapGossip[publicKey] = []);
+
+    Logger.info(`Network updated, added ${publicKey}`);
+
+    return false;
+  }
+
+  removePeer(publicKey: string): Network {
+    if (!this.mapPeer.has(publicKey)) {
+      return this;
+    }
+
+    this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
+    this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
+
+    delete this.mapGossip[publicKey];
+    this.mapPeer.delete(publicKey);
+
+    Logger.info(`Network updated, removed ${publicKey}`);
+
+    return this;
+  }
+
+  getQuorum(): number {
+    return 2 * (this.mapPeer.size / 3); // PBFT
+  }
+
   health() {
     const arrayIn = Object.keys(this.peersIn);
     const arrayOut = Object.keys(this.peersOut);
     const lN = [...new Set(arrayIn.concat(arrayOut))].length;
-    const lC = Object.keys(this.networkPeers).length - 1; // -1: exclude self
+    const lC = this.mapPeer.size - 1; // -1: exclude self
     return { in: arrayIn.length / lC, out: arrayOut.length / lC, total: lN / lC };
   }
 
@@ -197,7 +210,7 @@ export class Network {
   }
 
   network(): Array<string> {
-    return Object.keys(this.networkPeers);
+    return [...this.mapPeer.keys()];
   }
 
   gossip(): { [publicKey: string]: Array<string> } {
@@ -274,27 +287,6 @@ export class Network {
     return !doRetry;
   }
 
-  /*
-  addPeer(host: string, port: number, publicKey: string): Network {
-    if (this.networkPeers[publicKey]) {
-      throw new Error('Peer already available');
-    }
-
-    this.networkPeers[publicKey] = {
-      host: host,
-      port: port,
-    };
-    return this;
-  }
-
-  removePeer(publicKey: string): Network {
-    delete this.networkPeers[publicKey];
-    this.peers[publicKey]?.ws?.close(1000, 'Bye');
-    delete this.peers[publicKey];
-    return this;
-  }
-  */
-
   private auth(ws: WebSocket, publicKeyPeer: string, origin: string) {
     if (this.peersIn[publicKeyPeer]) {
       this.peersIn[publicKeyPeer].ws.close(4005, 'Rebuilding');
@@ -341,7 +333,7 @@ export class Network {
   }
 
   private async refresh() {
-    for (const publicKey in this.networkPeers) {
+    for (const publicKey of this.mapPeer.keys()) {
       if (publicKey !== this.identity && !this.peersOut[publicKey]) {
         this.connect(publicKey);
       }
@@ -372,17 +364,21 @@ export class Network {
   }
 
   private connect(publicKeyPeer: string) {
-    const address = 'ws://' + this.networkPeers[publicKeyPeer].host + ':' + this.networkPeers[publicKeyPeer].port;
+    const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
+    if (!peer.host) {
+      return;
+    }
+    const address = 'ws://' + peer.host + ':' + peer.port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
       perMessageDeflate: PER_MESSAGE_DEFLATE,
       headers: {
         'diva-identity': this.identity,
-        'diva-origin': this.networkPeers[this.identity].host + ':' + this.networkPeers[this.identity].port,
+        'diva-origin': peer.host + ':' + peer.port,
       },
     };
 
-    if (/\.i2p$/.test(this.networkPeers[publicKeyPeer].host)) {
+    if (/\.i2p$/.test(peer.host)) {
       options.agent = new SocksProxyAgent(`socks://${SOCKS_PROXY_HOST}:${SOCKS_PROXY_PORT}`);
     }
 

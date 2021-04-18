@@ -115,6 +115,14 @@ export class Api {
 
     this.server.httpServer.route({
       method: 'GET',
+      path: '/state/peers',
+      handler: async (request, h) => {
+        return h.response(await this.server.blockchain.getState().getPeers());
+      },
+    });
+
+    this.server.httpServer.route({
+      method: 'GET',
       path: '/blocks',
       handler: async (request, h) => {
         return h.response(await this.server.blockchain.get(request.query.limit));

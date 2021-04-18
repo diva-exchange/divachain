@@ -25,21 +25,27 @@ import LevelDown from 'leveldown';
 import path from 'path';
 import { Logger } from '../logger';
 import { TransactionStruct } from './transaction';
+import { State } from './state';
+import { MAX_BLOCKS_IN_MEMORY } from '../config';
+import { Network } from '../net/network';
 
 export class Blockchain {
+  private readonly network: Network;
   private readonly publicKey: string;
+  private readonly state: State;
   private height: number;
-  private db: InstanceType<typeof LevelUp>;
-  private blocks: Array<BlockStruct> = [];
-  private hashes: Array<string> = [];
+  private dbBlockchain: InstanceType<typeof LevelUp>;
+  private mapBlocks: Map<number, BlockStruct> = new Map();
+  private mapHashes: Map<number, string> = new Map();
+  private latestBlock: BlockStruct = {} as BlockStruct;
 
-  constructor(publicKey: string) {
-    this.publicKey = publicKey;
+  constructor(network: Network) {
+    this.network = network;
+    this.publicKey = this.network.getIdentity();
     this.height = 1;
-    this.blocks.push(Blockchain.genesis());
-    this.hashes.push(Blockchain.genesis().hash);
+    this.state = new State(this.network);
 
-    this.db = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', this.publicKey)), {
+    this.dbBlockchain = LevelUp(LevelDown(path.join(__dirname, '../../blockstore/', this.publicKey)), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
@@ -48,19 +54,31 @@ export class Blockchain {
   }
 
   async init(): Promise<void> {
-    this.db.get(1).catch(() => {
-      this.db.put(this.height, JSON.stringify(Blockchain.genesis()));
-    });
+    try {
+      await this.dbBlockchain.get(1);
+    } catch (error) {
+      await this.dbBlockchain.put(1, JSON.stringify(Blockchain.genesis()));
+    }
+
+    await this.state.init();
 
     return new Promise((resolve, reject) => {
-      this.db
-        .createReadStream()
+      this.dbBlockchain
+        .createReadStream({ reverse: true, limit: 1 })
         .on('data', (data) => {
+          this.height = Number(data.key);
+          this.latestBlock = JSON.parse(data.value) as BlockStruct;
+        })
+        .on('error', reject);
+
+      this.dbBlockchain
+        .createReadStream({ limit: MAX_BLOCKS_IN_MEMORY })
+        .on('data', async (data) => {
           const k = Number(data.key);
           const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
-          this.blocks[k - 1] = b;
-          this.hashes[k - 1] = b.hash;
-          this.height > k || (this.height = k);
+          this.mapBlocks.set(k, b);
+          this.mapHashes.set(k, b.hash);
+          await this.state.process(b);
         })
         .on('end', resolve)
         .on('error', reject);
@@ -68,73 +86,45 @@ export class Blockchain {
   }
 
   async shutdown() {
-    await this.db.close();
-  }
-
-  isValid(block: BlockStruct): boolean {
-    return (
-      this.height + 1 === block.height &&
-      block.previousHash === this.hashes[this.height - 1] &&
-      block.hash === Blockchain.hashBlock(block) &&
-      !this.hashes.includes(block.hash) &&
-      Blockchain.verifyBlock(block)
-    );
+    await this.dbBlockchain.close();
   }
 
   async add(block: BlockStruct): Promise<void> {
-    if (!this.isValid(block)) {
-      throw new Error(
-        `Blockchain.add(): failed to add block ${block.hash}, height ${block.height} === ${this.height + 1} ?`
-      );
+    if (!this.verifyBlock(block)) {
+      throw new Error(`Blockchain.add(): failed to add block ${block.hash}`);
     }
     this.height = block.height;
-    this.blocks.push(block);
-    this.hashes.push(block.hash);
-    await this.db.put(this.height, JSON.stringify(block));
+    this.latestBlock = block;
+    this.mapBlocks.set(block.height, block);
+    this.mapHashes.set(block.height, block.hash);
+    await this.dbBlockchain.put(this.height, JSON.stringify(block));
+    if (this.mapBlocks.size > MAX_BLOCKS_IN_MEMORY) {
+      this.mapBlocks.delete(this.height - MAX_BLOCKS_IN_MEMORY);
+      this.mapHashes.delete(this.height - MAX_BLOCKS_IN_MEMORY);
+    }
+
+    await this.state.process(block);
+
     //@FIXME logging
     Logger.trace('Block added: ' + block.hash);
   }
 
-  //@FIXME limit: -1, might become a very large array
-  async get(limit: number = -1): Promise<Array<BlockStruct>> {
-    return new Promise((resolve, reject) => {
-      // in memory
-      const lmt: number = Number(limit) > 0 ? Number(limit) : -1;
-      if (lmt > 0 && this.blocks.length >= lmt) {
-        resolve([...this.blocks.slice(lmt * -1)].reverse());
-      } else if (lmt === -1 && this.blocks.length === this.height) {
-        resolve([...this.blocks].reverse());
-      }
+  async get(limit: number = -1): Promise<Array<any>> {
+    return new Promise((resolve) => {
+      const lmt: number =
+        Number(limit) > 0
+          ? Number(limit) > MAX_BLOCKS_IN_MEMORY
+            ? MAX_BLOCKS_IN_MEMORY
+            : Number(limit)
+          : MAX_BLOCKS_IN_MEMORY;
 
-      // fallback, read from disk
-      const a: Array<BlockStruct> = [];
-      this.db
-        .createReadStream(lmt > 0 ? { reverse: true, limit: lmt } : {})
-        .on('data', (data) => {
-          a.push(JSON.parse(data.value) as BlockStruct);
-        })
-        .on('end', () => {
-          resolve(a);
-        })
-        .on('error', reject);
+      resolve([...this.mapBlocks.values()].slice(lmt * -1).reverse());
     });
   }
 
   async getTransaction(origin: string, ident: string): Promise<TransactionStruct> {
     return new Promise((resolve, reject) => {
-      // in memory
-      for (const b of this.blocks) {
-        const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
-        if (t) {
-          resolve(t);
-        }
-      }
-      if (this.blocks.length === this.height) {
-        reject(new Error('Not found'));
-      }
-
-      // fallback, search on disk
-      this.db
+      this.dbBlockchain
         .createReadStream()
         .on('data', (data) => {
           const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
@@ -149,11 +139,15 @@ export class Blockchain {
   }
 
   getLatestBlock(): BlockStruct {
-    return this.blocks[this.height - 1];
+    return this.latestBlock;
   }
 
   getHeight() {
     return this.height;
+  }
+
+  getState() {
+    return this.state;
   }
 
   static genesis(): BlockStruct {
@@ -165,23 +159,24 @@ export class Blockchain {
     return Util.hash(previousHash + version + height + JSON.stringify(tx));
   }
 
-  private static verifyBlock(block: BlockStruct): boolean {
-    const arrayOrigin: Array<string> = [];
+  private verifyBlock(block: BlockStruct): boolean {
     try {
+      const arrayOrigin: Array<string> = [];
       for (const t of block.tx) {
-        if (arrayOrigin.includes(t.origin)) {
-          //@FIXME logging
-          Logger.trace(`!! Block invalid: double origin ${t.origin}`);
+        if (
+          arrayOrigin.includes(t.origin) ||
+          !Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))
+        ) {
           return false;
         }
         arrayOrigin.push(t.origin);
-        if (!Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))) {
-          //@FIXME logging
-          Logger.trace(`!! Block invalid: invalid signature ${t.origin}`);
-          return false;
-        }
       }
-      return true;
+      return (
+        this.height + 1 === block.height &&
+        block.previousHash === (this.mapHashes.get(this.height) || '') &&
+        block.hash === Blockchain.hashBlock(block) &&
+        !Array.from(this.mapHashes.values()).includes(block.hash)
+      );
     } catch (error) {
       //@FIXME logging
       Logger.trace(error);

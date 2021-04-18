@@ -40,7 +40,6 @@ export type ConfigServer = {
   secret: string;
   p2p_ip: string;
   p2p_port: number;
-  p2p_network: { [publicKey: string]: { host: string; port: number } };
   http_ip: string;
   http_port: number;
 };
@@ -48,11 +47,11 @@ export type ConfigServer = {
 export class Server {
   public readonly httpServer: Hapi.Server;
   public readonly network: Network;
-  public readonly blockchain: Blockchain;
   public readonly transactionPool: TransactionPool;
   public readonly blockPool: BlockPool;
   public readonly votePool: VotePool;
   public readonly commitPool: CommitPool;
+  public readonly blockchain: Blockchain;
 
   private readonly config: ConfigServer;
   private readonly wallet: Wallet;
@@ -61,9 +60,7 @@ export class Server {
   //@FIXME remove secret
   constructor(config: ConfigServer) {
     this.config = config;
-
     this.wallet = new Wallet(this.config.secret);
-    this.blockchain = new Blockchain(this.wallet.getPublicKey());
     this.transactionPool = new TransactionPool(this.wallet);
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
@@ -73,14 +70,13 @@ export class Server {
       {
         ip: this.config.p2p_ip,
         port: this.config.p2p_port,
-        networkPeers: this.config.p2p_network,
         onMessageCallback: async (type: number, message: Buffer | string) => {
           await this.onMessage(type, message);
         },
       },
-      this.blockchain,
       this.wallet
     );
+    this.blockchain = new Blockchain(this.network);
 
     this.httpServer = Hapi.server({
       address: this.config.http_ip,
@@ -152,7 +148,7 @@ export class Server {
     }
 
     if (v.block.hash === this.blockPool.get().hash) {
-      if (this.votePool.add(v)) {
+      if (this.votePool.add(v, this.network.getQuorum())) {
         v.block.votes = this.votePool.get(v.block.hash);
         this.network.processMessage(
           new Commit()
@@ -199,7 +195,7 @@ export class Server {
       return;
     }
 
-    if (!Commit.isValid(c)) {
+    if (!Commit.isValid(c, this.network.getQuorum())) {
       //@FIXME logging
       Logger.trace(`processCommit(): invalid commit ${commit.ident()}`);
       return this.network.stopGossip(commit.ident());
@@ -209,7 +205,7 @@ export class Server {
       return;
     }
 
-    const blockAccepted: BlockStruct | false = this.commitPool.accepted();
+    const blockAccepted: BlockStruct | false = this.commitPool.accepted(this.network.getQuorum());
     if (blockAccepted) {
       this.network.processMessage(
         new Confirm()
@@ -229,7 +225,7 @@ export class Server {
       return;
     }
 
-    if (!Commit.isValid(c)) {
+    if (!Commit.isValid(c, this.network.getQuorum())) {
       //@FIXME logging
       Logger.trace(`processConfirm(): invalid commit ${confirm.ident()}`);
       return this.network.stopGossip(confirm.ident());

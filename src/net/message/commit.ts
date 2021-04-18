@@ -19,7 +19,6 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { MIN_APPROVALS } from '../../config';
 import { Logger } from '../../logger';
 import { VoteStruct } from './vote';
 
@@ -40,16 +39,16 @@ export class Commit extends Message {
     return this.message.data as VoteStruct;
   }
 
-  static isValid(c: VoteStruct): boolean {
+  static isValid(c: VoteStruct, quorum: number): boolean {
     try {
       let _a: Array<{ origin: string; sig: string }> = [];
       if (
-        c.block.votes.length >= MIN_APPROVALS &&
+        c.block.votes.length >= quorum &&
         Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.block.votes))
       ) {
         _a = c.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, c.block.hash));
       }
-      return _a.length >= MIN_APPROVALS && _a.length === c.block.votes.length;
+      return _a.length >= quorum && _a.length === c.block.votes.length;
     } catch (error) {
       //@FIXME logging
       Logger.trace(`Commit.isValid Exception: ${error}`);

@@ -219,8 +219,8 @@ class TestServer {
   @slow(30000)
   @timeout(30000)
   stressMultiTransaction(done: Function) {
-    const _outer = 500;
-    const _inner = 64;
+    const _outer = 16;
+    const _inner = 4;
 
     const mapTransactions: Map<string, number> = new Map();
 
@@ -230,7 +230,7 @@ class TestServer {
       setTimeout(async () => {
         const aT = [];
         for (let j = 0; j < _inner; j++) {
-          aT.push({ seq: seq++, timestamp: Date.now() });
+          aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
         }
         const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
         const res = await chai.request(`http://${ipHTTP}:17${p}69`).put('/transaction').send(aT);

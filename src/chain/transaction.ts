@@ -26,21 +26,20 @@ const MAX_LENGTH_IDENT = 32;
 
 interface Command {
   seq: number;
+  command: string;
 }
 
 interface CommandTestLoad extends Command {
   timestamp: number;
 }
 
-interface CommandAddPeer extends Command {
-  command: string;
+export interface CommandAddPeer extends Command {
   host: string;
   port: number;
   publicKey: string;
 }
 
-interface CommandRemovePeer extends Command {
-  command: string;
+export interface CommandRemovePeer extends Command {
   publicKey: string;
 }
 

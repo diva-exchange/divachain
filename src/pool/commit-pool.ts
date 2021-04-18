@@ -17,7 +17,6 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { MIN_APPROVALS } from '../config';
 import { BlockStruct } from '../chain/block';
 import { VoteStruct } from '../net/message/vote';
 
@@ -54,9 +53,9 @@ export class CommitPool {
     return a[0].block;
   }
 
-  accepted(): BlockStruct | false {
+  accepted(quorum: number): BlockStruct | false {
     const block = this.best();
-    return (this.mapVotes.get(block.hash) || []).length >= MIN_APPROVALS ? block : false;
+    return (this.mapVotes.get(block.hash) || []).length >= quorum ? block : false;
   }
 
   get(): object {

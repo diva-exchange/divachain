@@ -18,19 +18,18 @@
  */
 
 import { VoteStruct } from '../net/message/vote';
-import { MIN_APPROVALS } from '../config';
 
 export class VotePool {
   private arrayHashes: Array<string> = [];
   private mapVotes: Map<string, Array<{ origin: string; sig: string }>> = new Map();
 
-  add(vote: VoteStruct): boolean {
+  add(vote: VoteStruct, quorum: number): boolean {
     const aVotes = this.mapVotes.get(vote.block.hash) || [];
     if (!aVotes.some((v) => v.origin === vote.origin)) {
       aVotes.push({ origin: vote.origin, sig: vote.sig });
       !this.arrayHashes.includes(vote.block.hash) && this.arrayHashes.push(vote.block.hash);
       this.mapVotes.set(vote.block.hash, aVotes);
-      return (this.mapVotes.get(vote.block.hash) || []).length >= MIN_APPROVALS;
+      return (this.mapVotes.get(vote.block.hash) || []).length >= quorum;
     }
     return false;
   }
