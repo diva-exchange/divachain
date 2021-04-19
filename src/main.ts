@@ -18,9 +18,9 @@
  */
 
 import { Server } from './net/server';
-import { CONFIG_SERVER } from './config';
+import { Config } from './config';
 
-new Server(CONFIG_SERVER).listen().then((server) => {
+new Server(new Config()).listen().then((server) => {
   process.once('SIGINT', () => {
     server.shutdown().then(() => {
       process.exit(0);

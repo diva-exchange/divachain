@@ -16,17 +16,45 @@
  *
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
-import { ConfigServer } from './net/server';
 
-export const CONFIG_SERVER: ConfigServer = {
-  secret: process.env.SECRET || '',
-  p2p_ip: process.env.P2P_IP || '127.0.0.1',
-  p2p_port: Number(process.env.P2P_PORT) || 17168,
-  http_ip: process.env.HTTP_IP || '127.0.0.1',
-  http_port: Number(process.env.HTTP_PORT) || 17169,
+import path from 'path';
+
+export type Configuration = {
+  secret?: string;
+  p2p_ip?: string;
+  p2p_port?: number;
+  http_ip?: string;
+  http_port?: number;
+  per_message_deflate?: boolean;
+  max_blocks_in_memory?: number;
+  path_genesis?: string;
+  path_blockstore?: string;
+  path_state?: string;
 };
 
-export const MAX_BLOCKS_IN_MEMORY = 1000;
+export class Config {
+  //@FIXME remove secret
+  public readonly secret: string;
+  public readonly p2p_ip: string;
+  public readonly p2p_port: number;
+  public readonly http_ip: string;
+  public readonly http_port: number;
+  public readonly per_message_deflate: boolean;
+  public readonly max_blocks_in_memory: number;
+  public readonly path_genesis: string;
+  public readonly path_blockstore: string;
+  public readonly path_state: string;
 
-//network config
-export const PER_MESSAGE_DEFLATE = true;
+  constructor(c: Configuration = {}) {
+    this.secret = c.secret || process.env.SECRET || 'NODE1';
+    this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
+    this.p2p_port = c.p2p_port || Number(process.env.P2P_PORT) || 17468;
+    this.http_ip = c.http_ip || process.env.HTTP_IP || '127.0.0.1';
+    this.http_port = c.http_port || Number(process.env.HTTP_PORT) || 17469;
+    this.per_message_deflate = c.per_message_deflate || true;
+    this.max_blocks_in_memory = c.max_blocks_in_memory || 1000;
+    this.path_genesis = c.path_genesis || path.join(__dirname, '../config/genesis.json');
+    this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
+    this.path_state = c.path_state || path.join(__dirname, '../state/');
+  }
+}

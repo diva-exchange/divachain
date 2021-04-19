@@ -17,6 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import { Config } from '../config';
 import { Logger } from '../logger';
 import Hapi from '@hapi/hapi';
 import { Block, BlockStruct } from '../chain/block';
@@ -36,14 +37,6 @@ import { Confirm } from './message/confirm';
 
 const VERSION = '0.1.0';
 
-export type ConfigServer = {
-  secret: string;
-  p2p_ip: string;
-  p2p_port: number;
-  http_ip: string;
-  http_port: number;
-};
-
 export class Server {
   public readonly httpServer: Hapi.Server;
   public readonly network: Network;
@@ -53,30 +46,23 @@ export class Server {
   public readonly commitPool: CommitPool;
   public readonly blockchain: Blockchain;
 
-  private readonly config: ConfigServer;
+  private readonly config: Config;
   private readonly wallet: Wallet;
   private readonly api: Api;
 
-  //@FIXME remove secret
-  constructor(config: ConfigServer) {
+  constructor(config: Config) {
     this.config = config;
+    //@FIXME remove secret
     this.wallet = new Wallet(this.config.secret);
     this.transactionPool = new TransactionPool(this.wallet);
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
     this.commitPool = new CommitPool();
 
-    this.network = new Network(
-      {
-        ip: this.config.p2p_ip,
-        port: this.config.p2p_port,
-        onMessageCallback: async (type: number, message: Buffer | string) => {
-          await this.onMessage(type, message);
-        },
-      },
-      this.wallet
-    );
-    this.blockchain = new Blockchain(this.network);
+    this.network = new Network(this.config, this.wallet, async (type: number, message: Buffer | string) => {
+      await this.onMessage(type, message);
+    });
+    this.blockchain = new Blockchain(this.config, this.network);
 
     this.httpServer = Hapi.server({
       address: this.config.http_ip,

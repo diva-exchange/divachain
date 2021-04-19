@@ -23,8 +23,10 @@ import path from 'path';
 import { CommandAddPeer, CommandRemovePeer } from './transaction';
 import { BlockStruct } from './block';
 import { Network, NetworkPeer } from '../net/network';
+import { Config } from '../config';
 
 export class State {
+  private readonly config: Config;
   private readonly network: Network;
   private readonly publicKey: string;
   private readonly dbState: InstanceType<typeof LevelUp>;
@@ -32,10 +34,11 @@ export class State {
   private height: number = 0;
   private mapPeer: Map<string, NetworkPeer> = new Map();
 
-  constructor(network: Network) {
+  constructor(config: Config, network: Network) {
+    this.config = config;
     this.network = network;
     this.publicKey = this.network.getIdentity();
-    this.dbState = LevelUp(LevelDown(path.join(__dirname, '../../state/', this.publicKey)), {
+    this.dbState = LevelUp(LevelDown(path.join(this.config.path_state, this.publicKey)), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,

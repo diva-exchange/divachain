@@ -17,16 +17,16 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import { Config } from '../config';
+import { Logger } from '../logger';
 import { Auth } from './message/auth';
 import { Challenge } from './message/challenge';
-import { Logger } from '../logger';
 import { Message } from './message/message';
 import { nanoid } from 'nanoid';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
 import { Wallet } from '../chain/wallet';
 import { Validation } from './validation';
-import { PER_MESSAGE_DEFLATE } from '../config';
 
 const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.20.101.201';
 const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
@@ -48,13 +48,6 @@ export type NetworkPeer = {
   port: number;
 };
 
-type configNetwork = {
-  ip?: string;
-  port?: number;
-  networkPeers?: { [publicKey: string]: NetworkPeer };
-  onMessageCallback?: Function;
-};
-
 interface Peer {
   address: string;
   alive: number;
@@ -62,11 +55,10 @@ interface Peer {
 }
 
 export class Network {
+  private readonly config: Config;
   private readonly wallet: Wallet;
   private readonly identity: string;
-  private readonly ip: string;
-  private readonly port: number;
-  private readonly mapPeer: Map<string, NetworkPeer> = new Map(); //{ [publicKey: string]: NetworkPeer };
+  private readonly mapPeer: Map<string, NetworkPeer> = new Map();
 
   private readonly wss: WebSocket.Server;
 
@@ -76,11 +68,9 @@ export class Network {
   private readonly _onMessage: Function | false;
   private mapGossip: { [publicKeyPeer: string]: Array<string> } = {};
 
-  constructor(config: configNetwork, wallet: Wallet) {
-    this.ip = config.ip || '127.0.0.1';
-    const _port = config.port || 17468;
-    this.port = _port >= 1024 && _port <= 49151 ? _port : 17468;
-    this._onMessage = config.onMessageCallback || false;
+  constructor(config: Config, wallet: Wallet, onMessage: Function) {
+    this.config = config;
+    this._onMessage = onMessage || false;
 
     this.wallet = wallet;
     this.identity = this.wallet.getPublicKey();
@@ -88,10 +78,10 @@ export class Network {
     Validation.init();
 
     this.wss = new WebSocket.Server({
-      host: this.ip,
-      port: this.port,
+      host: this.config.p2p_ip,
+      port: this.config.p2p_port,
       clientTracking: false,
-      perMessageDeflate: PER_MESSAGE_DEFLATE,
+      perMessageDeflate: config.per_message_deflate,
     });
 
     Logger.info(`Identity: ${this.identity}`);
@@ -162,8 +152,6 @@ export class Network {
     // initialize gossip map
     publicKey !== this.identity && (this.mapGossip[publicKey] = []);
 
-    Logger.info(`Network updated, added ${publicKey}`);
-
     return false;
   }
 
@@ -177,8 +165,6 @@ export class Network {
 
     delete this.mapGossip[publicKey];
     this.mapPeer.delete(publicKey);
-
-    Logger.info(`Network updated, removed ${publicKey}`);
 
     return this;
   }
@@ -371,7 +357,7 @@ export class Network {
     const address = 'ws://' + peer.host + ':' + peer.port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: PER_MESSAGE_DEFLATE,
+      perMessageDeflate: this.config.per_message_deflate,
       headers: {
         'diva-identity': this.identity,
         'diva-origin': peer.host + ':' + peer.port,

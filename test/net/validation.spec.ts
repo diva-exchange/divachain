@@ -30,13 +30,17 @@ import { Commit } from '../../src/net/message/commit';
 import { Vote } from '../../src/net/message/vote';
 import { BlockStruct } from '../../src/chain/block';
 import { Confirm } from '../../src/net/message/confirm';
+import { Config } from '../../src/config';
+import path from 'path';
 
 @suite
 class TestValidation {
+  private static config: Config;
   private static wallet: Wallet;
 
   @slow(200)
   static before() {
+    TestValidation.config = new Config({ path_genesis: path.join(__dirname, '../config/genesis.json') });
     TestValidation.wallet = new Wallet('TEST-NODE');
   }
 
@@ -59,7 +63,7 @@ class TestValidation {
 
   @test
   validateVote() {
-    const structBlock = Blockchain.genesis();
+    const structBlock = Blockchain.genesis(TestValidation.config.path_genesis);
     const structVote = {
       origin: TestValidation.wallet.getPublicKey(),
       block: structBlock,
@@ -71,7 +75,7 @@ class TestValidation {
 
   @test
   validateCommit() {
-    const structBlock: BlockStruct = Blockchain.genesis();
+    const structBlock: BlockStruct = Blockchain.genesis(TestValidation.config.path_genesis);
     structBlock.votes = [
       {
         origin: TestValidation.wallet.getPublicKey(),
@@ -88,7 +92,7 @@ class TestValidation {
 
   @test
   validateConfirm() {
-    const structBlock: BlockStruct = Blockchain.genesis();
+    const structBlock: BlockStruct = Blockchain.genesis(TestValidation.config.path_genesis);
     structBlock.votes = [
       {
         origin: TestValidation.wallet.getPublicKey(),

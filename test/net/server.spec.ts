@@ -20,77 +20,69 @@
 import { suite, test, slow, timeout } from '@testdeck/mocha';
 import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
+import path from 'path';
 
 import { Server } from '../../src/net/server';
+import { Config, Configuration } from '../../src/config';
+import { BlockStruct } from '../../src/chain/block';
+import { Blockchain } from '../../src/chain/blockchain';
+import { CommandAddPeer, TransactionStruct } from '../../src/chain/transaction';
+import { Wallet } from '../../src/chain/wallet';
+import * as fs from 'fs';
 
 chai.use(chaiHttp);
 
-const ipP2P = '172.20.101.1';
-const ipHTTP = '127.0.0.1';
+const SIZE_TESTNET = 19;
+const BASE_PORT = 17000;
+const IP_P2P = '127.27.27.2';
+const IP_HTTP = '127.27.27.1';
 
 @suite
 class TestServer {
-  static TEST_CONFIG_SERVER = [
-    {
-      secret: 'NODE1',
-      p2p_ip: ipP2P,
-      p2p_port: 17168,
-      http_ip: ipHTTP,
-      http_port: 17169,
-    },
-    {
-      secret: 'NODE2',
-      p2p_ip: ipP2P,
-      p2p_port: 17268,
-      http_ip: ipHTTP,
-      http_port: 17269,
-    },
-    {
-      secret: 'NODE3',
-      p2p_ip: ipP2P,
-      p2p_port: 17368,
-      http_ip: ipHTTP,
-      http_port: 17369,
-    },
-    {
-      secret: 'NODE4',
-      p2p_ip: ipP2P,
-      p2p_port: 17468,
-      http_ip: ipHTTP,
-      http_port: 17469,
-    },
-    {
-      secret: 'NODE5',
-      p2p_ip: ipP2P,
-      p2p_port: 17568,
-      http_ip: ipHTTP,
-      http_port: 17569,
-    },
-    {
-      secret: 'NODE6',
-      p2p_ip: ipP2P,
-      p2p_port: 17668,
-      http_ip: ipHTTP,
-      http_port: 17669,
-    },
-    {
-      secret: 'NODE7',
-      p2p_ip: ipP2P,
-      p2p_port: 17768,
-      http_ip: ipHTTP,
-      http_port: 17769,
-    },
-  ];
-
-  static arrayServer: Array<Server> = [];
+  static mapConfigServer: Map<string, Configuration> = new Map();
+  static mapServer: Map<string, Server> = new Map();
 
   @timeout(20000)
   static before(): Promise<void> {
+    // create a genesis block
+    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../config/genesis.json'));
+
+    const tx: TransactionStruct = {
+      ident: 'genesis',
+      origin: '1234567890123456789012345678901234567890123',
+      timestamp: 88355100000,
+      commands: [],
+      sig: '12345678901234567890123456789012345678901234567890123456789012345678901234567890123456',
+    };
+    const cmds: Array<CommandAddPeer> = [];
+    for (let i = 1; i <= SIZE_TESTNET; i++) {
+      const publicKey = new Wallet(`NODE${i}`).getPublicKey();
+      cmds.push({
+        seq: i,
+        command: 'addPeer',
+        host: IP_P2P,
+        port: BASE_PORT + i,
+        publicKey: publicKey,
+      });
+      this.mapConfigServer.set(publicKey, {
+        secret: `NODE${i}`,
+        p2p_ip: IP_P2P,
+        p2p_port: BASE_PORT + i,
+        http_ip: IP_HTTP,
+        http_port: BASE_PORT + i,
+      });
+    }
+    tx.commands = cmds;
+    genesis.tx = [tx];
+    fs.writeFileSync(path.join(__dirname, '../config/test-genesis.json'), JSON.stringify(genesis));
+
     return new Promise((resolve) => {
       setTimeout(resolve, 19000);
 
-      for (let i = 0; i < TestServer.TEST_CONFIG_SERVER.length; i++) {
-        (async () => await TestServer.createServer(i))();
+      for (const pk of TestServer.mapConfigServer.keys()) {
+        (async () => {
+          await TestServer.createServer(pk);
+        })();
       }
     });
   }
@@ -98,9 +90,11 @@ class TestServer {
   @timeout(60000)
   static after(): Promise<void> {
     return new Promise((resolve) => {
-      let c = TestServer.arrayServer.length;
-      TestServer.arrayServer.forEach(async (s) => {
+      let c = TestServer.mapServer.size;
+      TestServer.mapServer.forEach(async (s, publicKey) => {
         await s.shutdown();
+        fs.rmdirSync(path.join(__dirname, '../blockstore/', publicKey), { recursive: true });
+        fs.rmdirSync(path.join(__dirname, '../state/', publicKey), { recursive: true });
         c--;
         if (!c) {
           setTimeout(resolve, 500);
@@ -109,157 +103,145 @@ class TestServer {
     });
   }
 
-  static async createServer(i: number = 0) {
-    const s = new Server(TestServer.TEST_CONFIG_SERVER[i]);
+  static async createServer(publicKey: string) {
+    const s = new Server(
+      new Config({
+        ...TestServer.mapConfigServer.get(publicKey),
+        ...{
+          path_genesis: path.join(__dirname, '../config/test-genesis.json'),
+          path_blockstore: path.join(__dirname, '../blockstore'),
+          path_state: path.join(__dirname, '../state'),
+        },
+      })
+    );
     await s.listen();
-    TestServer.arrayServer.push(s);
+    TestServer.mapServer.set(publicKey, s);
     return s;
   }
 
   @test
-  isAvailable() {
-    expect(TestServer.arrayServer.length).eq(TestServer.TEST_CONFIG_SERVER.length);
-  }
-
-  @test
   async default404() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/');
     expect(res).to.have.status(404);
   }
 
   @test
   async peers() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/peers');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/peers');
     expect(res).to.have.status(200);
   }
 
   @test
   async statePeers() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/state/peers');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/state/peers');
     expect(res).to.have.status(200);
   }
 
   @test
   async network() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/network');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/network');
     expect(res).to.have.status(200);
   }
 
   @test
   async health() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/health');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/health');
     expect(res).to.have.status(200);
   }
 
   @test
   async gossip() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/gossip');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/gossip');
     expect(res).to.have.status(200);
   }
 
   @test
   async stackTransactions() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/stack/transactions');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/stack/transactions');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolTransactions() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/transactions');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/transactions');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolVotes() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/votes');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/votes');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolCommits() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/commits');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/commits');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolBlocks() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/blocks');
+    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/blocks');
     expect(res).to.have.status(200);
   }
 
   @test
   async blocks() {
-    let res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks');
+    let res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?limit=1');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?limit=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=1');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?lte=1');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?lte=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=-1&lte=1');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=-1&lte=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=1&lte=-1');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=1&lte=-1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=1&lte=2');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=1&lte=2');
     expect(res).to.have.status(200);
   }
 
   @test
   async page() {
-    let res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks/page/1');
+    let res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks/page/1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks/page/1?size=1');
+    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks/page/1?size=1');
     expect(res).to.have.status(200);
   }
 
-  /*
   @test
-  @slow(30000)
-  @timeout(30000)
+  @slow(60000)
+  @timeout(60000)
   stressMultiTransaction(done: Function) {
-    const _outer = 16;
+    const _outer = 4;
     const _inner = 4;
-
-    const mapTransactions: Map<string, number> = new Map();
 
     // create blocks containing multiple transactions
     let seq = 1;
+    const arrayConfig = [...TestServer.mapConfigServer.values()];
     for (let i = 0; i < _outer; i++) {
       setTimeout(async () => {
         const aT = [];
         for (let j = 0; j < _inner; j++) {
           aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
         }
-        const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
-        const res = await chai.request(`http://${ipHTTP}:17${p}69`).put('/transaction').send(aT);
-
-        const originIdent = Object.keys(TestServer.TEST_P2P_NETWORK)[p - 1] + '/' + res.body.ident;
-        mapTransactions.set(originIdent, res.body.commands.length);
-      }, 10000 + i * 50);
+        const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+        await chai.request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`).put('/transaction').send(aT);
+      }, 5000 + i * 50);
     }
 
     // test availability of transactions
     setTimeout(() => {
-      let total = 0;
-      for (const originIdent of mapTransactions.keys()) {
-        const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
-        const res = await chai.request(`http://${ipHTTP}:17${p}69`).get(`/transaction/${originIdent}`);
-        total = total + (mapTransactions.get(originIdent) || 0);
-        expect(res).to.have.status(200);
-      }
-
-      expect(total, 'Total Commmands').eq(_outer * _inner);
-      expect(200, 'PUT transaction failed').eq(200);
       done();
-    }, 25000);
+    }, 55000);
   }
-  */
 }
