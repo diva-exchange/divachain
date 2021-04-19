@@ -30,37 +30,6 @@ const ipHTTP = '127.0.0.1';
 
 @suite
 class TestServer {
-  static TEST_P2P_NETWORK = {
-    NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI: {
-      host: '47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p',
-      port: 17168,
-    },
-    z2aVOeo_Mvt0vr0MKUz54N_zM_7jQYVLzedbuSTBcXA: {
-      host: 'o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p',
-      port: 17268,
-    },
-    Fd26iYIRxGRSz3wyK5vjQtoANEyEUl2_EcyCaRQMKIo: {
-      host: 'yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p',
-      port: 17368,
-    },
-    '-4UR3gNsahU2ehP3CJLuiFLGe6mX2J7nwqjtg8Bvlng': {
-      host: 'xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p',
-      port: 17468,
-    },
-    fw4sKitin_9cwLTQfUEk9_vOQmYCndraGU_PK9PjXKI: {
-      host: '2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p',
-      port: 17568,
-    },
-    '5YHh90pMJOuWRXMK34DrWiUk20gHazd7TUT9bk6szDw': {
-      host: 'lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p',
-      port: 17668,
-    },
-    'KxUiHLdHf_ZyFmEXB-FuJDgB62H2neAzuzQ1cl8Q17I': {
-      host: '6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p',
-      port: 17768,
-    },
-  };
-
   static TEST_CONFIG_SERVER = [
     {
       secret: 'NODE1',
@@ -68,7 +37,6 @@ class TestServer {
       p2p_port: 17168,
       http_ip: ipHTTP,
       http_port: 17169,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
     {
       secret: 'NODE2',
@@ -76,7 +44,6 @@ class TestServer {
       p2p_port: 17268,
       http_ip: ipHTTP,
       http_port: 17269,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
     {
       secret: 'NODE3',
@@ -84,7 +51,6 @@ class TestServer {
       p2p_port: 17368,
       http_ip: ipHTTP,
       http_port: 17369,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
     {
       secret: 'NODE4',
@@ -92,7 +58,6 @@ class TestServer {
       p2p_port: 17468,
       http_ip: ipHTTP,
       http_port: 17469,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
     {
       secret: 'NODE5',
@@ -100,7 +65,6 @@ class TestServer {
       p2p_port: 17568,
       http_ip: ipHTTP,
       http_port: 17569,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
     {
       secret: 'NODE6',
@@ -108,7 +72,6 @@ class TestServer {
       p2p_port: 17668,
       http_ip: ipHTTP,
       http_port: 17669,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
     {
       secret: 'NODE7',
@@ -116,13 +79,11 @@ class TestServer {
       p2p_port: 17768,
       http_ip: ipHTTP,
       http_port: 17769,
-      p2p_network: { ...TestServer.TEST_P2P_NETWORK },
     },
   ];
 
   static arrayServer: Array<Server> = [];
 
-  /*
   @timeout(20000)
   static before(): Promise<void> {
     return new Promise((resolve) => {
@@ -154,7 +115,6 @@ class TestServer {
     TestServer.arrayServer.push(s);
     return s;
   }
-*/
 
   @test
   isAvailable() {
@@ -170,6 +130,12 @@ class TestServer {
   @test
   async peers() {
     const res = await chai.request(`http://${ipHTTP}:17469`).get('/peers');
+    expect(res).to.have.status(200);
+  }
+
+  @test
+  async statePeers() {
+    const res = await chai.request(`http://${ipHTTP}:17469`).get('/state/peers');
     expect(res).to.have.status(200);
   }
 
@@ -192,6 +158,12 @@ class TestServer {
   }
 
   @test
+  async stackTransactions() {
+    const res = await chai.request(`http://${ipHTTP}:17469`).get('/stack/transactions');
+    expect(res).to.have.status(200);
+  }
+
+  @test
   async poolTransactions() {
     const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/transactions');
     expect(res).to.have.status(200);
@@ -204,6 +176,12 @@ class TestServer {
   }
 
   @test
+  async poolCommits() {
+    const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/commits');
+    expect(res).to.have.status(200);
+  }
+
+  @test
   async poolBlocks() {
     const res = await chai.request(`http://${ipHTTP}:17469`).get('/pool/blocks');
     expect(res).to.have.status(200);
@@ -211,10 +189,38 @@ class TestServer {
 
   @test
   async blocks() {
-    const res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks');
+    let res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?limit=1');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=1');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?lte=1');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=-1&lte=1');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=1&lte=-1');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks?gte=1&lte=2');
     expect(res).to.have.status(200);
   }
 
+  @test
+  async page() {
+    let res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks/page/1');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${ipHTTP}:17469`).get('/blocks/page/1?size=1');
+    expect(res).to.have.status(200);
+  }
+
+  /*
   @test
   @slow(30000)
   @timeout(30000)
@@ -242,7 +248,6 @@ class TestServer {
 
     // test availability of transactions
     setTimeout(() => {
-      /*
       let total = 0;
       for (const originIdent of mapTransactions.keys()) {
         const p = Math.floor(Math.random() * (TestServer.TEST_CONFIG_SERVER.length - 1)) + 1;
@@ -252,9 +257,9 @@ class TestServer {
       }
 
       expect(total, 'Total Commmands').eq(_outer * _inner);
-      */
       expect(200, 'PUT transaction failed').eq(200);
       done();
     }, 25000);
   }
+  */
 }

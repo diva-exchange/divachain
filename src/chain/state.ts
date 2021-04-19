@@ -79,8 +79,8 @@ export class State {
     }
   }
 
-  getPeers(): Array<any> {
-    return [...this.mapPeer.entries()];
+  getPeers(): Array<[string, NetworkPeer]> {
+    return this.mapPeer.size > 0 ? [...this.mapPeer.entries()] : [];
   }
 
   private async addPeer(command: CommandAddPeer) {

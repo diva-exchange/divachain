@@ -125,7 +125,15 @@ export class Api {
       method: 'GET',
       path: '/blocks',
       handler: async (request, h) => {
-        return h.response(await this.server.blockchain.get(request.query.limit));
+        return h.response(await this.server.blockchain.get(request.query.limit, request.query.gte, request.query.lte));
+      },
+    });
+
+    this.server.httpServer.route({
+      method: 'GET',
+      path: '/blocks/page/{page?}',
+      handler: async (request, h) => {
+        return h.response(await this.server.blockchain.getPage(request.params.page, request.query.size));
       },
     });
 

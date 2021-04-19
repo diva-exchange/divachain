@@ -109,25 +109,67 @@ export class Blockchain {
     Logger.trace('Block added: ' + block.hash);
   }
 
-  async get(limit: number = -1): Promise<Array<any>> {
-    return new Promise((resolve) => {
-      const lmt: number =
-        Number(limit) > 0
-          ? Number(limit) > MAX_BLOCKS_IN_MEMORY
-            ? MAX_BLOCKS_IN_MEMORY
-            : Number(limit)
-          : MAX_BLOCKS_IN_MEMORY;
+  async get(limit: number = -1, gte: number = 0, lte: number = 0): Promise<Array<any>> {
+    limit = Math.floor(limit);
+    gte = Math.floor(gte);
+    lte = Math.floor(lte);
 
-      resolve([...this.mapBlocks.values()].slice(lmt * -1).reverse());
+    // range
+    if (gte >= 1 || lte >= 1) {
+      gte = gte < 1 ? 1 : gte <= this.height ? gte : this.height;
+      lte = lte < 1 ? 1 : lte <= this.height ? lte : this.height;
+      gte = lte - gte > 0 ? gte : lte;
+      gte = lte - gte > MAX_BLOCKS_IN_MEMORY ? lte - MAX_BLOCKS_IN_MEMORY + 1 : gte;
+
+      const a: Array<BlockStruct> = [];
+      return new Promise((resolve, reject) => {
+        this.dbBlockchain
+          .createValueStream({ gte: gte, lte: lte })
+          .on('data', (data) => {
+            a.unshift(JSON.parse(data));
+          })
+          .on('end', () => {
+            resolve(a);
+          })
+          .on('error', reject);
+      });
+    }
+
+    // limit
+    return new Promise((resolve) => {
+      limit = limit >= 1 ? (limit > MAX_BLOCKS_IN_MEMORY ? MAX_BLOCKS_IN_MEMORY : limit) : 1;
+
+      resolve([...this.mapBlocks.values()].slice(limit * -1).reverse());
+    });
+  }
+
+  async getPage(page: number = 1, size: number = MAX_BLOCKS_IN_MEMORY): Promise<Array<BlockStruct>> {
+    page = page < 1 ? 1 : Math.floor(page);
+    size = size < 1 || size > MAX_BLOCKS_IN_MEMORY ? MAX_BLOCKS_IN_MEMORY : Math.floor(size);
+    size = size > this.height ? this.height : size;
+    const a: Array<BlockStruct> = [];
+    const gte = (page - 1) * size <= this.height ? (page - 1) * size + 1 : 1;
+    const lte = page * size <= this.height ? page * size : this.height;
+
+    return new Promise((resolve, reject) => {
+      this.dbBlockchain
+        .createValueStream({ gte: gte, lte: lte })
+        .on('data', (data) => {
+          a.unshift(JSON.parse(data));
+        })
+        .on('end', () => {
+          resolve(a);
+        })
+        .on('error', reject);
     });
   }
 
   async getTransaction(origin: string, ident: string): Promise<TransactionStruct> {
     return new Promise((resolve, reject) => {
       this.dbBlockchain
-        .createReadStream()
+        .createValueStream()
         .on('data', (data) => {
-          const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
+          const b: BlockStruct = JSON.parse(data) as BlockStruct;
           const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
           t && resolve(t);
         })
@@ -142,11 +184,11 @@ export class Blockchain {
     return this.latestBlock;
   }
 
-  getHeight() {
+  getHeight(): number {
     return this.height;
   }
 
-  getState() {
+  getState(): State {
     return this.state;
   }
 
