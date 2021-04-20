@@ -32,7 +32,7 @@ import * as fs from 'fs';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 19;
+const SIZE_TESTNET = 7;
 const BASE_PORT = 17000;
 const IP_P2P = '127.27.27.2';
 const IP_HTTP = '127.27.27.1';
@@ -219,8 +219,8 @@ class TestServer {
   }
 
   @test
-  @slow(60000)
-  @timeout(60000)
+  @slow(4000)
+  @timeout(4000)
   stressMultiTransaction(done: Function) {
     const _outer = 4;
     const _inner = 4;
@@ -228,20 +228,29 @@ class TestServer {
     // create blocks containing multiple transactions
     let seq = 1;
     const arrayConfig = [...TestServer.mapConfigServer.values()];
-    for (let i = 0; i < _outer; i++) {
+    const arrayOrigin = [...TestServer.mapConfigServer.keys()];
+    const arrayRequests: Array<string> = [];
+    for (let _i = 0; _i < _outer; _i++) {
       setTimeout(async () => {
         const aT = [];
-        for (let j = 0; j < _inner; j++) {
+        for (let _j = 0; _j < _inner; _j++) {
           aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
         }
         const i = Math.floor(Math.random() * (arrayConfig.length - 1));
-        await chai.request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`).put('/transaction').send(aT);
-      }, 5000 + i * 50);
+        arrayRequests.push(arrayOrigin[i]);
+        await chai.request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`).put(`/transaction/seq${_i}`).send(aT);
+      }, 1000 + (_i * 50));
     }
 
-    // test availability of transactions
-    setTimeout(() => {
+    setTimeout(async () => {
+      arrayRequests.forEach(async (origin, i) => {
+        const res = await chai.request(`http://${IP_HTTP}:17001`).get(`/transaction/${origin}/seq${i}`);
+        expect(res).to.have.status(200);
+        expect(res.body.ident).eq(`seq${i}`);
+        expect(res.body.command.length).eq(_inner);
+      });
+
       done();
-    }, 55000);
+    }, 3000);
   }
 }
