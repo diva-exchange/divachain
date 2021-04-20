@@ -238,8 +238,11 @@ class TestServer {
         }
         const i = Math.floor(Math.random() * (arrayConfig.length - 1));
         arrayRequests.push(arrayOrigin[i]);
-        await chai.request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`).put(`/transaction/seq${_i}`).send(aT);
-      }, 1000 + (_i * 50));
+        await chai
+          .request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`)
+          .put(`/transaction/seq${_i}`)
+          .send(aT);
+      }, 1000 + _i * 50);
     }
 
     setTimeout(async () => {

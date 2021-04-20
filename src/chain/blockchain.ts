@@ -136,9 +136,12 @@ export class Blockchain {
 
     // limit
     return new Promise((resolve) => {
-      limit = limit >= 1
-        ? (limit > this.config.max_blocks_in_memory ? this.config.max_blocks_in_memory : limit)
-        : this.config.max_blocks_in_memory;
+      limit =
+        limit >= 1
+          ? limit > this.config.max_blocks_in_memory
+            ? this.config.max_blocks_in_memory
+            : limit
+          : this.config.max_blocks_in_memory;
 
       resolve([...this.mapBlocks.values()].slice(limit * -1).reverse());
     });
