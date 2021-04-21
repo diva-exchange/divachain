@@ -24,7 +24,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE1
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.101
       HTTP_IP: 172.20.101.201
@@ -42,7 +41,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE2
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.102
       HTTP_IP: 172.20.101.202
@@ -60,7 +58,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE3
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.103
       HTTP_IP: 172.20.101.203
@@ -78,7 +75,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE4
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.104
       HTTP_IP: 172.20.101.204
@@ -96,7 +92,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE5
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.105
       HTTP_IP: 172.20.101.205
@@ -114,7 +109,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE6
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.106
       HTTP_IP: 172.20.101.206
@@ -132,7 +126,6 @@ services:
     image: divax/divachain:latest
     restart: unless-stopped
     environment:
-      SECRET: NODE7
       NODE_ENV: development
       SOCKS_PROXY_HOST: 172.20.101.107
       HTTP_IP: 172.20.101.207
