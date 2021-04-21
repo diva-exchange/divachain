@@ -18,15 +18,11 @@
  */
 
 import pino from 'pino';
-import path from 'path';
 
 export const Logger = pino(
-  process.env.NODE_ENV === 'production'
-    ? { level: process.env.LOG_LEVEL || 'warn' }
-    : { level: process.env.LOG_LEVEL || 'info', prettyPrint: { translateTime: true } },
-  process.env.NODE_ENV === 'production'
-    ? pino.destination({ dest: path.join(__dirname, '../log/app.log') })
-    : pino.destination(1)
+  process.env.NODE_ENV !== 'production'
+    ? { level: process.env.LOG_LEVEL || 'info', prettyPrint: { translateTime: true } }
+    : { level: process.env.LOG_LEVEL || 'trace' }
 );
 
 if (process.env.NODE_ENV !== 'test') {

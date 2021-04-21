@@ -22,9 +22,7 @@
     "lint": "prettier -w \"{src/*.ts,src/**/*.ts,test/*.ts,test/**/*.ts}\" && eslint --fix src/ test/ --ext .ts",
     "start": "tsc ; node dist/main.js",
     "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js",
-    "start-dev-trace": "tsc ; NODE_ENV=development LOG_LEVEL=trace node --enable-source-maps dist/main.js",
-    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha",
-    "test-load": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha -f \"stressMultiTransaction\""
+    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
   },
   "dependencies": {
     "@hapi/hapi": "^20.1.2",
