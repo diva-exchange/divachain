@@ -19,18 +19,29 @@
 
 import base64url from 'base64-url';
 import sodium from 'sodium-native';
+import fs from 'fs';
+import path from 'path';
+import { nanoid } from 'nanoid';
+import { Config } from '../config';
 
 export class Wallet {
   private readonly publicKey: Buffer;
   private readonly secretKey: Buffer;
 
-  /**
-   * @param secret
-   */
-  constructor(secret: string) {
+  constructor(config: Config) {
+    const pathSeed = path.join(
+      config.path_state,
+      (config.p2p_ip + '_' + config.p2p_port).replace(/[^0-9_]/g, '-') + '.seed'
+    );
+    // look for the seed file
+    if (!fs.existsSync(pathSeed)) {
+      fs.writeFileSync(pathSeed, nanoid(sodium.crypto_sign_SEEDBYTES));
+      fs.chmodSync(pathSeed, '0600');
+    }
+
     const bufferSeed: Buffer = sodium.sodium_malloc(sodium.crypto_sign_SEEDBYTES);
     sodium.sodium_mlock(bufferSeed);
-    bufferSeed.fill(secret);
+    bufferSeed.fill(fs.readFileSync(pathSeed).toString());
 
     /** @type {Buffer} */
     this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);

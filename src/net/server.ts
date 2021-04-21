@@ -51,9 +51,9 @@ export class Server {
   private readonly api: Api;
 
   constructor(config: Config) {
+    Logger.info(`divachain ${VERSION} instantiating...`);
     this.config = config;
-    //@FIXME remove secret
-    this.wallet = new Wallet(this.config.secret);
+    this.wallet = new Wallet(this.config);
     this.transactionPool = new TransactionPool(this.wallet);
     this.blockPool = new BlockPool();
     this.votePool = new VotePool();
@@ -78,10 +78,10 @@ export class Server {
     this.api.init();
 
     await this.httpServer.start();
-    Logger.info(`HTTP Server (${VERSION}) listening on ${this.config.http_ip}:${this.config.http_port}`);
+    Logger.info(`HTTP Server listening on ${this.config.http_ip}:${this.config.http_port}`);
 
     this.httpServer.events.on('stop', () => {
-      Logger.info(`HTTP Server (${VERSION}) on ${this.config.http_ip}:${this.config.http_port} closed`);
+      Logger.info(`HTTP Server on ${this.config.http_ip}:${this.config.http_port} closed`);
     });
 
     return this;

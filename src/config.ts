@@ -20,7 +20,6 @@
 import path from 'path';
 
 export type Configuration = {
-  secret?: string;
   p2p_ip?: string;
   p2p_port?: number;
   http_ip?: string;
@@ -34,7 +33,6 @@ export type Configuration = {
 
 export class Config {
   //@FIXME remove secret
-  public readonly secret: string;
   public readonly p2p_ip: string;
   public readonly p2p_port: number;
   public readonly http_ip: string;
@@ -46,7 +44,6 @@ export class Config {
   public readonly path_state: string;
 
   constructor(c: Configuration = {}) {
-    this.secret = c.secret || process.env.SECRET || 'NODE1';
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
     this.p2p_port = c.p2p_port || Number(process.env.P2P_PORT) || 17468;
     this.http_ip = c.http_ip || process.env.HTTP_IP || '127.0.0.1';

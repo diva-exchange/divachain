@@ -29,6 +29,7 @@ import { Blockchain } from '../../src/chain/blockchain';
 import { CommandAddPeer, TransactionStruct } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import * as fs from 'fs';
+import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
@@ -44,6 +45,8 @@ class TestServer {
 
   @timeout(20000)
   static before(): Promise<void> {
+    Logger.trace('TestServer.before()');
+
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../config/genesis.json'));
 
@@ -56,20 +59,25 @@ class TestServer {
     };
     const cmds: Array<CommandAddPeer> = [];
     for (let i = 1; i <= SIZE_TESTNET; i++) {
-      const publicKey = new Wallet(`NODE${i}`).getPublicKey();
+      const config = new Config({
+        p2p_ip: IP_P2P,
+        p2p_port: BASE_PORT + i,
+        http_ip: IP_HTTP,
+        http_port: BASE_PORT + i,
+        path_state: path.join(__dirname, '../state'),
+        path_blockstore: path.join(__dirname, '../blockstore'),
+        path_genesis: path.join(__dirname, '../config/genesis.json'),
+      });
+
+      const publicKey = new Wallet(config).getPublicKey();
+      this.mapConfigServer.set(publicKey, config);
+
       cmds.push({
         seq: i,
         command: 'addPeer',
         host: IP_P2P,
         port: BASE_PORT + i,
         publicKey: publicKey,
-      });
-      this.mapConfigServer.set(publicKey, {
-        secret: `NODE${i}`,
-        p2p_ip: IP_P2P,
-        p2p_port: BASE_PORT + i,
-        http_ip: IP_HTTP,
-        http_port: BASE_PORT + i,
       });
     }
     tx.commands = cmds;
@@ -93,6 +101,10 @@ class TestServer {
       let c = TestServer.mapServer.size;
       TestServer.mapServer.forEach(async (s, publicKey) => {
         await s.shutdown();
+
+        const config = TestServer.mapConfigServer.get(publicKey) || ({} as Config);
+        const ident = (config.p2p_ip + '_' + config.p2p_port).replace(/[^0-9_]/g, '-');
+        config.path_state && fs.unlinkSync(path.join(config.path_state, `${ident}.seed`));
         fs.rmdirSync(path.join(__dirname, '../blockstore/', publicKey), { recursive: true });
         fs.rmdirSync(path.join(__dirname, '../state/', publicKey), { recursive: true });
         c--;
@@ -100,6 +112,7 @@ class TestServer {
           setTimeout(resolve, 500);
         }
       });
+      Logger.trace('TestServer.after()');
     });
   }
 
