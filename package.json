@@ -20,9 +20,9 @@
   "scripts": {
     "build": "tsc",
     "lint": "prettier -w \"{src/*.ts,src/**/*.ts,test/*.ts,test/**/*.ts}\" && eslint --fix src/ test/ --ext .ts",
-    "start": "tsc ; node dist/main.js",
-    "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js",
-    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
+    "start": "tsc ; NODE_ENV=production node dist/main.js",
+    "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
+    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha | pino-pretty"
   },
   "dependencies": {
     "@hapi/hapi": "^20.1.2",

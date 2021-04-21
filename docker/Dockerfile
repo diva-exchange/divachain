@@ -39,7 +39,7 @@ RUN mkdir /app/log \
 FROM gcr.io/distroless/nodejs:12
 COPY --from=build /app /app
 
-EXPOSE 17468
+EXPOSE 17468 17469
 
 WORKDIR /app
 CMD [ "dist/main.js" ]

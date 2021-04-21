@@ -29,17 +29,17 @@ rm -f ${PROJECT_PATH}log/*.log
 
 node_modules/.bin/tsc
 
-SECRET=NODE1 SOCKS_PROXY_HOST=172.20.101.201 HTTP_PORT=17169 P2P_IP=172.20.101.1 P2P_PORT=17168 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node1.log 2>&1 &
-SECRET=NODE2 SOCKS_PROXY_HOST=172.20.101.202 HTTP_PORT=17269 P2P_IP=172.20.101.1 P2P_PORT=17268 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node2.log 2>&1 &
-SECRET=NODE3 SOCKS_PROXY_HOST=172.20.101.203 HTTP_PORT=17369 P2P_IP=172.20.101.1 P2P_PORT=17368 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node3.log 2>&1 &
-SECRET=NODE4 SOCKS_PROXY_HOST=172.20.101.204 HTTP_PORT=17469 P2P_IP=172.20.101.1 P2P_PORT=17468 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node4.log 2>&1 &
-SECRET=NODE5 SOCKS_PROXY_HOST=172.20.101.205 HTTP_PORT=17569 P2P_IP=172.20.101.1 P2P_PORT=17568 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node5.log 2>&1 &
-SECRET=NODE6 SOCKS_PROXY_HOST=172.20.101.206 HTTP_PORT=17669 P2P_IP=172.20.101.1 P2P_PORT=17668 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node6.log 2>&1 &
-SECRET=NODE7 SOCKS_PROXY_HOST=172.20.101.207 HTTP_PORT=17769 P2P_IP=172.20.101.1 P2P_PORT=17768 NODE_ENV=development LOG_LEVEL=trace \
-  node --enable-source-maps ${PROJECT_PATH}dist/main.js >${PROJECT_PATH}log/node7.log 2>&1 &
+SECRET=NODE1 SOCKS_PROXY_HOST=172.20.101.101 P2P_IP=172.20.101.201 HTTP_IP=127.27.27.201 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node1.log 2>&1 &
+SECRET=NODE2 SOCKS_PROXY_HOST=172.20.101.102 P2P_IP=172.20.101.202 HTTP_IP=127.27.27.202 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node2.log 2>&1 &
+SECRET=NODE3 SOCKS_PROXY_HOST=172.20.101.103 P2P_IP=172.20.101.203 HTTP_IP=127.27.27.203 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node3.log 2>&1 &
+SECRET=NODE4 SOCKS_PROXY_HOST=172.20.101.104 P2P_IP=172.20.101.204 HTTP_IP=127.27.27.204 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node4.log 2>&1 &
+SECRET=NODE5 SOCKS_PROXY_HOST=172.20.101.105 P2P_IP=172.20.101.205 HTTP_IP=127.27.27.205 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node5.log 2>&1 &
+SECRET=NODE6 SOCKS_PROXY_HOST=172.20.101.106 P2P_IP=172.20.101.206 HTTP_IP=127.27.27.206 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node6.log 2>&1 &
+SECRET=NODE7 SOCKS_PROXY_HOST=172.20.101.107 P2P_IP=172.20.101.207 HTTP_IP=127.27.27.207 NODE_ENV=development \
+  node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node7.log 2>&1 &

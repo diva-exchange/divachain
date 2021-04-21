@@ -1,0 +1,166 @@
+#
+# Copyright (C) 2021 diva.exchange
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+#
+
+version: "3.7"
+services:
+  n1.chain.testnet.diva.i2p:
+    container_name: n1.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE1
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.101
+      HTTP_IP: 172.20.101.201
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.201
+      P2P_PORT: 17468
+    volumes:
+      - n1.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.201
+
+  n2.chain.testnet.diva.i2p:
+    container_name: n2.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE2
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.102
+      HTTP_IP: 172.20.101.202
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.202
+      P2P_PORT: 17468
+    volumes:
+      - n2.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.202
+
+  n3.chain.testnet.diva.i2p:
+    container_name: n3.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE3
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.103
+      HTTP_IP: 172.20.101.203
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.203
+      P2P_PORT: 17468
+    volumes:
+      - n3.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.203
+
+  n4.chain.testnet.diva.i2p:
+    container_name: n4.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE4
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.104
+      HTTP_IP: 172.20.101.204
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.204
+      P2P_PORT: 17468
+    volumes:
+      - n4.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.204
+
+  n5.chain.testnet.diva.i2p:
+    container_name: n5.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE5
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.105
+      HTTP_IP: 172.20.101.205
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.205
+      P2P_PORT: 17468
+    volumes:
+      - n5.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.205
+
+  n6.chain.testnet.diva.i2p:
+    container_name: n6.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE6
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.106
+      HTTP_IP: 172.20.101.206
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.206
+      P2P_PORT: 17468
+    volumes:
+      - n6.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.206
+
+  n7.chain.testnet.diva.i2p:
+    container_name: n7.chain.testnet.diva.i2p
+    image: divax/divachain:latest
+    restart: unless-stopped
+    environment:
+      SECRET: NODE7
+      NODE_ENV: development
+      SOCKS_PROXY_HOST: 172.20.101.107
+      HTTP_IP: 172.20.101.207
+      HTTP_PORT: 17469
+      P2P_IP: 172.20.101.207
+      P2P_PORT: 17468
+    volumes:
+      - n7.chain.testnet.diva.i2p:/app/
+    networks:
+      network.testnet.diva.i2p:
+        ipv4_address: 172.20.101.207
+
+networks:
+  network.testnet.diva.i2p:
+    external: true
+
+volumes:
+  n1.chain.testnet.diva.i2p:
+    name: n1.chain.testnet.diva.i2p
+  n2.chain.testnet.diva.i2p:
+    name: n2.chain.testnet.diva.i2p
+  n3.chain.testnet.diva.i2p:
+    name: n3.chain.testnet.diva.i2p
+  n4.chain.testnet.diva.i2p:
+    name: n4.chain.testnet.diva.i2p
+  n5.chain.testnet.diva.i2p:
+    name: n5.chain.testnet.diva.i2p
+  n6.chain.testnet.diva.i2p:
+    name: n6.chain.testnet.diva.i2p
+  n7.chain.testnet.diva.i2p:
+    name: n7.chain.testnet.diva.i2p

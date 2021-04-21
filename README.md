@@ -21,13 +21,13 @@ The network itself is permission- and leaderless. Each peer in the network repre
 ## How to Start the Local Testnet (I2P-based)
 
 ```
-sudo docker-compose -f docker-compose/i2p-testnet.yml up -d
+sudo docker-compose -f docker/i2p-testnet.yml up -d
 ```
 
 ## How to Stop the Local Testnet
 
 ```
-sudo docker-compose -f docker-compose/i2p-testnet.yml down
+sudo docker-compose -f docker/i2p-testnet.yml down
 ```
 
 ## Configuration
