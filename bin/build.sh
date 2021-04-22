@@ -25,9 +25,7 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-# compile to JS
-rm -rf dist/**/*.js
+rm -rf dist/*
 npm run build
-
-TAG=${TAG:-latest}
-docker build --pull --no-cache -f docker/Dockerfile --no-cache --force-rm -t divax/divachain:${TAG} .
+cp -r src/schema dist/schema
+chown -R --reference=./ dist

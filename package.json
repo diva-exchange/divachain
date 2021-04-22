@@ -18,10 +18,10 @@
     "url": "https://codeberg.org/diva.exchange/diva-blockchain.git"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "bin/build.sh",
     "lint": "prettier -w \"{src/*.ts,src/**/*.ts,test/*.ts,test/**/*.ts}\" && eslint --fix src/ test/ --ext .ts",
-    "start": "tsc ; NODE_ENV=production node dist/main.js",
-    "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
+    "start": "NODE_ENV=production node dist/main.js",
+    "start-dev": "NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
     "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha | pino-pretty"
   },
   "dependencies": {
@@ -60,7 +60,7 @@
     "eslint-config-prettier": "^8.2.0",
     "eslint-plugin-prettier": "^3.4.0",
     "mocha": "^8.3.2",
-    "npm-check-updates": "^11.4.1",
+    "npm-check-updates": "^11.5.1",
     "nyc": "^15.1.0",
     "pino-pretty": "^4.7.1",
     "prettier": "^2.2.1",

@@ -28,18 +28,18 @@ export class Validation {
   private static tx: ValidateFunction;
 
   static init() {
-    const schemaMessage: JSONSchemaType<MessageStruct> = require('../../schema/message/message.json');
-    const schemaAuth: JSONSchemaType<MessageStruct> = require('../../schema/message/auth.json');
-    const schemaChallenge: JSONSchemaType<MessageStruct> = require('../../schema/message/challenge.json');
-    const schemaVote: JSONSchemaType<MessageStruct> = require('../../schema/message/vote.json');
-    const schemaBlock: JSONSchemaType<BlockStruct> = require('../../schema/block/block.json');
-    const schemaVotes: JSONSchemaType<BlockStruct> = require('../../schema/block/votes.json');
-    const schemaTx: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/tx.json');
-    const schemaAddPeer: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/addPeer.json');
-    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/removePeer.json');
+    const schemaMessage: JSONSchemaType<MessageStruct> = require('../schema/message/message.json');
+    const schemaAuth: JSONSchemaType<MessageStruct> = require('../schema/message/auth.json');
+    const schemaChallenge: JSONSchemaType<MessageStruct> = require('../schema/message/challenge.json');
+    const schemaVote: JSONSchemaType<MessageStruct> = require('../schema/message/vote.json');
+    const schemaBlock: JSONSchemaType<BlockStruct> = require('../schema/block/block.json');
+    const schemaVotes: JSONSchemaType<BlockStruct> = require('../schema/block/votes.json');
+    const schemaTx: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/tx.json');
+    const schemaAddPeer: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/addPeer.json');
+    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/removePeer.json');
 
     //@TODO
-    const schemaTestLoad: JSONSchemaType<BlockStruct> = require('../../schema/block/transaction/testLoad.json');
+    const schemaTestLoad: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/testLoad.json');
 
     Validation.message = new Ajv({
       schemas: [

@@ -5,7 +5,7 @@
   "tx": [
     {
       "ident": "genesis",
-      "origin": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI",
+      "origin": "1234567890123456789012345678901234567890123",
       "timestamp": 88355100000,
       "commands": [
         {

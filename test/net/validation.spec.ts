@@ -44,7 +44,7 @@ class TestValidation {
     TestValidation.config = new Config({
       path_state: path.join(__dirname, '../state'),
       path_blockstore: path.join(__dirname, '../blockstore'),
-      path_genesis: path.join(__dirname, '../config/genesis.json'),
+      path_genesis: path.join(__dirname, '../genesis.json'),
     });
     TestValidation.wallet = new Wallet(TestValidation.config);
   }

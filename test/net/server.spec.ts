@@ -48,7 +48,7 @@ class TestServer {
     Logger.trace('TestServer.before()');
 
     // create a genesis block
-    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../config/genesis.json'));
+    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../genesis.json'));
 
     const tx: TransactionStruct = {
       ident: 'genesis',
@@ -66,7 +66,7 @@ class TestServer {
         http_port: BASE_PORT + i,
         path_state: path.join(__dirname, '../state'),
         path_blockstore: path.join(__dirname, '../blockstore'),
-        path_genesis: path.join(__dirname, '../config/genesis.json'),
+        path_genesis: path.join(__dirname, '../genesis.json'),
       });
 
       const publicKey = new Wallet(config).getPublicKey();
@@ -82,7 +82,7 @@ class TestServer {
     }
     tx.commands = cmds;
     genesis.tx = [tx];
-    fs.writeFileSync(path.join(__dirname, '../config/test-genesis.json'), JSON.stringify(genesis));
+    fs.writeFileSync(path.join(__dirname, '../test-genesis.json'), JSON.stringify(genesis));
 
     return new Promise((resolve) => {
       setTimeout(resolve, 19000);
@@ -121,7 +121,7 @@ class TestServer {
       new Config({
         ...TestServer.mapConfigServer.get(publicKey),
         ...{
-          path_genesis: path.join(__dirname, '../config/test-genesis.json'),
+          path_genesis: path.join(__dirname, '../test-genesis.json'),
           path_blockstore: path.join(__dirname, '../blockstore'),
           path_state: path.join(__dirname, '../state'),
         },

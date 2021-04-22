@@ -24,10 +24,11 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-rm -rf ${PROJECT_PATH}dist/*
-rm -f ${PROJECT_PATH}log/*.log
-
-node_modules/.bin/tsc
+# compile to JS
+rm -rf dist/*
+npm run build
+cp -r src/schema dist/schema
+chown -R --reference=./ dist
 
 SOCKS_PROXY_HOST=172.20.101.101 P2P_IP=172.20.101.201 HTTP_IP=127.27.27.201 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node1.log 2>&1 &

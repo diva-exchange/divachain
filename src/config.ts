@@ -50,7 +50,7 @@ export class Config {
     this.http_port = c.http_port || Number(process.env.HTTP_PORT) || 17469;
     this.per_message_deflate = c.per_message_deflate || true;
     this.max_blocks_in_memory = c.max_blocks_in_memory || 1000;
-    this.path_genesis = c.path_genesis || path.join(__dirname, '../config/genesis.json');
+    this.path_genesis = c.path_genesis || path.join(__dirname, '../genesis.json');
     this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
     this.path_state = c.path_state || path.join(__dirname, '../state/');
   }
