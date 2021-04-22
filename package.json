@@ -19,7 +19,7 @@
   },
   "scripts": {
     "build": "bin/build.sh",
-    "lint": "prettier -w \"{src/*.ts,src/**/*.ts,test/*.ts,test/**/*.ts}\" && eslint --fix src/ test/ --ext .ts",
+    "lint": "prettier -w \"**/*.ts\" && eslint --fix src/ test/ --ext .ts",
     "start": "NODE_ENV=production node dist/main.js",
     "start-dev": "NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
     "test": "bin/clean-testenv.sh ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"

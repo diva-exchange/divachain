@@ -20,7 +20,7 @@
 import fs from 'fs';
 import path from 'path';
 import { BlockStruct } from '../src/chain/block';
-import { ArrayComand } from '../src/chain/transaction';
+import { CommandAddPeer } from '../src/chain/transaction';
 import { Wallet } from '../src/chain/wallet';
 import { Config } from '../src/config';
 import { Blockchain } from '../src/chain/blockchain';
@@ -43,7 +43,7 @@ export class Prepare {
   private createFiles() {
     // genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
-    const commands: ArrayComand = [];
+    const commands: Array<CommandAddPeer> = [];
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
       const config = new Config({
         p2p_ip: '172.20.72.' + (100 + seq),
@@ -78,31 +78,41 @@ export class Prepare {
     let seq = 1;
     for (const c of commands) {
       const name = `n${seq}.chain.testnet.diva.performance`;
-      yml = yml +
+      yml =
+        yml +
         `  ${name}:\n` +
         `    container_name: ${name}\n` +
         '    image: divax/divachain:latest\n' +
         '    restart: unless-stopped\n' +
         '    environment:\n' +
         '      NODE_ENV: development\n' +
-        '      HTTP_IP: 172.20.72.' + (100 + seq) + '\n' +
-        '      HTTP_PORT: 17469\n' +
-        '      P2P_IP: 172.20.72.' + (100 + seq) + '\n' +
-        '      P2P_PORT: 17468\n' +
+        '      HTTP_IP: ' +
+        c.host +
+        '\n' +
+        '      HTTP_PORT: ' +
+        (c.port + 1) +
+        '\n' +
+        '      P2P_IP: ' +
+        c.host +
+        '\n' +
+        '      P2P_PORT: ' +
+        c.port +
+        '\n' +
         '    volumes:\n' +
         `      - ${name}:/app/\n` +
         '      - ../keys:/app/keys/\n' +
         '      - ../genesis:/app/genesis/\n' +
         '    networks:\n' +
         '      network.testnet.diva.performance:\n' +
-        '        ipv4_address: 172.20.72.' + (100 + seq) + '\n\n';
-      volumes = volumes +
-        `  ${name}:\n` +
-        `    name: ${name}\n`;
+        '        ipv4_address: ' +
+        c.host +
+        '\n\n';
+      volumes = volumes + `  ${name}:\n` + `    name: ${name}\n`;
       seq++;
     }
 
-    yml = yml +
+    yml =
+      yml +
       'networks:\n' +
       '  network.testnet.diva.performance:\n' +
       '    name: network.testnet.diva.performance\n' +
@@ -110,7 +120,8 @@ export class Prepare {
       '      driver: default\n' +
       '      config:\n' +
       '        - subnet: 172.20.72.0/24\n\n' +
-      'volumes:\n' + volumes;
+      'volumes:\n' +
+      volumes;
 
     fs.writeFileSync(this.pathYml, yml);
   }
