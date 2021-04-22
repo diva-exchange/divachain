@@ -19,11 +19,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { BlockStruct } from '../../src/chain/block';
-import { ArrayComand } from '../../src/chain/transaction';
-import { Wallet } from '../../src/chain/wallet';
-import { Config } from '../../src/config';
-import { Blockchain } from '../../src/chain/blockchain';
+import { BlockStruct } from '../src/chain/block';
+import { ArrayComand } from '../src/chain/transaction';
+import { Wallet } from '../src/chain/wallet';
+import { Config } from '../src/config';
+import { Blockchain } from '../src/chain/blockchain';
 
 const SIZE_NETWORK_DEFAULT = 7;
 
@@ -34,7 +34,7 @@ export class Prepare {
 
   constructor(sizeNetwork: number = SIZE_NETWORK_DEFAULT) {
     this.sizeNetwork = Math.floor(sizeNetwork) > 0 ? Math.floor(sizeNetwork) : SIZE_NETWORK_DEFAULT;
-    this.pathGenesis = path.join(__dirname, 'genesis/genesis.json');
+    this.pathGenesis = path.join(__dirname, 'genesis/block.json');
     this.pathYml = path.join(__dirname, 'docker/chain-testnet.yml');
 
     this.createFiles();
@@ -42,7 +42,7 @@ export class Prepare {
 
   private createFiles() {
     // genesis block
-    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../src/genesis.json'));
+    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
     const commands: ArrayComand = [];
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
       const config = new Config({
@@ -92,6 +92,7 @@ export class Prepare {
         '    volumes:\n' +
         `      - ${name}:/app/\n` +
         '      - ../keys:/app/keys/\n' +
+        '      - ../genesis:/app/genesis/\n' +
         '    networks:\n' +
         '      network.testnet.diva.performance:\n' +
         '        ipv4_address: 172.20.72.' + (100 + seq) + '\n\n';

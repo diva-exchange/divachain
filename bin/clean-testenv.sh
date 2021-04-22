@@ -27,4 +27,4 @@ PROJECT_PATH=`pwd`/
 rm -rf ${PROJECT_PATH}test/keys/*
 rm -rf ${PROJECT_PATH}test/blockstore/*
 rm -rf ${PROJECT_PATH}test/state/*
-rm -f ${PROJECT_PATH}test/genesis.json
+rm -f ${PROJECT_PATH}test/genesis/block.json

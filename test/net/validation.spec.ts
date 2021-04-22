@@ -41,7 +41,7 @@ class TestValidation {
   @slow(200)
   static before() {
     TestValidation.config = new Config({
-      path_genesis: path.join(__dirname, '../genesis.json'),
+      path_genesis: path.join(__dirname, '../genesis/block.json'),
       path_state: path.join(__dirname, '../state'),
       path_blockstore: path.join(__dirname, '../blockstore'),
       path_keys: path.join(__dirname, '../keys'),

@@ -26,6 +26,7 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
   url="https://diva.exchange"
 
 COPY dist /app/dist
+COPY genesis /app/genesis
 COPY package.json /app/
 
 RUN mkdir /app/log \
