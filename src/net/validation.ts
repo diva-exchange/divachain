@@ -22,24 +22,26 @@ import { Message, MessageStruct } from './message/message';
 import { BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
 import { TransactionStruct } from '../chain/transaction';
+import path from 'path';
 
 export class Validation {
   private static message: ValidateFunction;
   private static tx: ValidateFunction;
 
   static init() {
-    const schemaMessage: JSONSchemaType<MessageStruct> = require('../schema/message/message.json');
-    const schemaAuth: JSONSchemaType<MessageStruct> = require('../schema/message/auth.json');
-    const schemaChallenge: JSONSchemaType<MessageStruct> = require('../schema/message/challenge.json');
-    const schemaVote: JSONSchemaType<MessageStruct> = require('../schema/message/vote.json');
-    const schemaBlock: JSONSchemaType<BlockStruct> = require('../schema/block/block.json');
-    const schemaVotes: JSONSchemaType<BlockStruct> = require('../schema/block/votes.json');
-    const schemaTx: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/tx.json');
-    const schemaAddPeer: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/addPeer.json');
-    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/removePeer.json');
+    const pathSchema = path.join(__dirname, '../schema/');
+    const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
+    const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
+    const schemaChallenge: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/challenge.json');
+    const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
+    const schemaBlock: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/block.json');
+    const schemaVotes: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/votes.json');
+    const schemaTx: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/tx.json');
+    const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addPeer.json');
+    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/removePeer.json');
 
     //@TODO
-    const schemaTestLoad: JSONSchemaType<BlockStruct> = require('../schema/block/transaction/testLoad.json');
+    const schemaTestLoad: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/testLoad.json');
 
     Validation.message = new Ajv({
       schemas: [
@@ -53,12 +55,10 @@ export class Validation {
         schemaRemovePeer,
         schemaTestLoad,
       ],
-      verbose: true,
     }).compile(schemaMessage);
 
     Validation.tx = new Ajv({
       schemas: [schemaAddPeer, schemaRemovePeer, schemaTestLoad],
-      verbose: true,
     }).compile(schemaTx);
   }
 

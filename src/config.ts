@@ -29,6 +29,7 @@ export type Configuration = {
   path_genesis?: string;
   path_blockstore?: string;
   path_state?: string;
+  path_keys?: string;
 };
 
 export class Config {
@@ -42,6 +43,7 @@ export class Config {
   public readonly path_genesis: string;
   public readonly path_blockstore: string;
   public readonly path_state: string;
+  public readonly path_keys: string;
 
   constructor(c: Configuration = {}) {
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
@@ -53,5 +55,6 @@ export class Config {
     this.path_genesis = c.path_genesis || path.join(__dirname, '../genesis.json');
     this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
     this.path_state = c.path_state || path.join(__dirname, '../state/');
+    this.path_keys = c.path_keys || path.join(__dirname, '../keys/');
   }
 }

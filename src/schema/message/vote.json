@@ -9,7 +9,7 @@
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
     "block": {
-      "$ref": "/block/block.json"
+      "$ref": "/schema/block/block.json"
     },
     "sig": {
       "type": "string",

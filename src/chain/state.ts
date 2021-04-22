@@ -57,6 +57,10 @@ export class State {
       this.height = 0;
       await this.dbState.put('height', this.height);
     }
+
+    this.mapPeer.forEach((peer, publicKey) => {
+      this.network.addPeer(publicKey, peer);
+    });
   }
 
   async process(block: BlockStruct) {

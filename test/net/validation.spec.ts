@@ -31,7 +31,6 @@ import { Vote } from '../../src/net/message/vote';
 import { BlockStruct } from '../../src/chain/block';
 import { Confirm } from '../../src/net/message/confirm';
 import { Config } from '../../src/config';
-import fs from 'fs';
 import path from 'path';
 
 @suite
@@ -42,9 +41,10 @@ class TestValidation {
   @slow(200)
   static before() {
     TestValidation.config = new Config({
+      path_genesis: path.join(__dirname, '../genesis.json'),
       path_state: path.join(__dirname, '../state'),
       path_blockstore: path.join(__dirname, '../blockstore'),
-      path_genesis: path.join(__dirname, '../genesis.json'),
+      path_keys: path.join(__dirname, '../keys'),
     });
     TestValidation.wallet = new Wallet(TestValidation.config);
   }
@@ -52,9 +52,6 @@ class TestValidation {
   @slow(100)
   static after() {
     TestValidation.wallet.close();
-    const nameFile =
-      (TestValidation.config.p2p_ip + '_' + TestValidation.config.p2p_port).replace(/[^0-9_]/g, '-') + '.seed';
-    TestValidation.config.path_state && fs.unlinkSync(path.join(TestValidation.config.path_state, nameFile));
   }
 
   @test

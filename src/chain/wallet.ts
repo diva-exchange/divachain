@@ -21,27 +21,15 @@ import base64url from 'base64-url';
 import sodium from 'sodium-native';
 import fs from 'fs';
 import path from 'path';
-import { nanoid } from 'nanoid';
 import { Config } from '../config';
 
 export class Wallet {
+  private readonly ident: string;
   private readonly publicKey: Buffer;
   private readonly secretKey: Buffer;
 
-  constructor(config: Config) {
-    const pathSeed = path.join(
-      config.path_state,
-      (config.p2p_ip + '_' + config.p2p_port).replace(/[^0-9_]/g, '-') + '.seed'
-    );
-    // look for the seed file
-    if (!fs.existsSync(pathSeed)) {
-      fs.writeFileSync(pathSeed, nanoid(sodium.crypto_sign_SEEDBYTES));
-      fs.chmodSync(pathSeed, '0600');
-    }
-
-    const bufferSeed: Buffer = sodium.sodium_malloc(sodium.crypto_sign_SEEDBYTES);
-    sodium.sodium_mlock(bufferSeed);
-    bufferSeed.fill(fs.readFileSync(pathSeed).toString());
+  constructor(config: Config, ident: string = '') {
+    this.ident = ident || (config.p2p_ip + '_' + config.p2p_port).replace(/[^0-9_]/g, '-');
 
     /** @type {Buffer} */
     this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);
@@ -49,9 +37,18 @@ export class Wallet {
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
     sodium.sodium_mlock(this.secretKey);
 
-    sodium.crypto_sign_seed_keypair(this.publicKey, this.secretKey, bufferSeed);
+    // look for keys
+    const pathPublic = path.join(config.path_keys, this.ident + '.public');
+    const pathSecret = path.join(config.path_keys, this.ident + '.secret');
+    if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
+      this.publicKey.fill(fs.readFileSync(pathPublic));
+      this.secretKey.fill(fs.readFileSync(pathSecret));
+    } else {
+      sodium.crypto_sign_keypair(this.publicKey, this.secretKey);
 
-    sodium.sodium_munlock(bufferSeed);
+      fs.writeFileSync(pathPublic, this.publicKey, { mode: '0644' });
+      fs.writeFileSync(pathSecret, this.secretKey, { mode: '0600' });
+    }
   }
 
   close() {
