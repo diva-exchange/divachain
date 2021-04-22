@@ -27,11 +27,11 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
 
 COPY dist /app/dist
 COPY package.json /app/
-COPY config /app/config
 
 RUN mkdir /app/log \
   && mkdir /app/blockstore \
   && mkdir /app/state \
+  && mkdir /app/keys \
   && cd /app/ \
   && npm i --only=production
 

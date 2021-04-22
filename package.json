@@ -22,7 +22,7 @@
     "lint": "prettier -w \"{src/*.ts,src/**/*.ts,test/*.ts,test/**/*.ts}\" && eslint --fix src/ test/ --ext .ts",
     "start": "NODE_ENV=production node dist/main.js",
     "start-dev": "NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
-    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
+    "test": "bin/clean-testenv.sh ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
   },
   "dependencies": {
     "@hapi/hapi": "^20.1.2",

@@ -25,7 +25,7 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-rm -rf dist/*
-npm run build
-cp -r src/schema dist/schema
-chown -R --reference=./ dist
+rm -rf ${PROJECT_PATH}dist/*
+${PROJECT_PATH}node_modules/.bin/tsc
+cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}dist/schema
+chown -R --reference=${PROJECT_PATH} ${PROJECT_PATH}dist

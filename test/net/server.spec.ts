@@ -97,11 +97,8 @@ class TestServer {
   static after(): Promise<void> {
     return new Promise((resolve) => {
       let c = TestServer.mapServer.size;
-      TestServer.mapServer.forEach(async (s, publicKey) => {
+      TestServer.mapServer.forEach(async (s) => {
         await s.shutdown();
-
-        fs.rmdirSync(path.join(__dirname, '../blockstore/', publicKey), { recursive: true });
-        fs.rmdirSync(path.join(__dirname, '../state/', publicKey), { recursive: true });
         c--;
         if (!c) {
           setTimeout(resolve, 500);

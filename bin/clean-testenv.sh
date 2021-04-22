@@ -17,7 +17,6 @@
 #
 # Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
 #
-
 # -e  Exit immediately if a simple command exits with a non-zero status
 set -e
 
@@ -25,7 +24,7 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-${PROJECT_PATH}bin/build.sh
-
-TAG=${TAG:-latest}
-docker build --pull --no-cache -f ${PROJECT_PATH}docker/Dockerfile --force-rm -t divax/divachain:${TAG} .
+rm -rf ${PROJECT_PATH}test/keys/*
+rm -rf ${PROJECT_PATH}test/blockstore/*
+rm -rf ${PROJECT_PATH}test/state/*
+rm -f ${PROJECT_PATH}test/genesis.json
