@@ -29,7 +29,7 @@ export class Commit extends Message {
 
   create(commit: VoteStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
-    this.message.ident = this.message.type + commit.block.hash;
+    this.message.ident = this.message.type + commit.origin + commit.block.hash;
     this.message.data = commit;
     this.message.broadcast = true;
     return this;

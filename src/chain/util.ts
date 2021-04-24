@@ -44,4 +44,21 @@ export class Util {
       Buffer.from(base64url.unescape(publicKey), 'base64')
     );
   }
+
+  /**
+   * Shuffle an array, using Durstenfeld shuffle
+   * https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
+   *
+   * @param {Array<any>} array
+   * @return {Array<any>}
+   */
+  static shuffleArray(array: Array<any>) {
+    const a = array.slice();
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+
+    return a;
+  }
 }

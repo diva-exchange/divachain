@@ -27,14 +27,22 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
 import { Wallet } from '../chain/wallet';
 import { Validation } from './validation';
+import { Util } from '../chain/util';
 
-const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '172.20.101.201';
-const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 4445;
+const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '';
+const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 0;
 
 const REFRESH_INTERVAL_MS = 3000; // 3 secs
 const TIMEOUT_AUTH_MS = REFRESH_INTERVAL_MS * 10;
 const CLEAN_INTERVAL_MS = 60000; // 1 minute
 const PING_INTERVAL_MS = Math.floor(CLEAN_INTERVAL_MS / 2); // must be significantly lower than CLEAN_INTERVAL_MS
+
+const DEFAULT_SIZE_PEER_NETWORK = 5;
+const SIZE_PEER_NETWORK =
+  Number(process.env.SIZE_PEER_NETWORK) || 0 > DEFAULT_SIZE_PEER_NETWORK
+    ? Math.floor(Number(process.env.SIZE_PEER_NETWORK))
+    : DEFAULT_SIZE_PEER_NETWORK;
+const NETWORK_MORPH_INTERVAL_MS = 180000; // 3 minutes
 
 const MAX_SIZE_GOSSIP_STACK = 1000;
 
@@ -59,6 +67,7 @@ export class Network {
   private readonly wallet: Wallet;
   private readonly identity: string;
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
+  private arrayPeerNetwork: Array<string> = [];
 
   private readonly wss: WebSocket.Server;
 
@@ -112,6 +121,9 @@ export class Network {
       Logger.info('P2P WebSocket Server closed');
     });
 
+    setTimeout(() => {
+      this.morphPeerNetwork();
+    }, REFRESH_INTERVAL_MS - 1);
     setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
     setTimeout(() => this.ping(), PING_INTERVAL_MS);
     setTimeout(() => this.clean(), CLEAN_INTERVAL_MS);
@@ -182,7 +194,8 @@ export class Network {
   }
 
   peers() {
-    const peers: { in: Array<object>; out: Array<object> } = {
+    const peers: { net: Array<string>; in: Array<object>; out: Array<object> } = {
+      net: this.arrayPeerNetwork,
       in: [],
       out: [],
     };
@@ -318,13 +331,41 @@ export class Network {
     });
   }
 
-  private async refresh() {
-    for (const publicKey of this.mapPeer.keys()) {
+  private refresh() {
+    for (const publicKey of this.arrayPeerNetwork) {
       if (publicKey !== this.identity && !this.peersOut[publicKey]) {
         this.connect(publicKey);
       }
     }
     setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
+  }
+
+  private morphPeerNetwork() {
+    if (this.mapPeer.size < 1) {
+      return;
+    }
+
+    const arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys());
+    if (arrayPublicKey.length <= SIZE_PEER_NETWORK) {
+      this.arrayPeerNetwork = [...arrayPublicKey];
+      return;
+    }
+
+    this.arrayPeerNetwork = this.arrayPeerNetwork.concat(
+      Util.shuffleArray(arrayPublicKey).slice(
+        0,
+        this.arrayPeerNetwork.length >= SIZE_PEER_NETWORK ? Math.floor(SIZE_PEER_NETWORK / 2) : SIZE_PEER_NETWORK
+      )
+    );
+
+    while (this.arrayPeerNetwork.length > SIZE_PEER_NETWORK) {
+      const publicKey = this.arrayPeerNetwork.shift();
+      publicKey && this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
+    }
+
+    setTimeout(() => {
+      this.morphPeerNetwork();
+    }, NETWORK_MORPH_INTERVAL_MS);
   }
 
   private clean() {
@@ -360,11 +401,11 @@ export class Network {
       perMessageDeflate: this.config.per_message_deflate,
       headers: {
         'diva-identity': this.identity,
-        'diva-origin': peer.host + ':' + peer.port,
+        'diva-origin': this.config.p2p_ip + ':' + this.config.p2p_port,
       },
     };
 
-    if (/\.i2p$/.test(peer.host)) {
+    if (SOCKS_PROXY_HOST && SOCKS_PROXY_PORT > 0 && /\.i2p$/.test(peer.host)) {
       options.agent = new SocksProxyAgent(`socks://${SOCKS_PROXY_HOST}:${SOCKS_PROXY_PORT}`);
     }
 
