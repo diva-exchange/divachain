@@ -42,7 +42,7 @@ export class Prepare {
 
   private createFiles() {
     // genesis block
-    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
+    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../genesis/block.json'));
     const commands: Array<CommandAddPeer> = [];
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
       const config = new Config({

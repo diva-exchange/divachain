@@ -19,4 +19,4 @@
 
 import { Prepare } from './prepare';
 
-const prepare = new Prepare();
+new Prepare(Number(process.env.SIZE_NETWORK || 0));
