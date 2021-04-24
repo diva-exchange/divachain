@@ -24,7 +24,13 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
+# tests
 rm -rf ${PROJECT_PATH}test/keys/*
 rm -rf ${PROJECT_PATH}test/blockstore/*
 rm -rf ${PROJECT_PATH}test/state/*
-rm -f ${PROJECT_PATH}test/genesis/block.json
+rm -f ${PROJECT_PATH}test/genesis/*
+
+# performance tests
+rm -f ${PROJECT_PATH}test-performance/docker/*
+rm -f ${PROJECT_PATH}test-performance/keys/*
+rm -f ${PROJECT_PATH}test-performance/genesis/*
