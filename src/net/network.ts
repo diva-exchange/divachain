@@ -104,9 +104,7 @@ export class Network {
       Logger.info('P2P WebSocket Server closed');
     });
 
-    setTimeout(() => {
-      this.morphPeerNetwork();
-    }, this.config.network_refresh_interval_ms - 1);
+    setTimeout(() => this.morphPeerNetwork(), this.config.network_refresh_interval_ms - 1);
     setTimeout(() => this.refresh(), this.config.network_refresh_interval_ms);
     setTimeout(() => this.ping(), this.config.network_ping_interval_ms);
     setTimeout(() => this.clean(), this.config.network_clean_interval_ms);

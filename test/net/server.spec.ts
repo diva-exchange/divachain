@@ -65,6 +65,9 @@ class TestServer {
         path_state: path.join(__dirname, '../state'),
         path_blockstore: path.join(__dirname, '../blockstore'),
         path_keys: path.join(__dirname, '../keys'),
+        network_size: 5,
+        network_morph_interval_ms: 30000,
+        network_clean_interval_ms: 20000,
       });
 
       const publicKey = new Wallet(config).getPublicKey();
@@ -83,7 +86,7 @@ class TestServer {
     fs.writeFileSync(path.join(__dirname, '../genesis/block.json'), JSON.stringify(genesis));
 
     return new Promise((resolve) => {
-      setTimeout(resolve, 19000);
+      setTimeout(resolve, 9000);
 
       for (const pk of TestServer.mapConfigServer.keys()) {
         (async () => {
@@ -224,8 +227,8 @@ class TestServer {
   }
 
   @test
-  @slow(4000)
-  @timeout(4000)
+  @slow(60000)
+  @timeout(60000)
   stressMultiTransaction(done: Function) {
     const _outer = 4;
     const _inner = 4;
