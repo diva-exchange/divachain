@@ -84,7 +84,7 @@ export class Config {
 
     this.network_size =
       c.network_size || Number(process.env.NETWORK_SIZE) || 0 > NETWORK_DEFAULT_SIZE
-        ? Math.floor(Number(process.env.NETWORK_SIZE))
+        ? Math.floor(c.network_size || Number(process.env.NETWORK_SIZE))
         : NETWORK_DEFAULT_SIZE;
     this.network_morph_interval_ms =
       c.network_morph_interval_ms || Number(process.env.NETWORK_MORPH_INTERVAL_MS) || 180000;

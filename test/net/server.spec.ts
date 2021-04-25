@@ -250,7 +250,7 @@ class TestServer {
           .request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`)
           .put(`/transaction/seq${_i}`)
           .send(aT);
-      }, 1000 + _i * 50);
+      }, 10000 + _i * 500);
     }
 
     setTimeout(async () => {
@@ -262,6 +262,6 @@ class TestServer {
       });
 
       done();
-    }, 3000);
+    }, 55000);
   }
 }
