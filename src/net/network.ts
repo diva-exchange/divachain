@@ -29,23 +29,6 @@ import { Wallet } from '../chain/wallet';
 import { Validation } from './validation';
 import { Util } from '../chain/util';
 
-const SOCKS_PROXY_HOST = process.env.SOCKS_PROXY_HOST || '';
-const SOCKS_PROXY_PORT = Number(process.env.SOCKS_PROXY_PORT) || 0;
-
-const REFRESH_INTERVAL_MS = 3000; // 3 secs
-const TIMEOUT_AUTH_MS = REFRESH_INTERVAL_MS * 10;
-const CLEAN_INTERVAL_MS = 60000; // 1 minute
-const PING_INTERVAL_MS = Math.floor(CLEAN_INTERVAL_MS / 2); // must be significantly lower than CLEAN_INTERVAL_MS
-
-const DEFAULT_SIZE_PEER_NETWORK = 5;
-const SIZE_PEER_NETWORK =
-  Number(process.env.SIZE_PEER_NETWORK) || 0 > DEFAULT_SIZE_PEER_NETWORK
-    ? Math.floor(Number(process.env.SIZE_PEER_NETWORK))
-    : DEFAULT_SIZE_PEER_NETWORK;
-const NETWORK_MORPH_INTERVAL_MS = 180000; // 3 minutes
-
-const MAX_SIZE_GOSSIP_STACK = 1000;
-
 const WS_CLIENT_OPTIONS = {
   compress: true,
   binary: true,
@@ -123,10 +106,10 @@ export class Network {
 
     setTimeout(() => {
       this.morphPeerNetwork();
-    }, REFRESH_INTERVAL_MS - 1);
-    setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
-    setTimeout(() => this.ping(), PING_INTERVAL_MS);
-    setTimeout(() => this.clean(), CLEAN_INTERVAL_MS);
+    }, this.config.network_refresh_interval_ms - 1);
+    setTimeout(() => this.refresh(), this.config.network_refresh_interval_ms);
+    setTimeout(() => this.ping(), this.config.network_ping_interval_ms);
+    setTimeout(() => this.clean(), this.config.network_clean_interval_ms);
   }
 
   async shutdown(): Promise<void> {
@@ -294,7 +277,7 @@ export class Network {
 
     const timeout = setTimeout(() => {
       ws.close(4005, 'Auth Timeout');
-    }, TIMEOUT_AUTH_MS);
+    }, this.config.network_auth_timeout_ms);
 
     const challenge = nanoid(26);
     Network.send(ws, new Challenge().create(challenge).pack());
@@ -337,7 +320,7 @@ export class Network {
         this.connect(publicKey);
       }
     }
-    setTimeout(() => this.refresh(), REFRESH_INTERVAL_MS);
+    setTimeout(() => this.refresh(), this.config.network_refresh_interval_ms);
   }
 
   private morphPeerNetwork() {
@@ -346,7 +329,7 @@ export class Network {
     }
 
     const arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys());
-    if (arrayPublicKey.length <= SIZE_PEER_NETWORK) {
+    if (arrayPublicKey.length <= this.config.network_size) {
       this.arrayPeerNetwork = [...arrayPublicKey];
       return;
     }
@@ -354,22 +337,24 @@ export class Network {
     this.arrayPeerNetwork = this.arrayPeerNetwork.concat(
       Util.shuffleArray(arrayPublicKey).slice(
         0,
-        this.arrayPeerNetwork.length >= SIZE_PEER_NETWORK ? Math.floor(SIZE_PEER_NETWORK / 2) : SIZE_PEER_NETWORK
+        this.arrayPeerNetwork.length >= this.config.network_size
+          ? Math.floor(this.config.network_size / 2)
+          : this.config.network_size
       )
     );
 
-    while (this.arrayPeerNetwork.length > SIZE_PEER_NETWORK) {
+    while (this.arrayPeerNetwork.length > this.config.network_size) {
       const publicKey = this.arrayPeerNetwork.shift();
       publicKey && this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
     }
 
     setTimeout(() => {
       this.morphPeerNetwork();
-    }, NETWORK_MORPH_INTERVAL_MS);
+    }, this.config.network_morph_interval_ms);
   }
 
   private clean() {
-    const t = Date.now() - CLEAN_INTERVAL_MS * 2; // timeout
+    const t = Date.now() - this.config.network_clean_interval_ms * 2; // timeout
     for (const publicKey in this.peersOut) {
       if (this.peersOut[publicKey].alive < t) {
         this.peersOut[publicKey].ws.close(4002, 'Timeout');
@@ -382,12 +367,12 @@ export class Network {
     }
 
     Object.keys(this.mapGossip).forEach((publicKeyPeer) => {
-      if (this.mapGossip[publicKeyPeer].length > MAX_SIZE_GOSSIP_STACK) {
+      if (this.mapGossip[publicKeyPeer].length > this.config.network_max_size_gossip_stack) {
         this.mapGossip[publicKeyPeer].splice(0, Math.floor(this.mapGossip[publicKeyPeer].length / 3));
       }
     });
 
-    setTimeout(() => this.clean(), CLEAN_INTERVAL_MS);
+    setTimeout(() => this.clean(), this.config.network_clean_interval_ms);
   }
 
   private connect(publicKeyPeer: string) {
@@ -405,8 +390,8 @@ export class Network {
       },
     };
 
-    if (SOCKS_PROXY_HOST && SOCKS_PROXY_PORT > 0 && /\.i2p$/.test(peer.host)) {
-      options.agent = new SocksProxyAgent(`socks://${SOCKS_PROXY_HOST}:${SOCKS_PROXY_PORT}`);
+    if (this.config.socks_proxy_host && this.config.socks_proxy_port > 0 && /\.i2p$/.test(peer.host)) {
+      options.agent = new SocksProxyAgent(`socks://${this.config.socks_proxy_host}:${this.config.socks_proxy_port}`);
     }
 
     const ws = new WebSocket(address, options);
@@ -442,7 +427,7 @@ export class Network {
   }
 
   private ping(): void {
-    const t = Date.now() - PING_INTERVAL_MS;
+    const t = Date.now() - this.config.network_ping_interval_ms;
     for (const publicKey in this.peersIn) {
       this.peersIn[publicKey].ws.readyState === 1 &&
         this.peersIn[publicKey].alive < t &&
@@ -454,7 +439,7 @@ export class Network {
         this.peersOut[publicKey].ws.ping();
     }
 
-    setTimeout(() => this.ping(), PING_INTERVAL_MS);
+    setTimeout(() => this.ping(), this.config.network_ping_interval_ms);
   }
 
   private static send(ws: WebSocket, data: string) {

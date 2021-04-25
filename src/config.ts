@@ -30,7 +30,20 @@ export type Configuration = {
   path_blockstore?: string;
   path_state?: string;
   path_keys?: string;
+
+  socks_proxy_host?: string;
+  socks_proxy_port?: number;
+
+  network_size?: number;
+  network_morph_interval_ms?: number;
+  network_max_size_gossip_stack?: number;
+  network_refresh_interval_ms?: number;
+  network_auth_timeout_ms?: number;
+  network_clean_interval_ms?: number;
+  network_ping_interval_ms?: number;
 };
+
+const NETWORK_DEFAULT_SIZE = 13;
 
 export class Config {
   //@FIXME remove secret
@@ -44,6 +57,15 @@ export class Config {
   public readonly path_blockstore: string;
   public readonly path_state: string;
   public readonly path_keys: string;
+  public readonly socks_proxy_host: string;
+  public readonly socks_proxy_port: number;
+  public readonly network_size: number;
+  public readonly network_morph_interval_ms: number;
+  public readonly network_max_size_gossip_stack: number;
+  public readonly network_refresh_interval_ms: number;
+  public readonly network_auth_timeout_ms: number;
+  public readonly network_clean_interval_ms: number;
+  public readonly network_ping_interval_ms: number;
 
   constructor(c: Configuration = {}) {
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
@@ -56,5 +78,29 @@ export class Config {
     this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
     this.path_state = c.path_state || path.join(__dirname, '../state/');
     this.path_keys = c.path_keys || path.join(__dirname, '../keys/');
+
+    this.socks_proxy_host = c.socks_proxy_host || process.env.SOCKS_PROXY_HOST || '';
+    this.socks_proxy_port = c.socks_proxy_port || Number(process.env.SOCKS_PROXY_PORT) || 0;
+
+    this.network_size =
+      c.network_size || Number(process.env.NETWORK_SIZE) || 0 > NETWORK_DEFAULT_SIZE
+        ? Math.floor(Number(process.env.NETWORK_SIZE))
+        : NETWORK_DEFAULT_SIZE;
+    this.network_morph_interval_ms =
+      c.network_morph_interval_ms || Number(process.env.NETWORK_MORPH_INTERVAL_MS) || 180000;
+
+    this.network_max_size_gossip_stack =
+      c.network_max_size_gossip_stack || Number(process.env.NETWORK_MAX_SIZE_GOSSIP_STACK) || 1000;
+
+    this.network_refresh_interval_ms =
+      c.network_refresh_interval_ms || Number(process.env.NETWORK_REFRESH_INTERVAL_MS) || 3000;
+    this.network_auth_timeout_ms =
+      c.network_auth_timeout_ms || Number(process.env.NETWORK_AUTH_TIMEOUT_MS) || this.network_refresh_interval_ms * 10;
+    this.network_clean_interval_ms =
+      c.network_clean_interval_ms || Number(process.env.NETWORK_CLEAN_INTERVAL_MS) || 60000;
+    this.network_ping_interval_ms =
+      c.network_ping_interval_ms ||
+      Number(process.env.NETWORK_PING_INTERVAL_MS) ||
+      Math.floor(this.network_clean_interval_ms / 2);
   }
 }
