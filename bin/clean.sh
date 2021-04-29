@@ -30,4 +30,4 @@ rm -rf ${PROJECT_PATH}state/*
 rm -f ${PROJECT_PATH}log/*
 
 npm run lint
-${PROJECT_PATH}bin/build
+${PROJECT_PATH}bin/build.sh

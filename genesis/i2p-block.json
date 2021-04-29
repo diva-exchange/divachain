@@ -11,51 +11,51 @@
         {
           "seq": 1,
           "command": "addPeer",
-          "host": "127.27.26.201",
+          "host": "47hul5deyozlp5juumxvqtx6wmut5ertroga3gej4wtjlc6wcsya.b32.i2p",
           "port": 17468,
-          "publicKey": "Zfef2MB4o2-YMn5_99AdCU0tNmfLehtPvmlaOd1VMd4"
+          "publicKey": "NRuhtjcPouO1iCyd40b7egpRRBkcMKFMcz7sWbFCZSI"
         },
         {
           "seq": 2,
           "command": "addPeer",
-          "host": "127.27.26.202",
+          "host": "o4jj2ldln3eelvqtc3hbauge274a4wun7nrnlnv54v44p6pz4lwa.b32.i2p",
           "port": 17468,
-          "publicKey": "41wPScPyIefJubclRIXGTqR-rPw5Bkk9AZ_Vscisa0M"
+          "publicKey": "z2aVOeo_Mvt0vr0MKUz54N_zM_7jQYVLzedbuSTBcXA"
         },
         {
           "seq": 3,
           "command": "addPeer",
-          "host": "127.27.26.203",
+          "host": "yi2yzuqjeu7bvcltpdhlcwozdrfvhwvr42wgysmsoocw72vu5rca.b32.i2p",
           "port": 17468,
-          "publicKey": "jDt5CNNoZvFw2dyskjC8foMEEHsDjXqRVjv8KUU1THg"
+          "publicKey": "Fd26iYIRxGRSz3wyK5vjQtoANEyEUl2_EcyCaRQMKIo"
         },
         {
           "seq": 4,
           "command": "addPeer",
-          "host": "127.27.26.204",
+          "host": "xnwjn3ohhzcdgiofyizctgkehcztdl2fcqamp3exmrvwqyrjmwkq.b32.i2p",
           "port": 17468,
-          "publicKey": "ZOzTir2BDHnUm4ZscJJozE5FFhQDJ8mMAgEsn5kYIqg"
+          "publicKey": "-4UR3gNsahU2ehP3CJLuiFLGe6mX2J7nwqjtg8Bvlng"
         },
         {
           "seq": 5,
           "command": "addPeer",
-          "host": "127.27.26.205",
+          "host": "2mrfppk2yvbt6jhnfc2lqcjtbaht4rfrvypx4xydstt5ku5rnoaa.b32.i2p",
           "port": 17468,
-          "publicKey": "YWG64iZFX0btUDV6FoW4APBb81h4fSRFUtBt4hmErH0"
+          "publicKey": "fw4sKitin_9cwLTQfUEk9_vOQmYCndraGU_PK9PjXKI"
         },
         {
           "seq": 6,
           "command": "addPeer",
-          "host": "127.27.26.206",
+          "host": "lxkfr2flou6d5w6bcvysnqbczutyh4msklvswkzwne7lqfuk5tia.b32.i2p",
           "port": 17468,
-          "publicKey": "9Hn3TIO-dfVnxNH3YcD1-0eCCVCJxUhypSOhO8vV-ko"
+          "publicKey": "5YHh90pMJOuWRXMK34DrWiUk20gHazd7TUT9bk6szDw"
         },
         {
           "seq": 7,
           "command": "addPeer",
-          "host": "127.27.26.207",
+          "host": "6trjttkmca36b25e2khdisgd6wns4luhchaepevbqkmpvqn6xjmq.b32.i2p",
           "port": 17468,
-          "publicKey": "-KvoXDm7WXT40pBq32kTeC-p8zyQZm2nlv_SVM2ZiA0"
+          "publicKey": "KxUiHLdHf_ZyFmEXB-FuJDgB62H2neAzuzQ1cl8Q17I"
         }
       ],
       "sig": "12345678901234567890123456789012345678901234567890123456789012345678901234567890123456"

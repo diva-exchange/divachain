@@ -31,9 +31,7 @@ export class Wallet {
   constructor(config: Config, ident: string = '') {
     this.ident = ident || (config.p2p_ip + '_' + config.p2p_port).replace(/[^0-9_]/g, '-');
 
-    /** @type {Buffer} */
     this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);
-    /** @type {Buffer} */
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
     sodium.sodium_mlock(this.secretKey);
 
@@ -41,12 +39,12 @@ export class Wallet {
     const pathPublic = path.join(config.path_keys, this.ident + '.public');
     const pathSecret = path.join(config.path_keys, this.ident + '.secret');
     if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
-      this.publicKey.fill(fs.readFileSync(pathPublic));
+      this.publicKey.fill(base64url.decode(fs.readFileSync(pathPublic).toString()));
       this.secretKey.fill(fs.readFileSync(pathSecret));
     } else {
       sodium.crypto_sign_keypair(this.publicKey, this.secretKey);
 
-      fs.writeFileSync(pathPublic, this.publicKey, { mode: '0644' });
+      fs.writeFileSync(pathPublic, base64url.encode(this.publicKey.toString('hex'), 'hex'), { mode: '0644'});
       fs.writeFileSync(pathSecret, this.secretKey, { mode: '0600' });
     }
   }

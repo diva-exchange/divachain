@@ -48,7 +48,7 @@ export class State {
 
   async init() {
     try {
-      this.mapPeer = JSON.parse(await this.dbState.get('peer'));
+      this.mapPeer = new Map(JSON.parse(await this.dbState.get('peer')));
       this.height = await this.dbState.get('height');
     } catch (error) {
       this.mapPeer = this.mapPeer.size > 0 ? this.mapPeer : new Map();

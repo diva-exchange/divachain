@@ -46,7 +46,6 @@ export type Configuration = {
 const NETWORK_DEFAULT_SIZE = 13;
 
 export class Config {
-  //@FIXME remove secret
   public readonly p2p_ip: string;
   public readonly p2p_port: number;
   public readonly http_ip: string;

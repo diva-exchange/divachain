@@ -73,7 +73,7 @@ export class Network {
       host: this.config.p2p_ip,
       port: this.config.p2p_port,
       clientTracking: false,
-      perMessageDeflate: config.per_message_deflate,
+      perMessageDeflate: this.config.per_message_deflate,
     });
 
     Logger.info(`Identity: ${this.identity}`);

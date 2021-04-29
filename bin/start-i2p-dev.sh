@@ -26,17 +26,17 @@ PROJECT_PATH=`pwd`/
 
 ${PROJECT_PATH}bin/build.sh
 
-P2P_IP=127.27.26.201 HTTP_IP=127.27.27.201 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.101 P2P_IP=127.27.26.201 HTTP_IP=127.27.27.201 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node1.log 2>&1 &
-P2P_IP=127.27.26.202 HTTP_IP=127.27.27.202 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.102 P2P_IP=127.27.26.202 HTTP_IP=127.27.27.202 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node2.log 2>&1 &
-P2P_IP=127.27.26.203 HTTP_IP=127.27.27.203 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.103 P2P_IP=127.27.26.203 HTTP_IP=127.27.27.203 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node3.log 2>&1 &
-P2P_IP=127.27.26.204 HTTP_IP=127.27.27.204 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.104 P2P_IP=127.27.26.204 HTTP_IP=127.27.27.204 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node4.log 2>&1 &
-P2P_IP=127.27.26.205 HTTP_IP=127.27.27.205 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.105 P2P_IP=127.27.26.205 HTTP_IP=127.27.27.205 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node5.log 2>&1 &
-P2P_IP=127.27.26.206 HTTP_IP=127.27.27.206 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.106 P2P_IP=127.27.26.206 HTTP_IP=127.27.27.206 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node6.log 2>&1 &
-P2P_IP=127.27.26.207 HTTP_IP=127.27.27.207 NODE_ENV=development \
+SOCKS_PROXY_HOST=172.20.101.107 P2P_IP=127.27.26.207 HTTP_IP=127.27.27.207 NODE_ENV=development \
   node --enable-source-maps ${PROJECT_PATH}dist/main.js | pino-pretty >${PROJECT_PATH}log/node7.log 2>&1 &
