@@ -33,11 +33,8 @@ fi
 
 while [[ `pgrep -f "^node .*${PROJECT_PATH}dist/main.js$"` ]]
 do
-  if [[ `pgrep -f "^node .*${PROJECT_PATH}dist/main.js$"` ]]
-  then
-    echo -n "."
-    sleep 2
-  fi
+  echo -n "."
+  sleep 2
 done
 
 echo "done"
