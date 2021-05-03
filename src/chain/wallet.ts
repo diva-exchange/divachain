@@ -39,12 +39,12 @@ export class Wallet {
     const pathPublic = path.join(config.path_keys, this.ident + '.public');
     const pathSecret = path.join(config.path_keys, this.ident + '.secret');
     if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
-      this.publicKey.fill(base64url.decode(fs.readFileSync(pathPublic).toString()));
+      this.publicKey.fill(Buffer.from(base64url.unescape(fs.readFileSync(pathPublic).toString()), 'base64'));
       this.secretKey.fill(fs.readFileSync(pathSecret));
     } else {
       sodium.crypto_sign_keypair(this.publicKey, this.secretKey);
 
-      fs.writeFileSync(pathPublic, base64url.encode(this.publicKey.toString('hex'), 'hex'), { mode: '0644'});
+      fs.writeFileSync(pathPublic, base64url.escape(this.publicKey.toString('base64')), { mode: '0644' });
       fs.writeFileSync(pathSecret, this.secretKey, { mode: '0600' });
     }
   }

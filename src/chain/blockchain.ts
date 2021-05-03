@@ -59,7 +59,10 @@ export class Blockchain {
     try {
       await this.dbBlockchain.get(1);
     } catch (error) {
-      await this.dbBlockchain.put(1, JSON.stringify(Blockchain.genesis(this.config.path_genesis)));
+      await this.dbBlockchain.put(
+        String(1).padStart(16, '0'),
+        JSON.stringify(Blockchain.genesis(this.config.path_genesis))
+      );
     }
 
     await this.state.init();
@@ -99,7 +102,7 @@ export class Blockchain {
     this.latestBlock = block;
     this.mapBlocks.set(block.height, block);
     this.mapHashes.set(block.height, block.hash);
-    await this.dbBlockchain.put(this.height, JSON.stringify(block));
+    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
     if (this.mapBlocks.size > this.config.max_blocks_in_memory) {
       this.mapBlocks.delete(this.height - this.config.max_blocks_in_memory);
       this.mapHashes.delete(this.height - this.config.max_blocks_in_memory);
@@ -123,7 +126,7 @@ export class Blockchain {
       const a: Array<BlockStruct> = [];
       return new Promise((resolve, reject) => {
         this.dbBlockchain
-          .createValueStream({ gte: gte, lte: lte })
+          .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
           .on('data', (data) => {
             a.unshift(JSON.parse(data));
           })
@@ -151,13 +154,13 @@ export class Blockchain {
     page = page < 1 ? 1 : Math.floor(page);
     size = size < 1 || size > this.config.max_blocks_in_memory ? this.config.max_blocks_in_memory : Math.floor(size);
     size = size > this.height ? this.height : size;
-    const a: Array<BlockStruct> = [];
     const gte = (page - 1) * size <= this.height ? (page - 1) * size + 1 : 1;
     const lte = page * size <= this.height ? page * size : this.height;
 
     return new Promise((resolve, reject) => {
+      const a: Array<BlockStruct> = [];
       this.dbBlockchain
-        .createValueStream({ gte: gte, lte: lte })
+        .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
         .on('data', (data) => {
           a.unshift(JSON.parse(data));
         })

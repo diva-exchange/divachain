@@ -29,6 +29,8 @@ import { Wallet } from '../chain/wallet';
 import { Validation } from './validation';
 import { Util } from '../chain/util';
 
+const GOSSIP_MAX_MESSAGES_PER_PEER = 250;
+
 const WS_CLIENT_OPTIONS = {
   compress: true,
   binary: true,
@@ -58,7 +60,7 @@ export class Network {
   private peersOut: { [publicKey: string]: Peer } = {};
 
   private readonly _onMessage: Function | false;
-  private mapGossip: { [publicKeyPeer: string]: Array<string> } = {};
+  private aGossip: { [publicKeyPeer: string]: Array<string> } = {};
 
   constructor(config: Config, wallet: Wallet, onMessage: Function) {
     this.config = config;
@@ -143,7 +145,7 @@ export class Network {
     this.mapPeer.set(publicKey, peer);
 
     // initialize gossip map
-    publicKey !== this.identity && (this.mapGossip[publicKey] = []);
+    publicKey !== this.identity && (this.aGossip[publicKey] = []);
 
     return false;
   }
@@ -156,7 +158,7 @@ export class Network {
     this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
     this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
 
-    delete this.mapGossip[publicKey];
+    delete this.aGossip[publicKey];
     this.mapPeer.delete(publicKey);
 
     return this;
@@ -194,12 +196,12 @@ export class Network {
   }
 
   gossip(): { [publicKey: string]: Array<string> } {
-    return this.mapGossip;
+    return this.aGossip;
   }
 
   stopGossip(ident: string) {
-    Object.keys(this.mapGossip).forEach((publicKeyPeer) => {
-      !this.mapGossip[publicKeyPeer].includes(ident) && this.mapGossip[publicKeyPeer].push(ident);
+    Object.keys(this.aGossip).forEach((publicKeyPeer) => {
+      !this.aGossip[publicKeyPeer].includes(ident) && this.aGossip[publicKeyPeer].push(ident);
     });
   }
 
@@ -212,12 +214,12 @@ export class Network {
     }
 
     // populate Gossiping map
-    if (publicKeyPeer && publicKeyPeer !== this.identity && !this.mapGossip[publicKeyPeer].includes(ident)) {
-      this.mapGossip[publicKeyPeer].push(ident);
+    if (publicKeyPeer && publicKeyPeer !== this.identity && !this.aGossip[publicKeyPeer].includes(ident)) {
+      this.aGossip[publicKeyPeer].push(ident);
     }
     const origin = m.origin();
-    if (origin && origin !== this.identity && !this.mapGossip[origin].includes(ident)) {
-      this.mapGossip[origin].push(ident);
+    if (origin && origin !== this.identity && !this.aGossip[origin].includes(ident)) {
+      this.aGossip[origin].push(ident);
     }
 
     // process message handler callback
@@ -242,7 +244,7 @@ export class Network {
   private broadcast(m: Message): boolean {
     const ident = m.ident();
     const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter((_pk) => {
-      return _pk !== this.identity && !this.mapGossip[_pk].includes(ident);
+      return _pk !== this.identity && !this.aGossip[_pk].includes(ident);
     });
 
     let doRetry = false;
@@ -256,7 +258,7 @@ export class Network {
           doRetry = true;
           continue;
         }
-        !this.mapGossip[_pk].includes(ident) && this.mapGossip[_pk].push(ident);
+        !this.aGossip[_pk].includes(ident) && this.aGossip[_pk].push(ident);
       } catch (error) {
         Logger.warn('broadcast(): Websocket Error');
         Logger.trace(JSON.stringify(error));
@@ -364,9 +366,10 @@ export class Network {
       }
     }
 
-    Object.keys(this.mapGossip).forEach((publicKeyPeer) => {
-      if (this.mapGossip[publicKeyPeer].length > this.config.network_max_size_gossip_stack) {
-        this.mapGossip[publicKeyPeer].splice(0, Math.floor(this.mapGossip[publicKeyPeer].length / 3));
+    const drop = Math.floor(GOSSIP_MAX_MESSAGES_PER_PEER / 2);
+    Object.keys(this.aGossip).forEach((publicKeyPeer) => {
+      if ((this.aGossip[publicKeyPeer].length / 2) > drop) {
+        this.aGossip[publicKeyPeer].splice(0, this.aGossip[publicKeyPeer].length - drop);
       }
     });
 

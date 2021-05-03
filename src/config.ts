@@ -36,14 +36,13 @@ export type Configuration = {
 
   network_size?: number;
   network_morph_interval_ms?: number;
-  network_max_size_gossip_stack?: number;
   network_refresh_interval_ms?: number;
   network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
   network_ping_interval_ms?: number;
 };
 
-const NETWORK_DEFAULT_SIZE = 13;
+const NETWORK_DEFAULT_SIZE = 5;
 
 export class Config {
   public readonly p2p_ip: string;
@@ -60,20 +59,21 @@ export class Config {
   public readonly socks_proxy_port: number;
   public readonly network_size: number;
   public readonly network_morph_interval_ms: number;
-  public readonly network_max_size_gossip_stack: number;
   public readonly network_refresh_interval_ms: number;
   public readonly network_auth_timeout_ms: number;
   public readonly network_clean_interval_ms: number;
   public readonly network_ping_interval_ms: number;
 
   constructor(c: Configuration = {}) {
+    const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || 'block').replace(/[^a-z0-9_-]/gi, '');
+
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
     this.p2p_port = c.p2p_port || Number(process.env.P2P_PORT) || 17468;
     this.http_ip = c.http_ip || process.env.HTTP_IP || '127.0.0.1';
     this.http_port = c.http_port || Number(process.env.HTTP_PORT) || 17469;
     this.per_message_deflate = c.per_message_deflate || true;
     this.max_blocks_in_memory = c.max_blocks_in_memory || 1000;
-    this.path_genesis = c.path_genesis || path.join(__dirname, '../genesis/block.json');
+    this.path_genesis = c.path_genesis || path.join(__dirname, `../genesis/${nameBlockGenesis}.json`);
     this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
     this.path_state = c.path_state || path.join(__dirname, '../state/');
     this.path_keys = c.path_keys || path.join(__dirname, '../keys/');
@@ -87,9 +87,6 @@ export class Config {
         : NETWORK_DEFAULT_SIZE;
     this.network_morph_interval_ms =
       c.network_morph_interval_ms || Number(process.env.NETWORK_MORPH_INTERVAL_MS) || 180000;
-
-    this.network_max_size_gossip_stack =
-      c.network_max_size_gossip_stack || Number(process.env.NETWORK_MAX_SIZE_GOSSIP_STACK) || 1000;
 
     this.network_refresh_interval_ms =
       c.network_refresh_interval_ms || Number(process.env.NETWORK_REFRESH_INTERVAL_MS) || 3000;
