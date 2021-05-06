@@ -1,5 +1,6 @@
+#!/usr/bin/env bash
 #
-# Copyright (C) 2021 diva.exchange
+# Copyright (C) 2020 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,29 +18,15 @@
 # Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
 #
 
-FROM node:12-slim AS build
+# -e  Exit immediately if a simple command exits with a non-zero status
+set -e
 
-LABEL author="Konrad Baechler <konrad@diva.exchange>" \
-  maintainer="Konrad Baechler <konrad@diva.exchange>" \
-  name="divachain" \
-  description="Distributed digital value exchange upholding security, reliability and privacy" \
-  url="https://diva.exchange"
+PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
+cd ${PROJECT_PATH}
+PROJECT_PATH=`pwd`/
 
-COPY dist /app/dist
-COPY package.json /app/
-
-RUN mkdir /app/log \
-  && mkdir /app/genesis \
-  && mkdir /app/blockstore \
-  && mkdir /app/state \
-  && mkdir /app/keys \
-  && cd /app/ \
-  && npm i --only=production
-
-FROM gcr.io/distroless/nodejs:12
-COPY --from=build /app /app
-
-EXPOSE 17468 17469
-
-WORKDIR /app
-CMD [ "dist/main.js" ]
+rm -rf ${PROJECT_PATH}genesis/*
+rm -rf ${PROJECT_PATH}keys/*
+rm -rf ${PROJECT_PATH}tunnels.conf.d/*
+rm -rf ${PROJECT_PATH}i2p-b32/*
+rm -rf ${PROJECT_PATH}*.yml

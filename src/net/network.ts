@@ -368,7 +368,7 @@ export class Network {
 
     const drop = Math.floor(GOSSIP_MAX_MESSAGES_PER_PEER / 2);
     Object.keys(this.aGossip).forEach((publicKeyPeer) => {
-      if ((this.aGossip[publicKeyPeer].length / 2) > drop) {
+      if (this.aGossip[publicKeyPeer].length / 2 > drop) {
         this.aGossip[publicKeyPeer].splice(0, this.aGossip[publicKeyPeer].length - drop);
       }
     });

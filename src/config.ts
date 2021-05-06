@@ -18,6 +18,7 @@
  */
 
 import path from 'path';
+import * as fs from 'fs';
 
 export type Configuration = {
   p2p_ip?: string;
@@ -42,7 +43,8 @@ export type Configuration = {
   network_ping_interval_ms?: number;
 };
 
-const NETWORK_DEFAULT_SIZE = 5;
+const DEFAULT_NETWORK_SIZE = 7;
+const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
 export class Config {
   public readonly p2p_ip: string;
@@ -65,7 +67,10 @@ export class Config {
   public readonly network_ping_interval_ms: number;
 
   constructor(c: Configuration = {}) {
-    const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || 'block').replace(/[^a-z0-9_-]/gi, '');
+    const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
+      /[^a-z0-9_-]/gi,
+      ''
+    );
 
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
     this.p2p_port = c.p2p_port || Number(process.env.P2P_PORT) || 17468;
@@ -77,14 +82,17 @@ export class Config {
     this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
     this.path_state = c.path_state || path.join(__dirname, '../state/');
     this.path_keys = c.path_keys || path.join(__dirname, '../keys/');
+    if (!fs.existsSync(this.path_keys)) {
+      fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
+    }
 
     this.socks_proxy_host = c.socks_proxy_host || process.env.SOCKS_PROXY_HOST || '';
     this.socks_proxy_port = c.socks_proxy_port || Number(process.env.SOCKS_PROXY_PORT) || 0;
 
     this.network_size =
-      c.network_size || Number(process.env.NETWORK_SIZE) || 0 > NETWORK_DEFAULT_SIZE
+      c.network_size || Number(process.env.NETWORK_SIZE) || 0 > DEFAULT_NETWORK_SIZE
         ? Math.floor(c.network_size || Number(process.env.NETWORK_SIZE))
-        : NETWORK_DEFAULT_SIZE;
+        : DEFAULT_NETWORK_SIZE;
     this.network_morph_interval_ms =
       c.network_morph_interval_ms || Number(process.env.NETWORK_MORPH_INTERVAL_MS) || 180000;
 

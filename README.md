@@ -31,9 +31,47 @@ sudo docker-compose -f docker/i2p-testnet.yml down
 ```
 
 ## Configuration
-This project is alpha. The configuration has to be done in the code. Create a PR and fix it if you like :).
+The configuration can be controlled using environment variables.
 
-Before you can start the blockchain, the peers have to be configured. Add your local public keys and your local addresses and ports to `src/config.ts` (environment variable "P2P_NETWORK").
+### NAME_BLOCK_GENESIS
+Default: block
+
+### P2P_IP
+Default: 127.0.0.1
+
+### P2P_PORT
+Default: 17468
+
+### HTTP_IP
+Default: 127.0.0.1
+
+### HTTP_PORT
+Default: 17469
+    
+### SOCKS_PROXY_HOST
+Default: (empty)
+
+### SOCKS_PROXY_PORT
+Default: 0
+
+### NETWORK_SIZE
+Default: 7
+
+### NETWORK_MORPH_INTERVAL_MS
+Default: 180000ms
+
+### NETWORK_REFRESH_INTERVAL_MS
+Default: 3000ms
+
+### NETWORK_AUTH_TIMEOUT_MS
+Default: NETWORK_REFRESH_INTERVAL_MS * 10
+
+### NETWORK_CLEAN_INTERVAL_MS
+Default: 60000
+
+### NETWORK_PING_INTERVAL_MS
+Default: NETWORK_CLEAN_INTERVAL_MS * 0.5
+
 
 ## How to Start the Blockchain
 

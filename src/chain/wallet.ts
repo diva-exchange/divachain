@@ -29,7 +29,7 @@ export class Wallet {
   private readonly secretKey: Buffer;
 
   constructor(config: Config, ident: string = '') {
-    this.ident = ident || (config.p2p_ip + '_' + config.p2p_port).replace(/[^0-9_]/g, '-');
+    this.ident = ident || (config.p2p_ip + '_' + config.p2p_port).replace(/[^a-z0-9_-]+/gi, '-');
 
     this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
