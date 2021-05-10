@@ -83,12 +83,11 @@ export class Network {
     // incoming connection
     this.wss.on('connection', (ws, request) => {
       const publicKey = request.headers['diva-identity']?.toString() || '';
-      const origin = request.headers['diva-origin']?.toString() || '';
 
-      if (publicKey && origin) {
-        this.auth(ws, publicKey, origin);
+      if (publicKey && publicKey !== this.identity && this.network().indexOf(publicKey) > -1) {
+        this.auth(ws, publicKey);
       } else {
-        Logger.warn('Connection credentials missing (diva-identity, diva-origin)');
+        Logger.warn('Connection credentials missing (diva-identity)');
       }
     });
 
@@ -269,7 +268,7 @@ export class Network {
     return !doRetry;
   }
 
-  private auth(ws: WebSocket, publicKeyPeer: string, origin: string) {
+  private auth(ws: WebSocket, publicKeyPeer: string) {
     if (this.peersIn[publicKeyPeer]) {
       this.peersIn[publicKeyPeer].ws.close(4005, 'Rebuilding');
       delete this.peersIn[publicKeyPeer];
@@ -285,13 +284,14 @@ export class Network {
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
 
+      const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
       const mA = new Auth(message);
-      if (!Validation.validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
+      if (!peer.host || !Validation.validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
       this.peersIn[publicKeyPeer] = {
-        address: 'ws://' + origin,
+        address: 'ws://' + peer.host + ':' + peer.port,
         alive: Date.now(),
         ws: ws,
       };
@@ -386,8 +386,7 @@ export class Network {
       followRedirects: false,
       perMessageDeflate: this.config.per_message_deflate,
       headers: {
-        'diva-identity': this.identity,
-        'diva-origin': this.config.p2p_ip + ':' + this.config.p2p_port,
+        'diva-identity': this.identity
       },
     };
 

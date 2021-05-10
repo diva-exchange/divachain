@@ -86,12 +86,18 @@ export class CreateI2P {
       fs.mkdirSync(pTunnel, { mode: '755', recursive: true });
       fs.writeFileSync(
         pTunnel + 'testnet.conf',
-        `[${nameI2P}]\n` +
+        '[p2p]\n' +
           'type = server\n' +
-          `host = ${this.baseIP}${50 + seq}\n` +
+          `host = ${this.baseIP}${150 + seq}\n` +
           `port = ${this.portP2P}\n` +
           'gzip = false\n' +
-          `keys = ${nameI2P}.dat\n`
+          `keys = ${nameI2P}.p2p.dat\n\n` +
+          '[http-api]\n' +
+          'type = server\n' +
+          `host = ${this.baseIP}${150 + seq}\n` +
+          `port = ${this.portP2P + 1}\n` +
+          'gzip = false\n' +
+          `keys = ${nameI2P}.http-api.dat\n`
       );
     }
     return { c: container, v: volumes };

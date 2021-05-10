@@ -81,12 +81,18 @@ export class Build {
       fs.mkdirSync(pTunnel, { mode: '755', recursive: true });
       fs.writeFileSync(
         pTunnel + 'testnet.conf',
-        `[${nameI2P}]\n` +
+        '[p2p]\n' +
           'type = server\n' +
-          `host = ${this.baseIP}${50 + seq}\n` +
+          `host = ${this.baseIP}${150 + seq}\n` +
           `port = ${this.portP2P}\n` +
           'gzip = false\n' +
-          `keys = ${nameI2P}.dat\n`
+          `keys = ${nameI2P}.p2p.dat\n\n` +
+          '[http-api]\n' +
+          'type = server\n' +
+          `host = ${this.baseIP}${150 + seq}\n` +
+          `port = ${this.portP2P + 1}\n` +
+          'gzip = false\n' +
+          `keys = ${nameI2P}.http-api.dat\n`
       );
     }
     return { c: container, v: volumes };
@@ -151,6 +157,8 @@ export class Build {
         `      HTTP_PORT: ${this.portP2P + 1}\n` +
         `      P2P_IP: ${this.baseIP}${150 + seq}\n` +
         `      P2P_PORT: ${this.portP2P}\n` +
+        `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n` +
+        `      SOCKS_PROXY_PORT: ${this.hasI2P ? 4445 : 0}\n` +
         '    volumes:\n' +
         `      - ${nameChain}:/app/\n` +
         `      - ./keys/${hostChain}:/app/keys/\n` +
