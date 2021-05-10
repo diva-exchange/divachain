@@ -25,21 +25,21 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
   description="Distributed digital value exchange upholding security, reliability and privacy" \
   url="https://diva.exchange"
 
-COPY dist /app/dist
-COPY package.json /app/
+COPY dist /divachain/dist
+COPY package.json /divachain/
 
-RUN mkdir /app/log \
-  && mkdir /app/genesis \
-  && mkdir /app/blockstore \
-  && mkdir /app/state \
-  && mkdir /app/keys \
-  && cd /app/ \
+RUN mkdir /divachain/log \
+  && mkdir /divachain/genesis \
+  && mkdir /divachain/blockstore \
+  && mkdir /divachain/state \
+  && mkdir /divachain/keys \
+  && cd /divachain/ \
   && npm i --only=production
 
 FROM gcr.io/distroless/nodejs:12
-COPY --from=build /app /app
+COPY --from=build /divachain /divachain
 
 EXPOSE 17468 17469
 
-WORKDIR /app
-CMD [ "dist/main.js" ]
+WORKDIR /divachain
+CMD [ "/divachain/dist/main.js" ]

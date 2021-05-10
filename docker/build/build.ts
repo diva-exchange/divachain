@@ -160,9 +160,9 @@ export class Build {
         `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n` +
         `      SOCKS_PROXY_PORT: ${this.hasI2P ? 4445 : 0}\n` +
         '    volumes:\n' +
-        `      - ${nameChain}:/app/\n` +
-        `      - ./keys/${hostChain}:/app/keys/\n` +
-        '      - ./genesis:/app/genesis/\n' +
+        `      - ${nameChain}:/divachain/\n` +
+        `      - ./keys/${hostChain}:/divachain/keys/\n` +
+        '      - ./genesis:/divachain/genesis/\n' +
         '    networks:\n' +
         `      network.${this.baseDomain}:\n` +
         `        ipv4_address: ${this.baseIP}${150 + seq}\n\n`;
