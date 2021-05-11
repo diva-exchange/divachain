@@ -100,11 +100,7 @@ export class Config {
       c.network_refresh_interval_ms || Number(process.env.NETWORK_REFRESH_INTERVAL_MS) || 3000;
     this.network_auth_timeout_ms =
       c.network_auth_timeout_ms || Number(process.env.NETWORK_AUTH_TIMEOUT_MS) || this.network_refresh_interval_ms * 10;
-    this.network_clean_interval_ms =
-      c.network_clean_interval_ms || Number(process.env.NETWORK_CLEAN_INTERVAL_MS) || 60000;
-    this.network_ping_interval_ms =
-      c.network_ping_interval_ms ||
-      Number(process.env.NETWORK_PING_INTERVAL_MS) ||
-      Math.floor(this.network_clean_interval_ms / 2);
+    this.network_ping_interval_ms = c.network_ping_interval_ms || Number(process.env.NETWORK_PING_INTERVAL_MS) || 2000;
+    this.network_clean_interval_ms = this.network_size * this.network_ping_interval_ms * 2;
   }
 }

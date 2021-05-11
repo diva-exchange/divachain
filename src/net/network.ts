@@ -17,7 +17,6 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Config } from '../config';
 import { Logger } from '../logger';
 import { Auth } from './message/auth';
 import { Challenge } from './message/challenge';
@@ -25,9 +24,9 @@ import { Message } from './message/message';
 import { nanoid } from 'nanoid';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
-import { Wallet } from '../chain/wallet';
 import { Validation } from './validation';
 import { Util } from '../chain/util';
+import { Server } from './server';
 
 const GOSSIP_MAX_MESSAGES_PER_PEER = 250;
 
@@ -48,8 +47,7 @@ interface Peer {
 }
 
 export class Network {
-  private readonly config: Config;
-  private readonly wallet: Wallet;
+  private readonly server: Server;
   private readonly identity: string;
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
   private arrayPeerNetwork: Array<string> = [];
@@ -62,20 +60,19 @@ export class Network {
   private readonly _onMessage: Function | false;
   private aGossip: { [publicKeyPeer: string]: Array<string> } = {};
 
-  constructor(config: Config, wallet: Wallet, onMessage: Function) {
-    this.config = config;
+  constructor(server: Server, onMessage: Function) {
+    this.server = server;
     this._onMessage = onMessage || false;
 
-    this.wallet = wallet;
-    this.identity = this.wallet.getPublicKey();
+    this.identity = this.server.wallet.getPublicKey();
 
     Validation.init();
 
     this.wss = new WebSocket.Server({
-      host: this.config.p2p_ip,
-      port: this.config.p2p_port,
+      host: this.server.config.p2p_ip,
+      port: this.server.config.p2p_port,
       clientTracking: false,
-      perMessageDeflate: this.config.per_message_deflate,
+      perMessageDeflate: this.server.config.per_message_deflate,
     });
 
     Logger.info(`Identity: ${this.identity}`);
@@ -105,10 +102,10 @@ export class Network {
       Logger.info('P2P WebSocket Server closed');
     });
 
-    setTimeout(() => this.morphPeerNetwork(), this.config.network_refresh_interval_ms - 1);
-    setTimeout(() => this.refresh(), this.config.network_refresh_interval_ms);
-    setTimeout(() => this.ping(), this.config.network_ping_interval_ms);
-    setTimeout(() => this.clean(), this.config.network_clean_interval_ms);
+    setTimeout(() => this.morphPeerNetwork(), this.server.config.network_refresh_interval_ms - 1);
+    setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
+    setTimeout(() => this.ping(), this.server.config.network_ping_interval_ms);
+    setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
   async shutdown(): Promise<void> {
@@ -196,7 +193,7 @@ export class Network {
     });
   }
 
-  processMessage(message: Buffer | string, publicKeyPeer: string = '', retry: number = 0) {
+  processMessage(message: Buffer | string, publicKeyPeer: string = '') {
     const m = new Message(message);
     const ident = m.ident();
 
@@ -214,31 +211,18 @@ export class Network {
     }
 
     // process message handler callback
-    if (this._onMessage) {
-      this._onMessage(m.type(), message);
-    }
+    this._onMessage && this._onMessage(m.type(), message);
 
     // broadcasting / gossip
-    if (m.isBroadcast() && !this.broadcast(m)) {
-      retry = retry > 0 ? retry : 0;
-      if (retry < 50) {
-        setTimeout(() => {
-          this.processMessage(message, publicKeyPeer, retry + 1);
-        }, (retry + 1) * 250);
-      } else {
-        //@FIXME logging
-        Logger.trace('!! Retry timed out');
-      }
-    }
+    m.isBroadcast() && this.broadcast(m);
   }
 
-  private broadcast(m: Message): boolean {
+  private broadcast(m: Message) {
     const ident = m.ident();
     const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter((_pk) => {
       return _pk !== this.identity && !this.aGossip[_pk].includes(ident);
     });
 
-    let doRetry = false;
     for (const _pk of arrayBroadcast) {
       try {
         if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
@@ -246,18 +230,14 @@ export class Network {
         } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
           Network.send(this.peersIn[_pk].ws, m.pack());
         } else {
-          doRetry = true;
           continue;
         }
         !this.aGossip[_pk].includes(ident) && this.aGossip[_pk].push(ident);
       } catch (error) {
         Logger.warn('broadcast(): Websocket Error');
         Logger.trace(JSON.stringify(error));
-        doRetry = true;
       }
     }
-
-    return !doRetry;
   }
 
   private auth(ws: WebSocket, publicKeyPeer: string) {
@@ -268,7 +248,7 @@ export class Network {
 
     const timeout = setTimeout(() => {
       ws.close(4005, 'Auth Timeout');
-    }, this.config.network_auth_timeout_ms);
+    }, this.server.config.network_auth_timeout_ms);
 
     const challenge = nanoid(26);
     Network.send(ws, new Challenge().create(challenge).pack());
@@ -300,6 +280,12 @@ export class Network {
           this.processMessage(message, publicKeyPeer);
         }
       });
+      ws.on('ping', async (data) => {
+        if (Number(data.toString()) < this.server.blockchain.getHeight()) {
+          const sync = await this.server.getSync(Number(data.toString()));
+          Network.send(ws, sync.pack());
+        }
+      });
       ws.on('pong', () => {
         this.peersIn[publicKeyPeer] && (this.peersIn[publicKeyPeer].alive = Date.now());
       });
@@ -312,7 +298,7 @@ export class Network {
         this.connect(publicKey);
       }
     }
-    setTimeout(() => this.refresh(), this.config.network_refresh_interval_ms);
+    setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
   }
 
   private morphPeerNetwork() {
@@ -321,7 +307,7 @@ export class Network {
     }
 
     const arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys());
-    if (arrayPublicKey.length <= this.config.network_size) {
+    if (arrayPublicKey.length <= this.server.config.network_size) {
       this.arrayPeerNetwork = [...arrayPublicKey];
       return;
     }
@@ -329,34 +315,29 @@ export class Network {
     this.arrayPeerNetwork = this.arrayPeerNetwork.concat(
       Util.shuffleArray(arrayPublicKey).slice(
         0,
-        this.arrayPeerNetwork.length >= this.config.network_size
-          ? Math.floor(this.config.network_size / 2)
-          : this.config.network_size
+        this.arrayPeerNetwork.length >= this.server.config.network_size
+          ? Math.floor(this.server.config.network_size / 2)
+          : this.server.config.network_size
       )
     );
 
-    while (this.arrayPeerNetwork.length > this.config.network_size) {
+    while (this.arrayPeerNetwork.length > this.server.config.network_size) {
       const publicKey = this.arrayPeerNetwork.shift();
       publicKey && this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
     }
 
     setTimeout(() => {
       this.morphPeerNetwork();
-    }, this.config.network_morph_interval_ms);
+    }, this.server.config.network_morph_interval_ms);
   }
 
   private clean() {
-    const t = Date.now() - this.config.network_clean_interval_ms * 2; // timeout
-    for (const publicKey in this.peersOut) {
-      if (this.peersOut[publicKey].alive < t) {
-        this.peersOut[publicKey].ws.close(4002, 'Timeout');
-      }
-    }
-    for (const publicKey in this.peersIn) {
-      if (this.peersIn[publicKey].alive < t) {
-        this.peersIn[publicKey].ws.close(4002, 'Timeout');
-      }
-    }
+    const t = Date.now() - this.server.config.network_clean_interval_ms * 2; // timeout
+    Object.values(this.peersOut)
+      .concat(Object.values(this.peersIn))
+      .forEach((peer) => {
+        peer.alive < t && peer.ws.close(4002, 'Timeout');
+      });
 
     const drop = Math.floor(GOSSIP_MAX_MESSAGES_PER_PEER / 2);
     Object.keys(this.aGossip).forEach((publicKeyPeer) => {
@@ -365,7 +346,7 @@ export class Network {
       }
     });
 
-    setTimeout(() => this.clean(), this.config.network_clean_interval_ms);
+    setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
   private connect(publicKeyPeer: string) {
@@ -376,14 +357,16 @@ export class Network {
     const address = 'ws://' + peer.host + ':' + peer.port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: this.config.per_message_deflate,
+      perMessageDeflate: this.server.config.per_message_deflate,
       headers: {
-        'diva-identity': this.identity
+        'diva-identity': this.identity,
       },
     };
 
-    if (this.config.socks_proxy_host && this.config.socks_proxy_port > 0 && /\.i2p$/.test(peer.host)) {
-      options.agent = new SocksProxyAgent(`socks://${this.config.socks_proxy_host}:${this.config.socks_proxy_port}`);
+    if (this.server.config.socks_proxy_host && this.server.config.socks_proxy_port > 0 && /\.i2p$/.test(peer.host)) {
+      options.agent = new SocksProxyAgent(
+        `socks://${this.server.config.socks_proxy_host}:${this.server.config.socks_proxy_port}`
+      );
     }
 
     const ws = new WebSocket(address, options);
@@ -404,12 +387,18 @@ export class Network {
       if (!Validation.validateMessage(mC) || !mC.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
-      Network.send(ws, new Auth().create(this.wallet.sign(mC.getChallenge())).pack());
+      Network.send(ws, new Auth().create(this.server.wallet.sign(mC.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
           this.peersOut[publicKeyPeer].alive = Date.now();
           this.processMessage(message, publicKeyPeer);
+        }
+      });
+      ws.on('ping', async (data) => {
+        if (Number(data.toString()) < this.server.blockchain.getHeight()) {
+          const sync = await this.server.getSync(Number(data.toString()));
+          Network.send(ws, sync.pack());
         }
       });
       ws.on('pong', () => {
@@ -419,19 +408,16 @@ export class Network {
   }
 
   private ping(): void {
-    const t = Date.now() - this.config.network_ping_interval_ms;
-    for (const publicKey in this.peersIn) {
-      this.peersIn[publicKey].ws.readyState === 1 &&
-        this.peersIn[publicKey].alive < t &&
-        this.peersIn[publicKey].ws.ping();
-    }
-    for (const publicKey in this.peersOut) {
-      this.peersOut[publicKey].ws.readyState === 1 &&
-        this.peersOut[publicKey].alive < t &&
-        this.peersOut[publicKey].ws.ping();
-    }
+    const i = this.server.config.network_ping_interval_ms;
+    let t = i;
+    Util.shuffleArray(Object.values(this.peersOut).concat(Object.values(this.peersIn))).forEach((peer) => {
+      setTimeout(() => {
+        peer.ws.readyState === 1 && peer.ws.ping(this.server.blockchain.getHeight());
+      }, t);
+      t = t + i;
+    });
 
-    setTimeout(() => this.ping(), this.config.network_ping_interval_ms);
+    setTimeout(() => this.ping(), t);
   }
 
   private static send(ws: WebSocket, data: string) {

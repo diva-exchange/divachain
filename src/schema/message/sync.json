@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/message/sync.json",
+
+  "type": "array",
+  "items": {
+    "$ref": "/schema/block/block.json"
+  },
+  "minItems": 1,
+  "uniqueItems": true
+}

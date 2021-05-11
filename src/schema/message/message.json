@@ -23,6 +23,9 @@
         },
         {
           "$ref": "vote.json"
+        },
+        {
+          "$ref": "sync.json"
         }
       ]
     },

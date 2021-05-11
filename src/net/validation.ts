@@ -34,6 +34,7 @@ export class Validation {
     const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/challenge.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
+    const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
     const schemaBlock: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/block.json');
     const schemaVotes: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/votes.json');
     const schemaTx: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/tx.json');
@@ -48,6 +49,7 @@ export class Validation {
         schemaAuth,
         schemaChallenge,
         schemaVote,
+        schemaSync,
         schemaBlock,
         schemaVotes,
         schemaTx,
@@ -73,6 +75,7 @@ export class Validation {
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
       case Message.TYPE_CONFIRM:
+      case Message.TYPE_SYNC:
         if (!Validation.message(m.getMessage())) {
           //@FIXME logging
           Logger.trace(Validation.message.errors as object);

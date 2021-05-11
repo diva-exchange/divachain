@@ -38,6 +38,7 @@ export class Message {
   static readonly TYPE_VOTE = 3;
   static readonly TYPE_COMMIT = 4;
   static readonly TYPE_CONFIRM = 5;
+  static readonly TYPE_SYNC = 6;
 
   protected message: MessageStruct = {} as MessageStruct;
 

@@ -96,7 +96,7 @@ export class Blockchain {
 
   async add(block: BlockStruct): Promise<void> {
     if (!this.verifyBlock(block)) {
-      throw new Error(`Blockchain.add(): failed to add block ${block.hash}`);
+      throw new Error(`Blockchain.add(): failed to add block ${block.height} (${block.hash})`);
     }
     this.height = block.height;
     this.latestBlock = block;
@@ -111,7 +111,7 @@ export class Blockchain {
     await this.state.process(block);
   }
 
-  async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<any>> {
+  async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<BlockStruct>> {
     limit = Math.floor(limit);
     gte = Math.floor(gte);
     lte = Math.floor(lte);

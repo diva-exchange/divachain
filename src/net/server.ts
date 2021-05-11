@@ -34,6 +34,7 @@ import { Api } from './api';
 import { TransactionStruct } from '../chain/transaction';
 import { CommitPool } from '../pool/commit-pool';
 import { Confirm } from './message/confirm';
+import { Sync } from './message/sync';
 
 const VERSION = '0.1.0';
 
@@ -45,13 +46,14 @@ export class Server {
   public readonly votePool: VotePool;
   public readonly commitPool: CommitPool;
   public readonly blockchain: Blockchain;
+  public readonly config: Config;
+  public readonly wallet: Wallet;
 
-  private readonly config: Config;
-  private readonly wallet: Wallet;
   private readonly api: Api;
 
   constructor(config: Config) {
     Logger.info(`divachain ${VERSION} instantiating...`);
+    Logger.trace(config);
     this.config = config;
     this.wallet = new Wallet(this.config);
     this.transactionPool = new TransactionPool(this.wallet);
@@ -59,7 +61,7 @@ export class Server {
     this.votePool = new VotePool();
     this.commitPool = new CommitPool();
 
-    this.network = new Network(this.config, this.wallet, async (type: number, message: Buffer | string) => {
+    this.network = new Network(this, async (type: number, message: Buffer | string) => {
       await this.onMessage(type, message);
     });
     this.blockchain = new Blockchain(this.config, this.network);
@@ -107,6 +109,13 @@ export class Server {
       this.createProposal();
     });
     return true;
+  }
+
+  async getSync(height: number): Promise<Sync> {
+    const arrayBlocks = await this.blockchain.get(this.blockchain.getHeight() - height);
+    //@FIXME logging
+    Logger.trace(`Syncing blocks: ${arrayBlocks.length}`);
+    return new Sync().create(arrayBlocks.reverse());
   }
 
   private createProposal() {
@@ -217,20 +226,38 @@ export class Server {
       return this.network.stopGossip(confirm.ident());
     }
 
-    this.blockchain.add(c.block).then(() => {
-      this.votePool.clear();
-      this.commitPool.clear(c.block);
-      this.blockPool.clear();
-      this.transactionPool.clear(c.block);
+    this.blockchain
+      .add(c.block)
+      .then(() => {
+        this.votePool.clear();
+        this.commitPool.clear(c.block);
+        this.blockPool.clear();
+        this.transactionPool.clear(c.block);
 
-      const nextBlock = this.commitPool.best();
-      if (c.block.height + 1 === nextBlock.height) {
-        this.transactionPool.add(nextBlock.tx);
-      }
-      // if there should be another transaction on the stack: release and process it!
-      setImmediate(() => {
-        this.createProposal();
+        const nextBlock = this.commitPool.best();
+        if (c.block.height + 1 === nextBlock.height) {
+          this.transactionPool.add(nextBlock.tx);
+        }
+        // if there is another transaction on the stack: release and process it!
+        setImmediate(() => {
+          this.createProposal();
+        });
+      })
+      .catch((error) => {
+        Logger.warn(error);
       });
+  }
+
+  private processSync(sync: Sync) {
+    sync.get().forEach(async (block) => {
+      try {
+        if (this.blockchain.getHeight() < block.height) {
+          await this.blockchain.add(block);
+        }
+      } catch (error) {
+        //@FIXME logging
+        Logger.trace(error);
+      }
     });
   }
 
@@ -244,6 +271,9 @@ export class Server {
         break;
       case Message.TYPE_CONFIRM:
         this.processConfirm(new Confirm(message));
+        break;
+      case Message.TYPE_SYNC:
+        this.processSync(new Sync(message));
         break;
       default:
         throw new Error('Invalid message type');
