@@ -152,12 +152,6 @@ class TestServer {
   }
 
   @test
-  async health() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/health');
-    expect(res).to.have.status(200);
-  }
-
-  @test
   async gossip() {
     const res = await chai.request(`http://${IP_HTTP}:17001`).get('/gossip');
     expect(res).to.have.status(200);
