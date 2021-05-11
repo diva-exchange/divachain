@@ -167,14 +167,6 @@ export class Network {
     return 2 * (this.mapPeer.size / 3); // PBFT
   }
 
-  health() {
-    const arrayIn = Object.keys(this.peersIn);
-    const arrayOut = Object.keys(this.peersOut);
-    const lN = [...new Set(arrayIn.concat(arrayOut))].length;
-    const lC = this.mapPeer.size - 1; // -1: exclude self
-    return { in: arrayIn.length / lC, out: arrayOut.length / lC, total: lN / lC };
-  }
-
   peers() {
     const peers: { net: Array<string>; in: Array<object>; out: Array<object> } = {
       net: this.arrayPeerNetwork,

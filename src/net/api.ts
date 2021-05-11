@@ -59,14 +59,6 @@ export class Api {
 
     this.server.httpServer.route({
       method: 'GET',
-      path: '/health',
-      handler: (request, h) => {
-        return h.response(this.server.network.health());
-      },
-    });
-
-    this.server.httpServer.route({
-      method: 'GET',
       path: '/gossip',
       handler: (request, h) => {
         return h.response(this.server.network.gossip());
