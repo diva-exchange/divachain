@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2020 diva.exchange
+# Copyright (C) 2021 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -25,6 +25,9 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
+# make sure that the docker container are using the latest image version
+sudo ${PROJECT_PATH}../../bin/build-docker.sh
+
 ${PROJECT_PATH}bin/clean.sh
 
 # reasonable defaults
@@ -33,7 +36,7 @@ IS_NAME_BASED=${IS_NAME_BASED:-0}
 BASE_DOMAIN=${BASE_DOMAIN:-testnet.diva.i2p}
 BASE_IP=${BASE_IP:-172.20.72.}
 PORT_P2P=${PORT_P2P:-17468}
-HAS_I2P=${HAS_I2P:-1}
+HAS_I2P=${HAS_I2P:-0}
 
 if [[ ${HAS_I2P} > 0 ]]
 then
