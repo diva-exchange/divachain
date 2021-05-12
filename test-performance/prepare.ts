@@ -86,27 +86,17 @@ export class Prepare {
         '    restart: unless-stopped\n' +
         '    environment:\n' +
         '      NODE_ENV: development\n' +
-        '      HTTP_IP: ' +
-        c.host +
-        '\n' +
-        '      HTTP_PORT: ' +
-        (c.port + 1) +
-        '\n' +
-        '      P2P_IP: ' +
-        c.host +
-        '\n' +
-        '      P2P_PORT: ' +
-        c.port +
-        '\n' +
+        `      HTTP_IP: ${c.host}\n` +
+        `      HTTP_PORT: ${(c.port + 1)}\n` +
+        `      P2P_IP: ${c.host}\n` +
+        `      P2P_PORT: ${c.port}\n` +
         '    volumes:\n' +
-        `      - ${name}:/app/\n` +
-        '      - ../keys:/app/keys/\n' +
-        '      - ../genesis:/app/genesis/\n' +
+        `      - ${name}:/divachain/\n` +
+        '      - ../keys:/divachain/keys/\n' +
+        '      - ../genesis:/divachain/genesis/\n' +
         '    networks:\n' +
         '      network.testnet.diva.performance:\n' +
-        '        ipv4_address: ' +
-        c.host +
-        '\n\n';
+        `        ipv4_address: ${c.host}\n\n`;
       volumes = volumes + `  ${name}:\n` + `    name: ${name}\n`;
       seq++;
     }

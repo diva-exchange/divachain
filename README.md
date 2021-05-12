@@ -4,7 +4,7 @@ A blockchain implementation using PBFT (practical byzantine fault tolerance) as 
 
 This is fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
-A PBFT consensus algo is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
+A PBFT consensus is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
 
 The peers in the network communicate via websockets. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
 
@@ -18,17 +18,62 @@ The network itself is permission- and leaderless. Each peer in the network repre
 4. The block gets committed and a new round starts.
 
 
-## How to Start the Local Testnet (I2P-based)
+## Create Your Local Environment
 
+Important: docker-compose (>v1.24.1) is required. Check with `docker-compose --version`. 
+
+To create a meaningful local environment, several divachain nodes must be created and started. This is done by creating your local docker-compose file.
+
+To create a basic local docker-compose YML file and a matching genesis block (JSON), use
 ```
-sudo docker-compose -f docker/i2p-testnet.yml up -d
+docker/build/bin/build.sh
 ```
 
-## How to Stop the Local Testnet
+After the script has been executed, the created YML file is located here:
+```
+docker/build/build-testnet.yml
+```
+and the corresponding genesis block (JSON) is located here:
+```
+docker/build/genesis/block.json
+```
+ 
+Now you can **start** your local environment:
+```
+sudo docker-compose -f docker/build/build-testnet.yml up -d
+```
 
+Afterwards the default number of divachain nodes will be started, check this by using:
 ```
-sudo docker-compose -f docker/i2p-testnet.yml down
+sudo docker ps
 ```
+
+Access the local API of any divachain node, like:
+```
+http://172.20.72.151:17469/peers
+```
+The local IP address `172.20.72.151` is the default IP address of the first node (see created YML file). Use environment variables during the build process to change the default values.  
+
+To **stop** your local environment, use:
+```
+sudo docker-compose -f docker/build/build-testnet.yml down
+```
+
+To **stop and purge** all data within your local environment, use:
+```
+sudo docker-compose -f docker/build/build-testnet.yml down --volumes
+```
+ 
+## Create an I2P-based Local Environment  
+
+To create an I2P-based local docker-compose YML file, use
+```
+HAS_I2P=1 docker/build/bin/build.sh
+```
+
+The script needs elevated privileges, since it needs to start I2P docker containers. Therefore it will ask for the root password.
+
+The script creates - same procedure as above - a YML file including all I2P containers and the applicable genesis block.
 
 ## Configuration
 The configuration can be controlled using environment variables.
@@ -64,40 +109,17 @@ Default: 180000ms
 Default: 3000ms
 
 ### NETWORK_AUTH_TIMEOUT_MS
-Default: NETWORK_REFRESH_INTERVAL_MS * 10
-
-### NETWORK_CLEAN_INTERVAL_MS
-Default: 60000
+Default: 10 * NETWORK_REFRESH_INTERVAL_MS
 
 ### NETWORK_PING_INTERVAL_MS
-Default: NETWORK_CLEAN_INTERVAL_MS * 0.5
+Default: 2000ms
+
+### NETWORK_CLEAN_INTERVAL_MS
+Default: 2 * NETWORK_SIZE * NETWORK_PING_INTERVAL_MS
 
 
-## How to Start the Blockchain
+## API Endpoints
 
-Install the dependencies (full development environment), use:
-```
-npm i
-```
-
-To start the blockchain application in verbose developer mode, use:
-```
-bin/start-dev.sh
-```
-
-## How to Stop the Blockchain
-
-```
-bin/stop.sh
-```
-
-## How to Clean-Up the System
-
-To **delete** all local storage files (blockstore), to remove all logs and to rebuild the complete codebase, use:
-
-```
-bin/clean.sh
-```
 
 ## How to Run Unit Tests
 
