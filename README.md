@@ -2,7 +2,7 @@
 
 A blockchain implementation using PBFT (practical byzantine fault tolerance) as a consensus algorithm.
 
-This is fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
+This is a fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
 A PBFT consensus is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
 
