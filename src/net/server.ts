@@ -135,7 +135,7 @@ export class Server {
 
   private processVote(vote: Vote) {
     const v = vote.get();
-    if (!Vote.isValid(v)) {
+    if (!Vote.isValid(v) || this.blockchain.getHeight() >= v.block.height) {
       return this.network.stopGossip(vote.ident());
     }
     if (this.blockchain.getHeight() + 1 !== v.block.height) {
@@ -186,13 +186,7 @@ export class Server {
 
   private processCommit(commit: Commit) {
     const c: VoteStruct = commit.get();
-    if (this.blockchain.getHeight() >= c.block.height) {
-      return;
-    }
-
-    if (!Commit.isValid(c, this.network.getQuorum())) {
-      //@FIXME logging
-      Logger.trace(`processCommit(): invalid commit ${commit.ident()}`);
+    if (this.blockchain.getHeight() >= c.block.height || !Commit.isValid(c, this.network.getQuorum())) {
       return this.network.stopGossip(commit.ident());
     }
 
@@ -200,29 +194,39 @@ export class Server {
       return;
     }
 
-    const blockAccepted: BlockStruct | false = this.commitPool.accepted(this.network.getQuorum());
-    if (blockAccepted) {
+    if (this.commitPool.accepted(this.network.getQuorum())) {
+      const block = this.commitPool.best();
       this.network.processMessage(
         new Confirm()
           .create({
             origin: this.wallet.getPublicKey(),
-            block: blockAccepted,
-            sig: this.wallet.sign(blockAccepted.hash + JSON.stringify(blockAccepted.votes)),
+            block: block,
+            sig: this.wallet.sign(block.hash + JSON.stringify(block.votes)),
           })
           .pack()
       );
+    } else if (c.block.hash === this.blockPool.get().hash) {
+      for (const v of c.block.votes) {
+        if (this.votePool.add({ origin: v.origin, block: c.block, sig: v.sig }, this.network.getQuorum())) {
+          c.block.votes = this.votePool.get(c.block.hash);
+          this.network.processMessage(
+            new Commit()
+              .create({
+                origin: this.wallet.getPublicKey(),
+                block: c.block,
+                sig: this.wallet.sign(c.block.hash + JSON.stringify(c.block.votes)),
+              })
+              .pack()
+          );
+          break;
+        }
+      }
     }
   }
 
   private processConfirm(confirm: Confirm) {
     const c: VoteStruct = confirm.get();
-    if (this.blockchain.getHeight() >= c.block.height) {
-      return;
-    }
-
-    if (!Commit.isValid(c, this.network.getQuorum())) {
-      //@FIXME logging
-      Logger.trace(`processConfirm(): invalid commit ${confirm.ident()}`);
+    if (this.blockchain.getHeight() >= c.block.height || !Commit.isValid(c, this.network.getQuorum())) {
       return this.network.stopGossip(confirm.ident());
     }
 

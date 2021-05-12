@@ -53,9 +53,9 @@ export class CommitPool {
     return a[0].block;
   }
 
-  accepted(quorum: number): BlockStruct | false {
+  accepted(quorum: number): boolean {
     const block = this.best();
-    return (this.mapVotes.get(block.hash) || []).length >= quorum ? block : false;
+    return (this.mapVotes.get(block.hash) || []).length >= quorum;
   }
 
   get(): object {

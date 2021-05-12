@@ -23,20 +23,21 @@ export class VotePool {
   private arrayHashes: Array<string> = [];
   private mapVotes: Map<string, Array<{ origin: string; sig: string }>> = new Map();
 
-  add(vote: VoteStruct, quorum: number): boolean {
+  add(structVote: VoteStruct, quorum: number): boolean {
     // if the quorum has already been reached, return immediately
     if (this.arrayHashes.length >= quorum) {
       return false;
     }
 
-    const aVotes = this.mapVotes.get(vote.block.hash) || [];
-    if (!aVotes.some((v) => v.origin === vote.origin)) {
-      aVotes.push({ origin: vote.origin, sig: vote.sig });
-      !this.arrayHashes.includes(vote.block.hash) && this.arrayHashes.push(vote.block.hash);
-      this.mapVotes.set(vote.block.hash, aVotes);
-      return aVotes.length >= quorum;
+    const aVotes = this.mapVotes.get(structVote.block.hash) || [];
+    if (aVotes.some((v) => v.origin === structVote.origin)) {
+      return false;
     }
-    return false;
+
+    aVotes.push({ origin: structVote.origin, sig: structVote.sig });
+    !this.arrayHashes.includes(structVote.block.hash) && this.arrayHashes.push(structVote.block.hash);
+    this.mapVotes.set(structVote.block.hash, aVotes);
+    return aVotes.length >= quorum;
   }
 
   get(hash: string): Array<{ origin: string; sig: string }> {
