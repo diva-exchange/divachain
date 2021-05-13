@@ -51,6 +51,8 @@ export class Server {
 
   private readonly api: Api;
 
+  private staleBlockHash: string = '';
+
   constructor(config: Config) {
     Logger.info(`divachain ${VERSION} instantiating...`);
     Logger.trace(config);
@@ -86,6 +88,8 @@ export class Server {
       Logger.info(`HTTP Server on ${this.config.http_ip}:${this.config.http_port} closed`);
     });
 
+    this.checkBlockPool();
+
     return this;
   }
 
@@ -113,9 +117,18 @@ export class Server {
 
   async getSync(height: number): Promise<Sync> {
     const arrayBlocks = await this.blockchain.get(this.blockchain.getHeight() - height);
-    //@FIXME logging
-    Logger.trace(`Syncing blocks: ${arrayBlocks.length}`);
     return new Sync().create(arrayBlocks.reverse());
+  }
+
+  private checkBlockPool() {
+    const block = this.blockPool.get();
+    if (this.staleBlockHash === block.hash) {
+      this.network.resetGossip();
+      this.doVote(block);
+    }
+    this.staleBlockHash = block.hash || '';
+
+    setTimeout(() => { this.checkBlockPool(); }, this.config.block_pool_check_interval_ms);
   }
 
   private createProposal() {
@@ -259,8 +272,7 @@ export class Server {
           await this.blockchain.add(block);
         }
       } catch (error) {
-        //@FIXME logging
-        Logger.trace(error);
+        Logger.warn(error);
       }
     });
   }

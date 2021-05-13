@@ -87,7 +87,7 @@ export class Prepare {
         '    environment:\n' +
         '      NODE_ENV: development\n' +
         `      HTTP_IP: ${c.host}\n` +
-        `      HTTP_PORT: ${(c.port + 1)}\n` +
+        `      HTTP_PORT: ${c.port + 1}\n` +
         `      P2P_IP: ${c.host}\n` +
         `      P2P_PORT: ${c.port}\n` +
         '    volumes:\n' +

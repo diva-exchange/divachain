@@ -35,6 +35,9 @@ export class Build {
   private readonly baseIP: string;
   private readonly portP2P: number;
   private readonly hasI2P: boolean;
+  private readonly envNode: string;
+  private readonly networkSyncThreshold: number;
+  private readonly networkVerboseLogging: boolean;
 
   constructor(sizeNetwork: number = DEFAULT_NETWORK_SIZE) {
     this.sizeNetwork =
@@ -52,6 +55,10 @@ export class Build {
         ? Number(process.env.PORT_P2P)
         : DEFAULT_PORT_P2P;
     this.hasI2P = Number(process.env.HAS_I2P) > 0;
+    this.networkSyncThreshold =
+      Number(process.env.NETWORK_SYNC_THRESHOLD) > 0 ? Number(process.env.NETWORK_SYNC_THRESHOLD) : 1;
+    this.networkVerboseLogging = Number(process.env.NETWORK_VERBOSE_LOGGING) > 0;
+    this.envNode = this.networkVerboseLogging || process.env.NODE_ENV === 'development' ? 'development' : 'production';
 
     this.createFiles();
   }
@@ -152,13 +159,15 @@ export class Build {
         '    image: divax/divachain:latest\n' +
         '    restart: unless-stopped\n' +
         '    environment:\n' +
-        '      NODE_ENV: development\n' +
+        `      NODE_ENV: ${this.envNode}\n` +
         `      HTTP_IP: ${this.baseIP}${150 + seq}\n` +
         `      HTTP_PORT: ${this.portP2P + 1}\n` +
         `      P2P_IP: ${this.baseIP}${150 + seq}\n` +
         `      P2P_PORT: ${this.portP2P}\n` +
         `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n` +
         `      SOCKS_PROXY_PORT: ${this.hasI2P ? 4445 : 0}\n` +
+        `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
+        `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +
         '    volumes:\n' +
         `      - ${nameChain}:/divachain/\n` +
         `      - ./keys/${hostChain}:/divachain/keys/\n` +

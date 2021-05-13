@@ -193,9 +193,17 @@ export class Network {
     });
   }
 
+  resetGossip() {
+    Object.keys(this.aGossip).forEach((publicKeyPeer) => {
+      this.aGossip[publicKeyPeer] = [];
+    });
+  }
+
   processMessage(message: Buffer | string, publicKeyPeer: string = '') {
     const m = new Message(message);
     const ident = m.ident();
+    this.server.config.network_verbose_logging &&
+      Logger.trace(`Network.processMessage: ${JSON.stringify(m.getMessage())}`);
 
     if (!Validation.validateMessage(m)) {
       return this.stopGossip(ident);
@@ -281,7 +289,7 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (Number(data.toString()) < this.server.blockchain.getHeight()) {
+        if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
           const sync = await this.server.getSync(Number(data.toString()));
           Network.send(ws, sync.pack());
         }
@@ -396,7 +404,7 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (Number(data.toString()) < this.server.blockchain.getHeight()) {
+        if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
           const sync = await this.server.getSync(Number(data.toString()));
           Network.send(ws, sync.pack());
         }

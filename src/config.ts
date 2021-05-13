@@ -41,10 +41,15 @@ export type Configuration = {
   network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
   network_ping_interval_ms?: number;
+  network_sync_threshold?: number;
+  network_verbose_logging?: boolean;
+
+  block_pool_check_interval_ms?: number;
 };
 
 const DEFAULT_NETWORK_SIZE = 7;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
+const DEFAULT_NETWORK_SYNC_THRESHOLD = 1;
 
 export class Config {
   public readonly p2p_ip: string;
@@ -65,6 +70,9 @@ export class Config {
   public readonly network_auth_timeout_ms: number;
   public readonly network_clean_interval_ms: number;
   public readonly network_ping_interval_ms: number;
+  public readonly network_sync_threshold: number;
+  public readonly network_verbose_logging: boolean;
+  public readonly block_pool_check_interval_ms: number;
 
   constructor(c: Configuration = {}) {
     const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
@@ -102,5 +110,15 @@ export class Config {
       c.network_auth_timeout_ms || Number(process.env.NETWORK_AUTH_TIMEOUT_MS) || this.network_refresh_interval_ms * 10;
     this.network_ping_interval_ms = c.network_ping_interval_ms || Number(process.env.NETWORK_PING_INTERVAL_MS) || 2000;
     this.network_clean_interval_ms = this.network_size * this.network_ping_interval_ms * 2;
+
+    this.network_sync_threshold =
+      Number(c.network_sync_threshold || process.env.NETWORK_SYNC_THRESHOLD) > 0
+        ? Number(c.network_sync_threshold || process.env.NETWORK_SYNC_THRESHOLD)
+        : DEFAULT_NETWORK_SYNC_THRESHOLD;
+
+    this.network_verbose_logging = c.network_verbose_logging || Number(process.env.NETWORK_VERBOSE_LOGGING || 0) > 0;
+
+    this.block_pool_check_interval_ms =
+      c.block_pool_check_interval_ms || Number(process.env.BLOCK_POOL_CHECK_INTERVAL_MS) || 10000;
   }
 }

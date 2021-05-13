@@ -14,8 +14,9 @@ The network itself is permission- and leaderless. Each peer in the network repre
 
 1. New block proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network.
 2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add one stack of own transactions.
-3. As soon as one peer in the network detects that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
-4. The block gets committed and a new round starts.
+3. As soon as a peer in the network detects that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
+4. As soon as 2/3 of the network have issued commit messages, peers starting to issue confirm messages. The new block gets written to the chain.
+5. A new round starts. 
 
 
 ## Create Your Local Environment
@@ -108,18 +109,69 @@ Default: 180000ms
 ### NETWORK_REFRESH_INTERVAL_MS
 Default: 3000ms
 
+Interval, in milliseconds, to refresh the network (connect to peers, if needed). 
+
 ### NETWORK_AUTH_TIMEOUT_MS
 Default: 10 * NETWORK_REFRESH_INTERVAL_MS
 
+Timeout, in milliseconds, after authorisation fails.
+
 ### NETWORK_PING_INTERVAL_MS
-Default: 2000ms
+Default: 2000
+
+Interval, in milliseconds, to ping the peers in the network.
 
 ### NETWORK_CLEAN_INTERVAL_MS
 Default: 2 * NETWORK_SIZE * NETWORK_PING_INTERVAL_MS
 
+Interval, in milliseconds, to clean up the network environment (like gossiping data).
+
+### NETWORK_SYNC_THRESHOLD
+Default: 2
+
+Number of blocks a blockchain can get behind before synchornisation is triggered.
+
+### NETWORK_VERBOSE_LOGGING
+Default: 0
+
+Whether to log all network traffic (very verbose). Set to 1 to enable verbose logging.
+
+### BLOCK_POOL_CHECK_INTERVAL_MS
+Default: 10000
+
+Interval, in milliseconds, to check whether the block pool is stale.
 
 ## API Endpoints
 
+### GET /peers
+
+### GET /network
+
+### GET /gossip
+
+### GET /stack/transactions
+
+### GET /pool/transactions
+
+### GET /pool/blocks
+
+### GET /pool/votes
+
+### GET /pool/commits
+
+### GET /state/peers
+
+### GET /blocks
+
+### GET /blocks/page/{page?}
+
+### GET /transaction/{origin}/{ident}
+
+### PUT /transaction/{ident?}
+
+### POST /peer/add
+
+### POST /peer/remove
 
 ## How to Run Unit Tests
 
