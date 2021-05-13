@@ -27,6 +27,7 @@ import WebSocket from 'ws';
 import { Validation } from './validation';
 import { Util } from '../chain/util';
 import { Server } from './server';
+import { Sync } from './message/sync';
 
 const GOSSIP_MAX_MESSAGES_PER_PEER = 250;
 
@@ -290,7 +291,7 @@ export class Network {
       });
       ws.on('ping', async (data) => {
         if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
-          const sync = await this.server.getSync(Number(data.toString()));
+          const sync = await this.getSync(Number(data.toString()));
           Network.send(ws, sync.pack());
         }
       });
@@ -405,7 +406,7 @@ export class Network {
       });
       ws.on('ping', async (data) => {
         if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
-          const sync = await this.server.getSync(Number(data.toString()));
+          const sync = await this.getSync(Number(data.toString()));
           Network.send(ws, sync.pack());
         }
       });
@@ -426,6 +427,11 @@ export class Network {
     });
 
     setTimeout(() => this.ping(), t);
+  }
+
+  private async getSync(height: number): Promise<Sync> {
+    const arrayBlocks = await this.server.blockchain.get(0, height, height + this.server.config.network_sync_size);
+    return new Sync().create(arrayBlocks.reverse());
   }
 
   private static send(ws: WebSocket, data: string) {

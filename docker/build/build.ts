@@ -164,8 +164,7 @@ export class Build {
         `      HTTP_PORT: ${this.portP2P + 1}\n` +
         `      P2P_IP: ${this.baseIP}${150 + seq}\n` +
         `      P2P_PORT: ${this.portP2P}\n` +
-        `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n` +
-        `      SOCKS_PROXY_PORT: ${this.hasI2P ? 4445 : 0}\n` +
+        (this.hasI2P ? `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n      SOCKS_PROXY_PORT: 4445\n` : '') +
         `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
         `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +
         '    volumes:\n' +

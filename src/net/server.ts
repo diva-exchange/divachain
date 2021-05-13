@@ -36,8 +36,6 @@ import { CommitPool } from '../pool/commit-pool';
 import { Confirm } from './message/confirm';
 import { Sync } from './message/sync';
 
-const VERSION = '0.1.0';
-
 export class Server {
   public readonly httpServer: Hapi.Server;
   public readonly network: Network;
@@ -54,7 +52,7 @@ export class Server {
   private staleBlockHash: string = '';
 
   constructor(config: Config) {
-    Logger.info(`divachain ${VERSION} instantiating...`);
+    Logger.info('divachain instantiating...');
     Logger.trace(config);
     this.config = config;
     this.wallet = new Wallet(this.config);
@@ -115,11 +113,6 @@ export class Server {
     return true;
   }
 
-  async getSync(height: number): Promise<Sync> {
-    const arrayBlocks = await this.blockchain.get(this.blockchain.getHeight() - height);
-    return new Sync().create(arrayBlocks.reverse());
-  }
-
   private checkBlockPool() {
     const block = this.blockPool.get();
     if (this.staleBlockHash === block.hash) {
@@ -128,7 +121,9 @@ export class Server {
     }
     this.staleBlockHash = block.hash || '';
 
-    setTimeout(() => { this.checkBlockPool(); }, this.config.block_pool_check_interval_ms);
+    setTimeout(() => {
+      this.checkBlockPool();
+    }, this.config.block_pool_check_interval_ms);
   }
 
   private createProposal() {

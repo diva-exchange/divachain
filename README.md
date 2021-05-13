@@ -64,6 +64,7 @@ To **stop and purge** all data within your local environment, use:
 ```
 sudo docker-compose -f docker/build/build-testnet.yml down --volumes
 ```
+
  
 ## Create an I2P-based Local Environment  
 
@@ -72,9 +73,13 @@ To create an I2P-based local docker-compose YML file, use
 HAS_I2P=1 docker/build/bin/build.sh
 ```
 
-The script needs elevated privileges, since it needs to start I2P docker containers. Therefore it will ask for the root password.
+The script needs elevated privileges, since it needs to start I2P docker containers. Therefore the script will ask for the root password.
 
 The script creates - same procedure as above - a YML file including all I2P containers and the applicable genesis block.
+
+Start and stop the environment using docker-compose (see above).
+
+**Important:** if the volumes are purged, the environment must be rebuilt!
 
 ## Configuration
 The configuration can be controlled using environment variables.
@@ -93,18 +98,27 @@ Default: 127.0.0.1
 
 ### HTTP_PORT
 Default: 17469
-    
+
 ### SOCKS_PROXY_HOST
 Default: (empty)
 
 ### SOCKS_PROXY_PORT
 Default: 0
 
+### MAX_BLOCKS_IN_MEMORY
+Default: 1000
+
+Maximum number of blocks kept in memory.
+
 ### NETWORK_SIZE
 Default: 7
 
+Between 7 and 64 peers.
+
 ### NETWORK_MORPH_INTERVAL_MS
-Default: 180000ms
+Default: 120000ms
+
+Between 2 minutes and 10 minutes (120'000ms and 600'000ms).
 
 ### NETWORK_REFRESH_INTERVAL_MS
 Default: 3000ms
@@ -112,7 +126,7 @@ Default: 3000ms
 Interval, in milliseconds, to refresh the network (connect to peers, if needed). 
 
 ### NETWORK_AUTH_TIMEOUT_MS
-Default: 10 * NETWORK_REFRESH_INTERVAL_MS
+Default: 5 * NETWORK_REFRESH_INTERVAL_MS
 
 Timeout, in milliseconds, after authorisation fails.
 
@@ -129,7 +143,11 @@ Interval, in milliseconds, to clean up the network environment (like gossiping d
 ### NETWORK_SYNC_THRESHOLD
 Default: 2
 
-Number of blocks a blockchain can get behind before synchornisation is triggered.
+Number of blocks a blockchain can get behind before synchronisation is triggered.
+
+### NETWORK_SYNC_SIZE
+Default: 10
+Maximum number of blocks of synchronization message might contain. Must not exceed NETWORK_MAX_BLOCKS_IN_MEMORY.
 
 ### NETWORK_VERBOSE_LOGGING
 Default: 0
