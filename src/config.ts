@@ -98,10 +98,10 @@ export class Config {
     this.http_ip = c.http_ip || process.env.HTTP_IP || '127.0.0.1';
     this.http_port = Config.port(c.http_port || process.env.HTTP_PORT || DEFAULT_HTTP_PORT);
     this.per_message_deflate = c.per_message_deflate || true;
-    this.path_genesis = c.path_genesis || path.join(__dirname, `../genesis/${nameBlockGenesis}.json`);
-    this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
-    this.path_state = c.path_state || path.join(__dirname, '../state/');
-    this.path_keys = c.path_keys || path.join(__dirname, '../keys/');
+    this.path_genesis = c.path_genesis || path.join(path.dirname(process.execPath), `genesis/${nameBlockGenesis}.json`);
+    this.path_blockstore = c.path_blockstore || path.join(path.dirname(process.execPath), 'blockstore/');
+    this.path_state = c.path_state || path.join(path.dirname(process.execPath), 'state/');
+    this.path_keys = c.path_keys || path.join(path.dirname(process.execPath), 'keys/');
     if (!fs.existsSync(this.path_keys)) {
       fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
     }

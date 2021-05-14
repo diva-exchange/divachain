@@ -22,8 +22,6 @@ import { Logger } from '../logger';
 import { BlockStruct } from './block';
 import { Util } from './util';
 import fs from 'fs';
-import LevelUp from 'levelup';
-import LevelDown from 'leveldown';
 import path from 'path';
 import { TransactionStruct } from './transaction';
 import { State } from './state';
@@ -34,8 +32,7 @@ export class Blockchain {
   private readonly network: Network;
   private readonly publicKey: string;
   private readonly state: State;
-  private height: number;
-  private dbBlockchain: InstanceType<typeof LevelUp>;
+  private readonly pathBlockStore: string;
   private mapBlocks: Map<number, BlockStruct> = new Map();
   private mapHashes: Map<number, string> = new Map();
   private latestBlock: BlockStruct = {} as BlockStruct;
@@ -44,147 +41,74 @@ export class Blockchain {
     this.config = config;
     this.network = network;
     this.publicKey = this.network.getIdentity();
-    this.height = 1;
     this.state = new State(this.config, this.network);
-
-    this.dbBlockchain = LevelUp(LevelDown(path.join(this.config.path_blockstore, this.publicKey)), {
-      createIfMissing: true,
-      errorIfExists: false,
-      compression: true,
-      cacheSize: 2 * 1024 * 1024, // 2 MB
-    });
+    this.pathBlockStore = path.join(this.config.path_blockstore, this.publicKey);
+    if (!fs.existsSync(this.pathBlockStore)) {
+      fs.mkdirSync(this.pathBlockStore, { mode: '755', recursive: true });
+    }
   }
 
-  async init(): Promise<void> {
+  init() {
+    this.state.init();
+
     try {
-      await this.dbBlockchain.get(1);
+      this.read(1);
     } catch (error) {
-      await this.dbBlockchain.put(
-        String(1).padStart(16, '0'),
-        JSON.stringify(Blockchain.genesis(this.config.path_genesis))
-      );
+      this.write(Blockchain.genesis(this.config.path_genesis));
     }
 
-    await this.state.init();
-
-    return new Promise((resolve, reject) => {
-      this.dbBlockchain
-        .createReadStream({ reverse: true, limit: 1 })
-        .on('data', (data) => {
-          this.height = Number(data.key);
-          this.latestBlock = JSON.parse(data.value) as BlockStruct;
-        })
-        .on('error', reject);
-
-      this.dbBlockchain
-        .createReadStream({ limit: this.config.max_blocks_in_memory })
-        .on('data', async (data) => {
-          const k = Number(data.key);
-          const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
-          this.mapBlocks.set(k, b);
-          this.mapHashes.set(k, b.hash);
-          await this.state.process(b);
-        })
-        .on('end', resolve)
-        .on('error', reject);
-    });
-  }
-
-  async shutdown() {
-    await this.dbBlockchain.close();
+    this.latestBlock = this.read(this.state.getHeight());
+    this.populateCache();
   }
 
   async add(block: BlockStruct): Promise<void> {
     if (!this.verifyBlock(block)) {
       throw new Error(`Blockchain.add(): failed to add block ${block.height} (${block.hash})`);
     }
-    this.height = block.height;
     this.latestBlock = block;
     this.mapBlocks.set(block.height, block);
     this.mapHashes.set(block.height, block.hash);
-    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
+    this.write(block);
     if (this.mapBlocks.size > this.config.max_blocks_in_memory) {
-      this.mapBlocks.delete(this.height - this.config.max_blocks_in_memory);
-      this.mapHashes.delete(this.height - this.config.max_blocks_in_memory);
+      this.mapBlocks.delete(block.height - this.config.max_blocks_in_memory);
+      this.mapHashes.delete(block.height - this.config.max_blocks_in_memory);
     }
-
-    await this.state.process(block);
   }
 
-  async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<BlockStruct>> {
+  get(limit: number = 0, gte: number = 0, lte: number = 0): Array<BlockStruct> {
     limit = Math.floor(limit);
     gte = Math.floor(gte);
     lte = Math.floor(lte);
 
     // range
     if (gte >= 1 || lte >= 1) {
-      gte = gte < 1 ? 1 : gte <= this.height ? gte : this.height;
-      lte = lte < 1 ? 1 : lte <= this.height ? lte : this.height;
+      gte = gte < 1 ? 1 : gte <= this.state.getHeight() ? gte : this.state.getHeight();
+      lte = lte < 1 ? 1 : lte <= this.state.getHeight() ? lte : this.state.getHeight();
       gte = lte - gte > 0 ? gte : lte;
       gte = lte - gte > this.config.max_blocks_in_memory ? lte - this.config.max_blocks_in_memory + 1 : gte;
 
-      const a: Array<BlockStruct> = [];
-      return new Promise((resolve, reject) => {
-        this.dbBlockchain
-          .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
-          .on('data', (data) => {
-            a.unshift(JSON.parse(data));
-          })
-          .on('end', () => {
-            resolve(a);
-          })
-          .on('error', reject);
-      });
+      return this.getRange(gte, lte);
     }
 
-    // limit
-    return new Promise((resolve) => {
-      limit =
-        limit >= 1
-          ? limit > this.config.max_blocks_in_memory
-            ? this.config.max_blocks_in_memory
-            : limit
-          : this.config.max_blocks_in_memory;
-
-      resolve([...this.mapBlocks.values()].slice(limit * -1).reverse());
-    });
+    return this.getRange(this.state.getHeight() - limit, this.state.getHeight());
   }
 
-  async getPage(page: number = 1, size: number = this.config.max_blocks_in_memory): Promise<Array<BlockStruct>> {
+  getPage(page: number = 1, size: number = this.config.max_blocks_in_memory): Array<BlockStruct> {
     page = page < 1 ? 1 : Math.floor(page);
     size = size < 1 || size > this.config.max_blocks_in_memory ? this.config.max_blocks_in_memory : Math.floor(size);
-    size = size > this.height ? this.height : size;
-    const gte = (page - 1) * size <= this.height ? (page - 1) * size + 1 : 1;
-    const lte = page * size <= this.height ? page * size : this.height;
-
-    return new Promise((resolve, reject) => {
-      const a: Array<BlockStruct> = [];
-      this.dbBlockchain
-        .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
-        .on('data', (data) => {
-          a.unshift(JSON.parse(data));
-        })
-        .on('end', () => {
-          resolve(a);
-        })
-        .on('error', reject);
-    });
+    size = size > this.state.getHeight() ? this.state.getHeight() : size;
+    const gte = (page - 1) * size <= this.state.getHeight() ? (page - 1) * size + 1 : 1;
+    const lte = page * size <= this.state.getHeight() ? page * size : this.state.getHeight();
+    return this.getRange(gte, lte);
   }
 
-  async getTransaction(origin: string, ident: string): Promise<TransactionStruct> {
-    return new Promise((resolve, reject) => {
-      this.dbBlockchain
-        .createValueStream()
-        .on('data', (data) => {
-          const b: BlockStruct = JSON.parse(data) as BlockStruct;
-          const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
-          t && resolve(t);
-        })
-        .on('end', () => {
-          reject(new Error('Not found'));
-        })
-        .on('error', reject);
-    });
+  getTransaction(origin: string, ident: string): TransactionStruct {
+    //@FIXME
+    if (origin && ident) {
+      return this.latestBlock.tx[0];
+    } else {
+      return {} as TransactionStruct;
+    }
   }
 
   getLatestBlock(): BlockStruct {
@@ -192,7 +116,7 @@ export class Blockchain {
   }
 
   getHeight(): number {
-    return this.height;
+    return this.state.getHeight();
   }
 
   getState(): State {
@@ -229,8 +153,8 @@ export class Blockchain {
         arrayOrigin.push(t.origin);
       }
       return (
-        this.height + 1 === block.height &&
-        block.previousHash === (this.mapHashes.get(this.height) || '') &&
+        this.state.getHeight() + 1 === block.height &&
+        block.previousHash === (this.mapHashes.get(this.state.getHeight()) || '') &&
         block.hash === Blockchain.hashBlock(block) &&
         !Array.from(this.mapHashes.values()).includes(block.hash)
       );
@@ -239,5 +163,42 @@ export class Blockchain {
       Logger.trace(error);
       return false;
     }
+  }
+
+  private getRange(gte: number, lte: number): Array<BlockStruct> {
+    if (this.mapBlocks.has(gte)) {
+      return Array.from(this.mapBlocks.values()).slice(gte, lte);
+    }
+    return [];
+  }
+
+  private populateCache() {
+    const l =
+      this.state.getHeight() - this.config.max_blocks_in_memory > 0
+        ? this.state.getHeight() - this.config.max_blocks_in_memory > 0
+        : 1;
+    for (let k = this.state.getHeight(); k >= l; k--) {
+      const b: BlockStruct = this.read(k);
+      this.mapBlocks.set(k, b);
+      this.mapHashes.set(k, b.hash);
+      this.state.process(b);
+    }
+  }
+
+  private read(k: number): BlockStruct {
+    if (this.mapBlocks.has(k)) {
+      return this.mapBlocks.get(k) as BlockStruct;
+    }
+    const _p = path.join(this.pathBlockStore, String(k).padStart(16, '0'));
+    if (!fs.existsSync(_p)) {
+      throw new Error('Block not found');
+    }
+    return JSON.parse(fs.readFileSync(_p).toString());
+  }
+
+  private write(block: BlockStruct) {
+    const _p = path.join(this.pathBlockStore, String(block.height).padStart(16, '0'));
+    fs.writeFileSync(_p, JSON.stringify(block));
+    this.state.process(block);
   }
 }

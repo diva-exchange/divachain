@@ -291,7 +291,7 @@ export class Network {
       });
       ws.on('ping', async (data) => {
         if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
-          const sync = await this.getSync(Number(data.toString()));
+          const sync = this.getSync(Number(data.toString()));
           Network.send(ws, sync.pack());
         }
       });
@@ -404,9 +404,9 @@ export class Network {
           this.processMessage(message, publicKeyPeer);
         }
       });
-      ws.on('ping', async (data) => {
+      ws.on('ping', (data) => {
         if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
-          const sync = await this.getSync(Number(data.toString()));
+          const sync = this.getSync(Number(data.toString()));
           Network.send(ws, sync.pack());
         }
       });
@@ -429,8 +429,8 @@ export class Network {
     setTimeout(() => this.ping(), t);
   }
 
-  private async getSync(height: number): Promise<Sync> {
-    const arrayBlocks = await this.server.blockchain.get(0, height, height + this.server.config.network_sync_size);
+  private getSync(height: number): Sync {
+    const arrayBlocks = this.server.blockchain.get(0, height, height + this.server.config.network_sync_size);
     return new Sync().create(arrayBlocks.reverse());
   }
 

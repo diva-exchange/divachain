@@ -117,7 +117,7 @@ export class Api {
       method: 'GET',
       path: '/blocks',
       handler: async (request, h) => {
-        return h.response(await this.server.blockchain.get(request.query.limit, request.query.gte, request.query.lte));
+        return h.response(this.server.blockchain.get(request.query.limit, request.query.gte, request.query.lte));
       },
     });
 
@@ -125,7 +125,7 @@ export class Api {
       method: 'GET',
       path: '/blocks/page/{page?}',
       handler: async (request, h) => {
-        return h.response(await this.server.blockchain.getPage(request.params.page, request.query.size));
+        return h.response(this.server.blockchain.getPage(request.params.page, request.query.size));
       },
     });
 
@@ -133,7 +133,7 @@ export class Api {
       method: 'GET',
       path: '/transaction/{origin}/{ident}',
       handler: async (request, h) => {
-        return h.response(await this.server.blockchain.getTransaction(request.params.origin, request.params.ident));
+        return h.response(this.server.blockchain.getTransaction(request.params.origin, request.params.ident));
       },
     });
 

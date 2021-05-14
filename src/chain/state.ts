@@ -17,19 +17,18 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import LevelUp from 'levelup';
-import LevelDown from 'leveldown';
 import path from 'path';
 import { CommandAddPeer, CommandRemovePeer } from './transaction';
 import { BlockStruct } from './block';
 import { Network, NetworkPeer } from '../net/network';
 import { Config } from '../config';
+import * as fs from 'fs';
 
 export class State {
   private readonly config: Config;
   private readonly network: Network;
   private readonly publicKey: string;
-  private readonly dbState: InstanceType<typeof LevelUp>;
+  private readonly pathState: string;
 
   private height: number = 0;
   private mapPeer: Map<string, NetworkPeer> = new Map();
@@ -38,24 +37,22 @@ export class State {
     this.config = config;
     this.network = network;
     this.publicKey = this.network.getIdentity();
-    this.dbState = LevelUp(LevelDown(path.join(this.config.path_state, this.publicKey)), {
-      createIfMissing: true,
-      errorIfExists: false,
-      compression: true,
-      cacheSize: 2 * 1024 * 1024, // 2 MB
-    });
+    this.pathState = path.join(this.config.path_state, this.publicKey);
+    if (!fs.existsSync(this.pathState)) {
+      fs.mkdirSync(this.pathState, { mode: '755', recursive: true });
+    }
   }
 
-  async init() {
+  init() {
     try {
-      this.mapPeer = new Map(JSON.parse(await this.dbState.get('peer')));
-      this.height = await this.dbState.get('height');
+      this.mapPeer = new Map(this.read('peer'));
+      this.height = this.read('height');
     } catch (error) {
       this.mapPeer = this.mapPeer.size > 0 ? this.mapPeer : new Map();
-      await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+      this.write('peer', this.mapPeer);
 
       this.height = 0;
-      await this.dbState.put('height', this.height);
+      this.write('height', this.height);
     }
 
     this.mapPeer.forEach((peer, publicKey) => {
@@ -63,12 +60,12 @@ export class State {
     });
   }
 
-  async process(block: BlockStruct) {
+  process(block: BlockStruct) {
     if (this.height >= block.height) {
       return;
     }
     this.height = block.height;
-    await this.dbState.put('height', this.height);
+    this.write('height', this.height);
 
     for (const t of block.tx) {
       for (const c of t.commands) {
@@ -76,10 +73,10 @@ export class State {
           case 'testLoad':
             break;
           case 'addPeer':
-            await this.addPeer(c as CommandAddPeer);
+            this.addPeer(c as CommandAddPeer);
             break;
           case 'removePeer':
-            await this.removePeer(c as CommandRemovePeer);
+            this.removePeer(c as CommandRemovePeer);
             break;
         }
       }
@@ -90,20 +87,33 @@ export class State {
     return this.mapPeer.size > 0 ? [...this.mapPeer.entries()] : [];
   }
 
-  private async addPeer(command: CommandAddPeer) {
+  getHeight(): number {
+    return this.height;
+  }
+
+  private addPeer(command: CommandAddPeer) {
     if (!this.mapPeer.has(command.publicKey)) {
       const peer: NetworkPeer = { host: command.host, port: command.port };
       this.mapPeer.set(command.publicKey, peer);
-      await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+      this.write('peer', this.mapPeer);
       this.network.addPeer(command.publicKey, peer);
     }
   }
 
-  private async removePeer(command: CommandRemovePeer) {
+  private removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
       this.mapPeer.delete(command.publicKey);
-      await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+      this.write('peer', this.mapPeer);
       this.network.removePeer(command.publicKey);
     }
+  }
+
+  private read(key: string): any {
+    const _p = path.join(this.pathState, key);
+    return fs.existsSync(_p) ? JSON.parse(fs.readFileSync(_p).toString()) : null;
+  }
+
+  private write(key: string, value: any) {
+    fs.writeFileSync(path.join(this.pathState, key), JSON.stringify(value));
   }
 }

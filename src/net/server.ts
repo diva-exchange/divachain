@@ -75,7 +75,7 @@ export class Server {
   }
 
   async listen(): Promise<Server> {
-    await this.blockchain.init();
+    this.blockchain.init();
 
     this.api.init();
 
@@ -95,7 +95,6 @@ export class Server {
     this.wallet.close();
 
     await this.network.shutdown();
-    await this.blockchain.shutdown();
 
     if (typeof this.httpServer !== 'undefined' && this.httpServer) {
       await this.httpServer.stop();
