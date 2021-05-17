@@ -64,6 +64,9 @@ const DEFAULT_NETWORK_SYNC_SIZE = 10;
 const DEFAULT_BLOCK_POOL_CHECK_INTERVAL_MS = 10000;
 
 export class Config {
+  public readonly path_app: string;
+  public readonly VERSION: string;
+
   public readonly p2p_ip: string;
   public readonly p2p_port: number;
   public readonly http_ip: string;
@@ -93,15 +96,31 @@ export class Config {
       ''
     );
 
+    this.path_app = path.dirname(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname);
+    this.VERSION = require(path.join(this.path_app, 'package.json')).version;
+
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
     this.p2p_port = Config.port(c.p2p_port || process.env.P2P_PORT || DEFAULT_P2P_PORT);
     this.http_ip = c.http_ip || process.env.HTTP_IP || '127.0.0.1';
     this.http_port = Config.port(c.http_port || process.env.HTTP_PORT || DEFAULT_HTTP_PORT);
     this.per_message_deflate = c.per_message_deflate || true;
-    this.path_genesis = c.path_genesis || path.join(__dirname, `../genesis/${nameBlockGenesis}.json`);
-    this.path_blockstore = c.path_blockstore || path.join(__dirname, '../blockstore/');
-    this.path_state = c.path_state || path.join(__dirname, '../state/');
-    this.path_keys = c.path_keys || path.join(__dirname, '../keys/');
+
+    this.path_genesis = c.path_genesis || path.join(this.path_app, `genesis/${nameBlockGenesis}.json`);
+    if (!fs.existsSync(this.path_genesis)) {
+      throw new Error('Path to genesis block not found.');
+    }
+
+    this.path_blockstore = c.path_blockstore || path.join(this.path_app, 'blockstore/');
+    if (!fs.existsSync(this.path_blockstore)) {
+      fs.mkdirSync(this.path_blockstore, { mode: '755', recursive: true });
+    }
+
+    this.path_state = c.path_state || path.join(this.path_app, 'state/');
+    if (!fs.existsSync(this.path_state)) {
+      fs.mkdirSync(this.path_state, { mode: '755', recursive: true });
+    }
+
+    this.path_keys = c.path_keys || path.join(this.path_app, 'keys/');
     if (!fs.existsSync(this.path_keys)) {
       fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
     }

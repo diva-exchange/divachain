@@ -36,6 +36,7 @@ export class Build {
   private readonly portP2P: number;
   private readonly hasI2P: boolean;
   private readonly envNode: string;
+  private readonly levelLog: string;
   private readonly networkSyncThreshold: number;
   private readonly networkVerboseLogging: boolean;
 
@@ -59,6 +60,7 @@ export class Build {
       Number(process.env.NETWORK_SYNC_THRESHOLD) > 0 ? Number(process.env.NETWORK_SYNC_THRESHOLD) : 1;
     this.networkVerboseLogging = Number(process.env.NETWORK_VERBOSE_LOGGING) > 0;
     this.envNode = this.networkVerboseLogging || process.env.NODE_ENV === 'development' ? 'development' : 'production';
+    this.levelLog = process.env.LOG_LEVEL || 'warn';
 
     this.createFiles();
   }
@@ -160,6 +162,7 @@ export class Build {
         '    restart: unless-stopped\n' +
         '    environment:\n' +
         `      NODE_ENV: ${this.envNode}\n` +
+        `      LOG_LEVEL: ${this.levelLog}\n` +
         `      HTTP_IP: ${this.baseIP}${150 + seq}\n` +
         `      HTTP_PORT: ${this.portP2P + 1}\n` +
         `      P2P_IP: ${this.baseIP}${150 + seq}\n` +
@@ -168,9 +171,8 @@ export class Build {
         `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
         `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +
         '    volumes:\n' +
-        `      - ${nameChain}:/divachain/\n` +
-        `      - ./keys/${hostChain}:/divachain/keys/\n` +
-        '      - ./genesis:/divachain/genesis/\n' +
+        `      - ./keys/${hostChain}:/keys/\n` +
+        '      - ./genesis:/genesis/\n' +
         '    networks:\n' +
         `      network.${this.baseDomain}:\n` +
         `        ipv4_address: ${this.baseIP}${150 + seq}\n\n`;

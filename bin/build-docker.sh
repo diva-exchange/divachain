@@ -25,7 +25,14 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-${PROJECT_PATH}bin/build.sh
+source "${PROJECT_PATH}bin/echos.sh"
+source "${PROJECT_PATH}bin/helpers.sh"
+
+if ! command_exists docker; then
+  error "dockder not available. Install it first";
+  exit 1
+fi
 
 TAG=${TAG:-latest}
-docker build --pull --no-cache -f ${PROJECT_PATH}docker/Dockerfile --force-rm -t divax/divachain:${TAG} .
+info "Building docker image divax/divachain:${TAG}..."
+sudo docker build --pull --no-cache -f ${PROJECT_PATH}docker/Dockerfile --force-rm -t divax/divachain:${TAG} .

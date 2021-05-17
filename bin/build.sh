@@ -25,7 +25,27 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
+source "${PROJECT_PATH}bin/echos.sh"
+source "${PROJECT_PATH}bin/helpers.sh"
+
+if ! command_exists pkg; then
+  error "pkg not available. Install it with npm i -g pkg";
+  exit 1
+fi
+
+info "Transpiling TypScript to Javascript..."
 rm -rf ${PROJECT_PATH}dist/*
 ${PROJECT_PATH}node_modules/.bin/tsc
 cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}dist/schema
-chown -R --reference=${PROJECT_PATH} ${PROJECT_PATH}dist
+
+info "Packaging..."
+rm -rf ${PROJECT_PATH}build/divachain-linux-x64
+rm -rf ${PROJECT_PATH}build/prebuilds
+mkdir -p ${PROJECT_PATH}build/prebuilds/
+cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/linux-x64 ${PROJECT_PATH}build/prebuilds/
+
+cd build/node12-linux-x64
+pkg --no-bytecode \
+  --public \
+  --output ${PROJECT_PATH}build/divachain-linux-x64 \
+  .

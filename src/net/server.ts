@@ -52,9 +52,10 @@ export class Server {
   private staleBlockHash: string = '';
 
   constructor(config: Config) {
-    Logger.info('divachain instantiating...');
-    Logger.trace(config);
     this.config = config;
+    Logger.info(`divachain ${this.config.VERSION} instantiating...`);
+    Logger.trace(config);
+
     this.wallet = new Wallet(this.config);
     this.transactionPool = new TransactionPool(this.wallet);
     this.blockPool = new BlockPool();

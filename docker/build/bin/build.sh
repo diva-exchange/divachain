@@ -25,9 +25,6 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-# make sure that the docker container are using the latest image version
-sudo ${PROJECT_PATH}../../bin/build-docker.sh
-
 ${PROJECT_PATH}bin/clean.sh
 
 # reasonable defaults
@@ -38,6 +35,7 @@ BASE_IP=${BASE_IP:-172.20.72.}
 PORT_P2P=${PORT_P2P:-17468}
 HAS_I2P=${HAS_I2P:-0}
 NODE_ENV=${NODE_ENV:-production}
+LOG_LEVEL=${LOG_LEVEL:-trace}
 NETWORK_SYNC_THRESHOLD=${NETWORK_SYNC_THRESHOLD:-2}
 NETWORK_VERBOSE_LOGGING=${NETWORK_VERBOSE_LOGGING:-0}
 
@@ -75,6 +73,7 @@ SIZE_NETWORK=${SIZE_NETWORK} \
   PORT_P2P=${PORT_P2P} \
   HAS_I2P=${HAS_I2P} \
   NODE_ENV=${NODE_ENV} \
+  LOG_LEVEL=${LOG_LEVEL} \
   NETWORK_SYNC_THRESHOLD=${NETWORK_SYNC_THRESHOLD} \
   NETWORK_VERBOSE_LOGGING=${NETWORK_VERBOSE_LOGGING} \
   ts-node ${PROJECT_PATH}main.ts
