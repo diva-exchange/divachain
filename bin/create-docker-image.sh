@@ -17,6 +17,7 @@
 #
 # Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
 #
+
 # -e  Exit immediately if a simple command exits with a non-zero status
 set -e
 
@@ -24,10 +25,14 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd ${PROJECT_PATH}
 PROJECT_PATH=`pwd`/
 
-rm -rf ${PROJECT_PATH}dist/*
-rm -rf ${PROJECT_PATH}blockstore/*
-rm -rf ${PROJECT_PATH}state/*
-rm -f ${PROJECT_PATH}log/*
+source "${PROJECT_PATH}bin/echos.sh"
+source "${PROJECT_PATH}bin/helpers.sh"
 
-npm run lint
-${PROJECT_PATH}bin/build.sh
+if ! command_exists docker; then
+  error "docker not available. Please install it first.";
+  exit 1
+fi
+
+TAG=${TAG:-latest}
+info "Building docker image divax/divachain:${TAG}..."
+sudo docker build --force-rm --pull --no-cache -f ${PROJECT_PATH}docker/Dockerfile -t divax/divachain:${TAG} .

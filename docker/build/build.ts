@@ -150,7 +150,6 @@ export class Build {
     // docker compose Yml file
     const i2p = this.hasI2P ? this.getI2PYml() : { c: '', v: '' };
     let yml = 'version: "3.7"\nservices:\n';
-    let volumes = '';
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
       const hostChain = this.isNameBased ? `n${seq}.${this.baseDomain}` : `${this.baseIP}${150 + seq}`;
       const nameChain = `n${seq}.chain.${this.baseDomain}`;
@@ -176,7 +175,6 @@ export class Build {
         '    networks:\n' +
         `      network.${this.baseDomain}:\n` +
         `        ipv4_address: ${this.baseIP}${150 + seq}\n\n`;
-      volumes = volumes + `  ${nameChain}:\n    name: ${nameChain}\n`;
     }
 
     yml =
@@ -190,7 +188,6 @@ export class Build {
       '      config:\n' +
       `        - subnet: ${this.baseIP}0/24\n\n` +
       'volumes:\n' +
-      volumes +
       i2p.v;
 
     fs.writeFileSync(this.pathYml, yml);

@@ -46,7 +46,7 @@ then
     BASE_IP=${BASE_IP} \
     PORT_P2P=${PORT_P2P} \
     CREATE_I2P=1 \
-    ts-node ${PROJECT_PATH}main.ts
+    ${PROJECT_PATH}../../node_modules/.bin/ts-node ${PROJECT_PATH}main.ts
 
   sudo docker-compose -f ${PROJECT_PATH}i2p-testnet.yml up -d
 
@@ -76,4 +76,6 @@ SIZE_NETWORK=${SIZE_NETWORK} \
   LOG_LEVEL=${LOG_LEVEL} \
   NETWORK_SYNC_THRESHOLD=${NETWORK_SYNC_THRESHOLD} \
   NETWORK_VERBOSE_LOGGING=${NETWORK_VERBOSE_LOGGING} \
-  ts-node ${PROJECT_PATH}main.ts
+  ${PROJECT_PATH}../../node_modules/.bin/ts-node ${PROJECT_PATH}main.ts
+
+chown -R --reference ${PROJECT_PATH} ${PROJECT_PATH}
