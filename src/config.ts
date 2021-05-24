@@ -18,7 +18,7 @@
  */
 
 import path from 'path';
-import * as fs from 'fs';
+import fs from 'fs';
 
 export type Configuration = {
   p2p_ip?: string;
@@ -96,7 +96,7 @@ export class Config {
       ''
     );
 
-    this.path_app = path.dirname(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname);
+    this.path_app = path.join(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname, '/../');
     this.VERSION = require(path.join(this.path_app, 'package.json')).version;
 
     this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
