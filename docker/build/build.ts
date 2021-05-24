@@ -187,8 +187,7 @@ export class Build {
       '      driver: default\n' +
       '      config:\n' +
       `        - subnet: ${this.baseIP}0/24\n\n` +
-      'volumes:\n' +
-      i2p.v;
+      (i2p.v ? 'volumes:\n' + i2p.v : '');
 
     fs.writeFileSync(this.pathYml, yml);
   }
