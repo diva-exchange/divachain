@@ -1,6 +1,7 @@
 {
   "extends": "@tsconfig/node12/tsconfig.json",
   "compilerOptions": {
+    "strictNullChecks": true,
     "esModuleInterop": true,
     "downlevelIteration": true,
     "emitDecoratorMetadata": false,
