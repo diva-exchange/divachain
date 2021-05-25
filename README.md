@@ -87,17 +87,11 @@ The configuration can be controlled using environment variables.
 ### NAME_BLOCK_GENESIS
 Default: block
 
-### P2P_IP
+### IP
 Default: 127.0.0.1
 
-### P2P_PORT
+### PORT
 Default: 17468
-
-### HTTP_IP
-Default: 127.0.0.1
-
-### HTTP_PORT
-Default: 17469
 
 ### SOCKS_PROXY_HOST
 Default: (empty)
