@@ -17,8 +17,8 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Logger } from '../logger';
 import { Server } from './server';
+import { Request, Response } from 'express';
 import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Wallet } from '../chain/wallet';
 
@@ -29,152 +29,78 @@ export class Api {
   constructor(server: Server, wallet: Wallet) {
     this.server = server;
     this.wallet = wallet;
+    this.init();
   }
 
-  public init(): Api {
-    // catch all
-    this.server.httpServer.route({
-      method: '*',
-      path: '/{any*}',
-      handler: (request, h) => {
-        return h.response('404 - Not Found').code(404);
-      },
+  private init() {
+    this.server.app.get('/peers', (req: Request, res: Response) => {
+      return res.json(this.server.network.peers());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/peers',
-      handler: (request, h) => {
-        return h.response(this.server.network.peers());
-      },
+    this.server.app.get('/network', (req: Request, res: Response) => {
+      return res.json(this.server.network.network());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/network',
-      handler: (request, h) => {
-        return h.response(this.server.network.network());
-      },
+    this.server.app.get('/gossip', (req: Request, res: Response) => {
+      return res.json(this.server.network.gossip());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/gossip',
-      handler: (request, h) => {
-        return h.response(this.server.network.gossip());
-      },
+    this.server.app.get('/stack/transactions', (req: Request, res: Response) => {
+      return res.json(this.server.transactionPool.getStack());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/stack/transactions',
-      handler: (request, h) => {
-        return h.response(this.server.transactionPool.getStack());
-      },
+    this.server.app.get('/pool/transactions', (req: Request, res: Response) => {
+      return res.json(this.server.transactionPool.get());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/pool/transactions',
-      handler: (request, h) => {
-        return h.response(this.server.transactionPool.get());
-      },
+    this.server.app.get('/pool/blocks', (req: Request, res: Response) => {
+      return res.json(this.server.blockPool.get());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/pool/blocks',
-      handler: (request, h) => {
-        return h.response(this.server.blockPool.get());
-      },
+    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
+      return res.json(this.server.votePool.getAll());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/pool/votes',
-      handler: (request, h) => {
-        return h.response(this.server.votePool.getAll());
-      },
+    this.server.app.get('/pool/commits', (req: Request, res: Response) => {
+      return res.json(this.server.commitPool.get());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/pool/commits',
-      handler: (request, h) => {
-        return h.response(this.server.commitPool.get());
-      },
+    this.server.app.get('/state/peers', async (req: Request, res: Response) => {
+      return res.json(await this.server.blockchain.getState().getPeers());
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/state/peers',
-      handler: async (request, h) => {
-        return h.response(await this.server.blockchain.getState().getPeers());
-      },
+    this.server.app.get('/blocks', async (req: Request, res: Response) => {
+      return res.json(
+        await this.server.blockchain.get(
+          Number(req.query.limit || 0),
+          Number(req.query.gte || 0),
+          Number(req.query.lte || 0)
+        )
+      );
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/blocks',
-      handler: async (request, h) => {
-        return h.response(await this.server.blockchain.get(request.query.limit, request.query.gte, request.query.lte));
-      },
+    this.server.app.get('/blocks/page/:page?', async (req: Request, res: Response) => {
+      return res.json(await this.server.blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/blocks/page/{page?}',
-      handler: async (request, h) => {
-        return h.response(await this.server.blockchain.getPage(request.params.page, request.query.size));
-      },
+    this.server.app.get('/transaction/:origin/:ident', async (req: Request, res: Response) => {
+      return res.json(await this.server.blockchain.getTransaction(req.params.origin, req.params.ident));
     });
 
-    this.server.httpServer.route({
-      method: 'GET',
-      path: '/transaction/{origin}/{ident}',
-      handler: async (request, h) => {
-        return h.response(await this.server.blockchain.getTransaction(request.params.origin, request.params.ident));
-      },
+    this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
+      const t: TransactionStruct = new Transaction(this.wallet, req.body as ArrayComand, req.params.ident).get();
+      if (this.server.stackTransaction(t)) {
+        return res.json(t);
+      }
+      return res.status(403).end();
     });
 
-    this.server.httpServer.route({
-      method: 'PUT',
-      path: '/transaction/{ident?}',
-      handler: async (request, h) => {
-        const t: TransactionStruct = new Transaction(
-          this.wallet,
-          request.payload as ArrayComand,
-          request.params.ident
-        ).get();
-
-        if (this.server.stackTransaction(t)) {
-          return h.response(t);
-        } else {
-          return h.response().code(403);
-        }
-      },
+    this.server.app.post('/peer/add', (req: Request, res: Response) => {
+      return res.json(req.body);
     });
 
-    this.server.httpServer.route({
-      method: 'POST',
-      path: '/peer/add',
-      handler: (request, h) => {
-        //@FIXME logging
-        Logger.trace(request.payload.toString());
-        return h.response().code(200);
-      },
+    this.server.app.post('/peer/remove', (req: Request, res: Response) => {
+      return res.json(req.body);
     });
-
-    this.server.httpServer.route({
-      method: 'POST',
-      path: '/peer/remove',
-      handler: (request, h) => {
-        //@FIXME logging
-        Logger.trace(request.payload.toString());
-        return h.response().code(200);
-      },
-    });
-
-    return this;
   }
 }

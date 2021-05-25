@@ -46,16 +46,16 @@ export class Prepare {
     const commands: Array<CommandAddPeer> = [];
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
       const config = new Config({
-        p2p_ip: '172.20.72.' + (100 + seq),
-        p2p_port: 17468,
+        ip: '172.20.72.' + (100 + seq),
+        port: 17468,
         path_keys: path.join(__dirname, 'keys'),
       });
 
       commands.push({
         seq: seq,
         command: 'addPeer',
-        host: config.p2p_ip,
-        port: config.p2p_port,
+        host: config.ip,
+        port: config.port,
         publicKey: new Wallet(config).getPublicKey(),
       });
     }
@@ -86,10 +86,8 @@ export class Prepare {
         '    restart: unless-stopped\n' +
         '    environment:\n' +
         '      NODE_ENV: development\n' +
-        `      HTTP_IP: ${c.host}\n` +
-        `      HTTP_PORT: ${c.port + 1}\n` +
-        `      P2P_IP: ${c.host}\n` +
-        `      P2P_PORT: ${c.port}\n` +
+        `      IP: ${c.host}\n` +
+        `      PORT: ${c.port}\n` +
         '    volumes:\n' +
         `      - ${name}:/divachain/\n` +
         '      - ../keys:/divachain/keys/\n' +

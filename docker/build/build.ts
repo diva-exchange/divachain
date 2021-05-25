@@ -24,7 +24,7 @@ import { CommandAddPeer } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import { Config } from '../../src/config';
 import { Blockchain } from '../../src/chain/blockchain';
-import { DEFAULT_NETWORK_SIZE, MAX_NETWORK_SIZE, DEFAULT_BASE_DOMAIN, DEFAULT_BASE_IP, DEFAULT_PORT_P2P } from './main';
+import { DEFAULT_NETWORK_SIZE, MAX_NETWORK_SIZE, DEFAULT_BASE_DOMAIN, DEFAULT_BASE_IP, DEFAULT_PORT } from './main';
 
 export class Build {
   private readonly sizeNetwork: number = DEFAULT_NETWORK_SIZE;
@@ -33,7 +33,7 @@ export class Build {
   private readonly isNameBased: boolean;
   private readonly baseDomain: string;
   private readonly baseIP: string;
-  private readonly portP2P: number;
+  private readonly port: number;
   private readonly hasI2P: boolean;
   private readonly envNode: string;
   private readonly levelLog: string;
@@ -51,10 +51,8 @@ export class Build {
     this.isNameBased = Number(process.env.IS_NAME_BASED) > 0;
     this.baseDomain = process.env.BASE_DOMAIN || DEFAULT_BASE_DOMAIN;
     this.baseIP = process.env.BASE_IP || DEFAULT_BASE_IP;
-    this.portP2P =
-      Number(process.env.PORT_P2P) > 1024 && Number(process.env.PORT_P2P) < 48000
-        ? Number(process.env.PORT_P2P)
-        : DEFAULT_PORT_P2P;
+    this.port =
+      Number(process.env.PORT) > 1024 && Number(process.env.PORT) < 48000 ? Number(process.env.PORT) : DEFAULT_PORT;
     this.hasI2P = Number(process.env.HAS_I2P) > 0;
     this.networkSyncThreshold =
       Number(process.env.NETWORK_SYNC_THRESHOLD) > 0 ? Number(process.env.NETWORK_SYNC_THRESHOLD) : 1;
@@ -90,18 +88,12 @@ export class Build {
       fs.mkdirSync(pTunnel, { mode: '755', recursive: true });
       fs.writeFileSync(
         pTunnel + 'testnet.conf',
-        '[p2p]\n' +
+        '[p2p-api]\n' +
           'type = server\n' +
           `host = ${this.baseIP}${150 + seq}\n` +
-          `port = ${this.portP2P}\n` +
+          `port = ${this.port}\n` +
           'gzip = false\n' +
-          `keys = ${nameI2P}.p2p.dat\n\n` +
-          '[http-api]\n' +
-          'type = server\n' +
-          `host = ${this.baseIP}${150 + seq}\n` +
-          `port = ${this.portP2P + 1}\n` +
-          'gzip = false\n' +
-          `keys = ${nameI2P}.http-api.dat\n`
+          `keys = ${nameI2P}.p2p-api.dat\n`
       );
     }
     return { c: container, v: volumes };
@@ -112,25 +104,25 @@ export class Build {
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
     const commands: Array<CommandAddPeer> = [];
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
-      const host = this.isNameBased ? `n${seq}.${this.baseDomain}` : `${this.baseIP}${150 + seq}`;
+      let host = this.isNameBased ? `n${seq}.${this.baseDomain}` : `${this.baseIP}${150 + seq}`;
       const config = new Config({
-        p2p_ip: host,
-        p2p_port: this.portP2P,
+        ip: host,
+        port: this.port,
         path_keys: path.join(__dirname, 'keys/' + host),
       });
 
       const pathB32 = path.join(__dirname, `i2p-b32/n${seq}.${this.baseDomain}`);
-      let hostP2P = config.p2p_ip;
-      let portP2P = config.p2p_port.toString();
+      host = config.ip;
+      let port = config.port.toString();
       if (this.hasI2P && fs.existsSync(pathB32)) {
-        [hostP2P, portP2P] = fs.readFileSync(pathB32).toString().split(':');
+        [host, port] = fs.readFileSync(pathB32).toString().split(':');
       }
 
       commands.push({
         seq: seq,
         command: 'addPeer',
-        host: hostP2P,
-        port: Number(portP2P),
+        host: host,
+        port: Number(port),
         publicKey: new Wallet(config).getPublicKey(),
       });
     }
@@ -162,10 +154,8 @@ export class Build {
         '    environment:\n' +
         `      NODE_ENV: ${this.envNode}\n` +
         `      LOG_LEVEL: ${this.levelLog}\n` +
-        `      HTTP_IP: ${this.baseIP}${150 + seq}\n` +
-        `      HTTP_PORT: ${this.portP2P + 1}\n` +
-        `      P2P_IP: ${this.baseIP}${150 + seq}\n` +
-        `      P2P_PORT: ${this.portP2P}\n` +
+        `      IP: ${this.baseIP}${150 + seq}\n` +
+        `      PORT: ${this.port + 1}\n` +
         (this.hasI2P ? `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n      SOCKS_PROXY_PORT: 4445\n` : '') +
         `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
         `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +

@@ -19,7 +19,11 @@
 
 import { Config } from '../config';
 import { Logger } from '../logger';
-import Hapi from '@hapi/hapi';
+import createError from 'http-errors';
+import express, { Express, NextFunction, Request, Response } from 'express';
+import http from 'http';
+import WebSocket from 'ws';
+import compression from 'compression';
 import { Block, BlockStruct } from '../chain/block';
 import { Blockchain } from '../chain/blockchain';
 import { TransactionPool } from '../pool/transaction-pool';
@@ -37,17 +41,19 @@ import { Confirm } from './message/confirm';
 import { Sync } from './message/sync';
 
 export class Server {
-  public readonly httpServer: Hapi.Server;
+  public readonly config: Config;
+  public readonly wallet: Wallet;
+
   public readonly network: Network;
   public readonly transactionPool: TransactionPool;
   public readonly blockPool: BlockPool;
   public readonly votePool: VotePool;
   public readonly commitPool: CommitPool;
   public readonly blockchain: Blockchain;
-  public readonly config: Config;
-  public readonly wallet: Wallet;
 
-  private readonly api: Api;
+  public readonly app: Express;
+  public readonly httpServer: http.Server;
+  public readonly webSocketServer: WebSocket.Server;
 
   private staleBlockHash: string = '';
 
@@ -67,25 +73,63 @@ export class Server {
     });
     this.blockchain = new Blockchain(this.config, this.network);
 
-    this.httpServer = Hapi.server({
-      address: this.config.http_ip,
-      port: this.config.http_port,
+    this.app = express();
+    // generic
+    this.app.set('x-powered-by', false);
+
+    // compression
+    this.app.use(compression());
+
+    // json
+    this.app.use(express.json());
+
+    // routes
+    new Api(this, this.wallet);
+
+    // catch unavailable favicon.ico
+    this.app.get('/favicon.ico', (req, res) => res.sendStatus(204));
+
+    // catch 404 and forward to error handler
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      next(createError(404));
     });
 
-    this.api = new Api(this, this.wallet);
+    // error handler
+    this.app.use(Server.error);
+
+    // Web Server
+    this.httpServer = http.createServer(this.app);
+    this.httpServer.on('listening', () => {
+      Logger.info(`HttpServer listening on ${this.config.ip}:${this.config.port}`);
+    });
+    this.httpServer.on('close', () => {
+      Logger.info(`HttpServer closing on ${this.config.ip}:${this.config.port}`);
+    });
+
+    this.webSocketServer = new WebSocket.Server({
+      server: this.httpServer,
+      clientTracking: false,
+      perMessageDeflate: this.config.per_message_deflate,
+    });
+    this.webSocketServer.on('connection', (ws: WebSocket) => {
+      ws.on('error', (error: Error) => {
+        Logger.trace(error);
+        ws.terminate();
+      });
+    });
+    this.webSocketServer.on('close', () => {
+      Logger.info('WebSocketServer closing');
+    });
   }
 
   async listen(): Promise<Server> {
+    this.network.init();
+    Logger.info('Network initialized');
+
     await this.blockchain.init();
+    Logger.info('Blockchain initialized');
 
-    this.api.init();
-
-    await this.httpServer.start();
-    Logger.info(`HTTP Server listening on ${this.config.http_ip}:${this.config.http_port}`);
-
-    this.httpServer.events.on('stop', () => {
-      Logger.info(`HTTP Server on ${this.config.http_ip}:${this.config.http_port} closed`);
-    });
+    await this.httpServer.listen(this.config.port, this.config.ip);
 
     this.checkBlockPool();
 
@@ -95,11 +139,18 @@ export class Server {
   async shutdown(): Promise<void> {
     this.wallet.close();
 
-    await this.network.shutdown();
+    this.network.shutdown();
     await this.blockchain.shutdown();
 
-    if (typeof this.httpServer !== 'undefined' && this.httpServer) {
-      await this.httpServer.stop();
+    if (this.webSocketServer) {
+      await new Promise((resolve) => {
+        this.webSocketServer.close(resolve);
+      });
+    }
+    if (this.httpServer) {
+      await new Promise((resolve) => {
+        this.httpServer.close(resolve);
+      });
     }
   }
 
@@ -290,5 +341,18 @@ export class Server {
       default:
         throw new Error('Invalid message type');
     }
+  }
+
+  private static error(err: any, req: Request, res: Response, next: NextFunction) {
+    res.status(err.status || 500);
+
+    res.json({
+      path: req.path,
+      status: err.status || 500,
+      message: err.message,
+      error: process.env.NODE_ENV === 'development' ? err : {},
+    });
+
+    next();
   }
 }

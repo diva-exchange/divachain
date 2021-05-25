@@ -25,7 +25,7 @@ export const MAX_NETWORK_SIZE = 64;
 
 export const DEFAULT_BASE_DOMAIN = 'testnet.diva.i2p';
 export const DEFAULT_BASE_IP = '172.19.72.';
-export const DEFAULT_PORT_P2P = 17468;
+export const DEFAULT_PORT = 17468;
 
 if ((process.env.CREATE_I2P || 0) > 0) {
   new CreateI2P(Number(process.env.SIZE_NETWORK) || DEFAULT_NETWORK_SIZE);

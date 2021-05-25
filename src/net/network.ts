@@ -53,8 +53,6 @@ export class Network {
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
   private arrayPeerNetwork: Array<string> = [];
 
-  private readonly wss: WebSocket.Server;
-
   private peersIn: { [publicKey: string]: Peer } = {};
   private peersOut: { [publicKey: string]: Peer } = {};
 
@@ -69,17 +67,12 @@ export class Network {
 
     Validation.init();
 
-    this.wss = new WebSocket.Server({
-      host: this.server.config.p2p_ip,
-      port: this.server.config.p2p_port,
-      clientTracking: false,
-      perMessageDeflate: this.server.config.per_message_deflate,
-    });
-
     Logger.info(`Identity: ${this.identity}`);
+  }
 
+  init() {
     // incoming connection
-    this.wss.on('connection', (ws, request) => {
+    this.server.webSocketServer.on('connection', (ws, request) => {
       const publicKey = request.headers['diva-identity']?.toString() || '';
 
       if (publicKey && publicKey !== this.identity && this.network().indexOf(publicKey) > -1) {
@@ -89,18 +82,9 @@ export class Network {
       }
     });
 
-    this.wss.on('error', (error: Error) => {
+    this.server.webSocketServer.on('error', (error: Error) => {
       Logger.warn('WebsocketServer error');
       Logger.trace(error);
-    });
-
-    this.wss.on('listening', () => {
-      const wsa = this.wss.address() as WebSocket.AddressInfo;
-      Logger.info(`WebSocket.Server listening on ${wsa.address}:${wsa.port}`);
-    });
-
-    this.wss.on('close', () => {
-      Logger.info('P2P WebSocket Server closed');
     });
 
     setTimeout(() => this.morphPeerNetwork(), this.server.config.network_refresh_interval_ms - 1);
@@ -109,24 +93,13 @@ export class Network {
     setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
-  async shutdown(): Promise<void> {
-    if (typeof this.wss !== 'undefined' && this.wss) {
+  shutdown() {
+    if (this.server.webSocketServer) {
       Object.values(this.peersOut)
         .concat(Object.values(this.peersIn))
         .forEach((peer) => {
           peer.ws.close(1000, 'Bye');
         });
-
-      return new Promise((resolve) => {
-        const timeout = setTimeout(() => {
-          this.wss.close();
-          resolve();
-        }, 30000);
-        this.wss.close(() => {
-          clearTimeout(timeout);
-          resolve();
-        });
-      });
     }
   }
 

@@ -19,13 +19,13 @@
 
 import fs from 'fs';
 import path from 'path';
-import { DEFAULT_NETWORK_SIZE, MAX_NETWORK_SIZE, DEFAULT_BASE_IP, DEFAULT_PORT_P2P, DEFAULT_BASE_DOMAIN } from './main';
+import { DEFAULT_NETWORK_SIZE, MAX_NETWORK_SIZE, DEFAULT_BASE_IP, DEFAULT_PORT, DEFAULT_BASE_DOMAIN } from './main';
 
 export class CreateI2P {
   private readonly sizeNetwork: number = DEFAULT_NETWORK_SIZE;
   private readonly pathYml: string;
   private readonly baseIP: string;
-  private readonly portP2P: number;
+  private readonly port: number;
 
   constructor(sizeNetwork: number = DEFAULT_NETWORK_SIZE) {
     this.sizeNetwork =
@@ -35,10 +35,8 @@ export class CreateI2P {
     this.pathYml = path.join(__dirname, 'i2p-testnet.yml');
 
     this.baseIP = process.env.BASE_IP || DEFAULT_BASE_IP;
-    this.portP2P =
-      Number(process.env.PORT_P2P) > 1024 && Number(process.env.PORT_P2P) < 48000
-        ? Number(process.env.PORT_P2P)
-        : DEFAULT_PORT_P2P;
+    this.port =
+      Number(process.env.PORT) > 1024 && Number(process.env.PORT) < 48000 ? Number(process.env.PORT) : DEFAULT_PORT;
 
     this.createI2P();
   }
@@ -86,18 +84,12 @@ export class CreateI2P {
       fs.mkdirSync(pTunnel, { mode: '755', recursive: true });
       fs.writeFileSync(
         pTunnel + 'testnet.conf',
-        '[p2p]\n' +
+        '[p2p-api]\n' +
           'type = server\n' +
           `host = ${this.baseIP}${150 + seq}\n` +
-          `port = ${this.portP2P}\n` +
+          `port = ${this.port}\n` +
           'gzip = false\n' +
-          `keys = ${nameI2P}.p2p.dat\n\n` +
-          '[http-api]\n' +
-          'type = server\n' +
-          `host = ${this.baseIP}${150 + seq}\n` +
-          `port = ${this.portP2P + 1}\n` +
-          'gzip = false\n' +
-          `keys = ${nameI2P}.http-api.dat\n`
+          `keys = ${nameI2P}.p2p-api.dat\n`
       );
     }
     return { c: container, v: volumes };

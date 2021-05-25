@@ -21,10 +21,8 @@ import path from 'path';
 import fs from 'fs';
 
 export type Configuration = {
-  p2p_ip?: string;
-  p2p_port?: number;
-  http_ip?: string;
-  http_port?: number;
+  ip?: string;
+  port?: number;
   per_message_deflate?: boolean;
   path_genesis?: string;
   path_blockstore?: string;
@@ -48,8 +46,7 @@ export type Configuration = {
   block_pool_check_interval_ms?: number;
 };
 
-const DEFAULT_P2P_PORT = 17468;
-const DEFAULT_HTTP_PORT = 17469;
+const DEFAULT_PORT = 17468;
 const DEFAULT_MAX_BLOCKS_IN_MEMORY = 1000;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
@@ -67,10 +64,8 @@ export class Config {
   public readonly path_app: string;
   public readonly VERSION: string;
 
-  public readonly p2p_ip: string;
-  public readonly p2p_port: number;
-  public readonly http_ip: string;
-  public readonly http_port: number;
+  public readonly ip: string;
+  public readonly port: number;
   public readonly per_message_deflate: boolean;
   public readonly path_genesis: string;
   public readonly path_blockstore: string;
@@ -96,13 +91,14 @@ export class Config {
       ''
     );
 
-    this.path_app = path.join(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname, '/../');
+    this.path_app = path.join(
+      Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname,
+      '/../'
+    );
     this.VERSION = require(path.join(this.path_app, 'package.json')).version;
 
-    this.p2p_ip = c.p2p_ip || process.env.P2P_IP || '127.0.0.1';
-    this.p2p_port = Config.port(c.p2p_port || process.env.P2P_PORT || DEFAULT_P2P_PORT);
-    this.http_ip = c.http_ip || process.env.HTTP_IP || '127.0.0.1';
-    this.http_port = Config.port(c.http_port || process.env.HTTP_PORT || DEFAULT_HTTP_PORT);
+    this.ip = c.ip || process.env.IP || '127.0.0.1';
+    this.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
     this.per_message_deflate = c.per_message_deflate || true;
 
     this.path_genesis = c.path_genesis || path.join(this.path_app, `genesis/${nameBlockGenesis}.json`);

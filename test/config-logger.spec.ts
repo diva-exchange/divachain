@@ -28,7 +28,7 @@ class TestConfigLogger {
   @test
   config() {
     const c = new Config();
-    expect(c.p2p_ip).is.not.empty;
+    expect(c.ip).is.not.empty;
   }
 
   @test

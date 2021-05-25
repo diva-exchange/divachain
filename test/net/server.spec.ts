@@ -34,8 +34,7 @@ chai.use(chaiHttp);
 
 const SIZE_TESTNET = 7;
 const BASE_PORT = 17000;
-const IP_P2P = '127.27.27.2';
-const IP_HTTP = '127.27.27.1';
+const IP = '127.27.27.1';
 
 @suite
 class TestServer {
@@ -57,10 +56,8 @@ class TestServer {
     const cmds: Array<CommandAddPeer> = [];
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
-        p2p_ip: IP_P2P,
-        p2p_port: BASE_PORT + i,
-        http_ip: IP_HTTP,
-        http_port: BASE_PORT + i,
+        ip: IP,
+        port: BASE_PORT + i,
         path_genesis: path.join(__dirname, '../genesis/block.json'),
         path_state: path.join(__dirname, '../state'),
         path_blockstore: path.join(__dirname, '../blockstore'),
@@ -76,7 +73,7 @@ class TestServer {
       cmds.push({
         seq: i,
         command: 'addPeer',
-        host: IP_P2P,
+        host: IP,
         port: BASE_PORT + i,
         publicKey: publicKey,
       });
@@ -129,94 +126,94 @@ class TestServer {
 
   @test
   async default404() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/');
+    const res = await chai.request(`http://${IP}:17001`).get('/');
     expect(res).to.have.status(404);
   }
 
   @test
   async peers() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/peers');
+    const res = await chai.request(`http://${IP}:17001`).get('/peers');
     expect(res).to.have.status(200);
   }
 
   @test
   async statePeers() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/state/peers');
+    const res = await chai.request(`http://${IP}:17001`).get('/state/peers');
     expect(res).to.have.status(200);
   }
 
   @test
   async network() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/network');
+    const res = await chai.request(`http://${IP}:17001`).get('/network');
     expect(res).to.have.status(200);
   }
 
   @test
   async gossip() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/gossip');
+    const res = await chai.request(`http://${IP}:17001`).get('/gossip');
     expect(res).to.have.status(200);
   }
 
   @test
   async stackTransactions() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/stack/transactions');
+    const res = await chai.request(`http://${IP}:17001`).get('/stack/transactions');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolTransactions() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/transactions');
+    const res = await chai.request(`http://${IP}:17001`).get('/pool/transactions');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolVotes() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/votes');
+    const res = await chai.request(`http://${IP}:17001`).get('/pool/votes');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolCommits() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/commits');
+    const res = await chai.request(`http://${IP}:17001`).get('/pool/commits');
     expect(res).to.have.status(200);
   }
 
   @test
   async poolBlocks() {
-    const res = await chai.request(`http://${IP_HTTP}:17001`).get('/pool/blocks');
+    const res = await chai.request(`http://${IP}:17001`).get('/pool/blocks');
     expect(res).to.have.status(200);
   }
 
   @test
   async blocks() {
-    let res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks');
+    let res = await chai.request(`http://${IP}:17001`).get('/blocks');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?limit=1');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks?limit=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=1');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks?gte=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?lte=1');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks?lte=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=-1&lte=1');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks?gte=-1&lte=1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=1&lte=-1');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks?gte=1&lte=-1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks?gte=1&lte=2');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks?gte=1&lte=2');
     expect(res).to.have.status(200);
   }
 
   @test
   async page() {
-    let res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks/page/1');
+    let res = await chai.request(`http://${IP}:17001`).get('/blocks/page/1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${IP_HTTP}:17001`).get('/blocks/page/1?size=1');
+    res = await chai.request(`http://${IP}:17001`).get('/blocks/page/1?size=1');
     expect(res).to.have.status(200);
   }
 
@@ -240,16 +237,13 @@ class TestServer {
         }
         const i = Math.floor(Math.random() * (arrayConfig.length - 1));
         arrayRequests.push(arrayOrigin[i]);
-        await chai
-          .request(`http://${arrayConfig[i].http_ip}:${arrayConfig[i].http_port}`)
-          .put(`/transaction/seq${_i}`)
-          .send(aT);
+        await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`).put(`/transaction/seq${_i}`).send(aT);
       }, 10000 + _i * 500);
     }
 
     setTimeout(async () => {
       arrayRequests.forEach(async (origin, i) => {
-        const res = await chai.request(`http://${IP_HTTP}:17001`).get(`/transaction/${origin}/seq${i}`);
+        const res = await chai.request(`http://${IP}:17001`).get(`/transaction/${origin}/seq${i}`);
         expect(res).to.have.status(200);
         expect(res.body.ident).eq(`seq${i}`);
         expect(res.body.command.length).eq(_inner);
