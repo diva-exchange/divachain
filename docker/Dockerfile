@@ -43,6 +43,6 @@ COPY --from=build /divachain/build/divachain-linux-x64 /divachain
 COPY genesis /genesis
 COPY package.json /package.json
 
-EXPOSE 17468 17469
+EXPOSE 17468
 
 CMD [ "/divachain" ]

@@ -155,7 +155,7 @@ export class Build {
         `      NODE_ENV: ${this.envNode}\n` +
         `      LOG_LEVEL: ${this.levelLog}\n` +
         `      IP: ${this.baseIP}${150 + seq}\n` +
-        `      PORT: ${this.port + 1}\n` +
+        `      PORT: ${this.port}\n` +
         (this.hasI2P ? `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n      SOCKS_PROXY_PORT: 4445\n` : '') +
         `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
         `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +
