@@ -22,7 +22,7 @@
     "lint": "prettier -w \"**/*.ts\" && eslint --fix src/ test/ --ext .ts",
     "start": "NODE_ENV=production node dist/main.js",
     "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
-    "test": "test/bin/clean-testenv.sh ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
+    "test": "test/bin/clean-testenv.sh ; cp genesis/block.json test/genesis/block.json ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
   },
   "dependencies": {
     "ajv": "^8.5.0",
