@@ -29,6 +29,7 @@ import { Blockchain } from '../../src/chain/blockchain';
 import { CommandAddPeer, TransactionStruct } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import fs from 'fs';
+import {Logger} from '../../src/logger';
 
 chai.use(chaiHttp);
 
@@ -242,14 +243,15 @@ class TestServer {
     }
 
     setTimeout(async () => {
-      arrayRequests.forEach(async (origin, i) => {
-        const res = await chai.request(`http://${IP}:17001`).get(`/transaction/${origin}/seq${i}`);
+      for (let _i = 0; _i < _outer; _i++) {
+        const origin = arrayRequests.shift();
+        const res = await chai.request(`http://${IP}:17001`).get(`/transaction/${origin}/seq${_i}`);
         expect(res).to.have.status(200);
-        expect(res.body.ident).eq(`seq${i}`);
-        expect(res.body.command.length).eq(_inner);
-      });
+        expect(res.body.ident).eq(`seq${_i}`);
+        expect(res.body.commands.length).eq(_inner);
+      }
 
       done();
-    }, 55000);
+    }, 20000);
   }
 }

@@ -21,6 +21,7 @@ import { Server } from './server';
 import { Request, Response } from 'express';
 import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Wallet } from '../chain/wallet';
+import {Logger} from '../logger';
 
 export class Api {
   private server: Server;
@@ -70,21 +71,36 @@ export class Api {
     });
 
     this.server.app.get('/blocks', async (req: Request, res: Response) => {
-      return res.json(
-        await this.server.blockchain.get(
-          Number(req.query.limit || 0),
-          Number(req.query.gte || 0),
-          Number(req.query.lte || 0)
-        )
-      );
+      try {
+        return res.json(
+          await this.server.blockchain.get(
+            Number(req.query.limit || 0),
+            Number(req.query.gte || 0),
+            Number(req.query.lte || 0)
+          )
+        );
+      } catch (error) {
+        Logger.warn(error);
+        return res.status(500).end();
+      }
     });
 
     this.server.app.get('/blocks/page/:page?', async (req: Request, res: Response) => {
-      return res.json(await this.server.blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
+      try {
+        return res.json(await this.server.blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
+      } catch (error) {
+        Logger.warn(error);
+        return res.status(500).end();
+      }
     });
 
     this.server.app.get('/transaction/:origin/:ident', async (req: Request, res: Response) => {
-      return res.json(await this.server.blockchain.getTransaction(req.params.origin, req.params.ident));
+      try {
+        return res.json(await this.server.blockchain.getTransaction(req.params.origin, req.params.ident));
+      } catch (error) {
+        Logger.warn(error);
+        return res.status(404).end();
+      }
     });
 
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
