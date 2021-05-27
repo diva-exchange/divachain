@@ -221,8 +221,8 @@ class TestServer {
   @slow(60000)
   @timeout(60000)
   stressMultiTransaction(done: Function) {
-    const _outer = 4;
-    const _inner = 4;
+    const _outer = 10;
+    const _inner = 10;
 
     // create blocks containing multiple transactions
     let seq = 1;

@@ -75,7 +75,7 @@ export class Network {
     this.server.webSocketServer.on('connection', (ws, request) => {
       const publicKey = request.headers['diva-identity']?.toString() || '';
 
-      if (publicKey && publicKey !== this.identity && this.network().indexOf(publicKey) > -1) {
+      if (publicKey && publicKey !== this.identity && [...this.mapPeer.keys()].indexOf(publicKey) > -1) {
         this.auth(ws, publicKey);
       } else {
         Logger.warn('Connection credentials missing (diva-identity)');
@@ -153,8 +153,10 @@ export class Network {
     return peers;
   }
 
-  network(): Array<string> {
-    return [...this.mapPeer.keys()];
+  network(): Array<{publicKey: string, api: string}> {
+    return [...this.mapPeer].map((v) => {
+      return { publicKey: v[0], api: v[1].host + ':' + v[1].port};
+    });
   }
 
   gossip(): { [publicKey: string]: Array<string> } {
