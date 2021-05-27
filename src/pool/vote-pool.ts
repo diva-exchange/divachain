@@ -24,12 +24,13 @@ export class VotePool {
   private mapVotes: Map<string, Array<{ origin: string; sig: string }>> = new Map();
 
   add(structVote: VoteStruct, quorum: number): boolean {
+    const aVotes = this.mapVotes.get(structVote.block.hash) || [];
+
     // if the quorum has already been reached, return immediately
-    if (this.arrayHashes.length >= quorum) {
+    if (aVotes.length >= quorum) {
       return false;
     }
 
-    const aVotes = this.mapVotes.get(structVote.block.hash) || [];
     if (aVotes.some((v) => v.origin === structVote.origin)) {
       return false;
     }

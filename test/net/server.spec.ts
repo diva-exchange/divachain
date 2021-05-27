@@ -131,6 +131,12 @@ class TestServer {
   }
 
   @test
+  async transaction() {
+    const res = await chai.request(`http://${IP}:17001`).put('/transaction').send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
+    expect(res).to.have.status(200);
+  }
+
+  @test
   async peers() {
     const res = await chai.request(`http://${IP}:17001`).get('/peers');
     expect(res).to.have.status(200);
@@ -218,10 +224,10 @@ class TestServer {
   }
 
   @test
-  @slow(60000)
-  @timeout(60000)
-  stressMultiTransaction(done: Function) {
-    const _outer = 10;
+  @slow(5000)
+  @timeout(10000)
+  async stressMultiTransaction() {
+    const _outer = 20;
     const _inner = 10;
 
     // create blocks containing multiple transactions
@@ -230,27 +236,26 @@ class TestServer {
     const arrayOrigin = [...TestServer.mapConfigServer.keys()];
     const arrayRequests: Array<string> = [];
     for (let _i = 0; _i < _outer; _i++) {
-      setTimeout(async () => {
-        const aT = [];
-        for (let _j = 0; _j < _inner; _j++) {
-          aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
-        }
-        const i = Math.floor(Math.random() * (arrayConfig.length - 1));
-        arrayRequests.push(arrayOrigin[i]);
-        await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`).put(`/transaction/seq${_i}`).send(aT);
-      }, 10000 + _i * 500);
+      const aT = [];
+      for (let _j = 0; _j < _inner; _j++) {
+        aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
+      }
+      const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+      arrayRequests.push(arrayOrigin[i]);
+      await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`).put(`/transaction/seq${_i}`).send(aT);
     }
 
-    setTimeout(async () => {
-      for (let _i = 0; _i < _outer; _i++) {
-        const origin = arrayRequests.shift();
-        const res = await chai.request(`http://${IP}:17001`).get(`/transaction/${origin}/seq${_i}`);
-        expect(res).to.have.status(200);
-        expect(res.body.ident).eq(`seq${_i}`);
-        expect(res.body.commands.length).eq(_inner);
-      }
+    // wait a bit
+    await new Promise((resolve) => { setTimeout(resolve, 3000); });
 
-      done();
-    }, 20000);
+    for (let _i = 0; _i < _outer; _i++) {
+      const origin = arrayRequests.shift();
+      const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+      const res = await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
+        .get(`/transaction/${origin}/seq${_i}`);
+      expect(res.status).eq(200);
+      expect(res.body.ident).eq(`seq${_i}`);
+      expect(res.body.commands.length).eq(_inner);
+    }
   }
 }
