@@ -29,7 +29,6 @@ import { Blockchain } from '../../src/chain/blockchain';
 import { CommandAddPeer, TransactionStruct } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import fs from 'fs';
-import {Logger} from '../../src/logger';
 
 chai.use(chaiHttp);
 
