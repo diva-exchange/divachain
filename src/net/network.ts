@@ -130,7 +130,6 @@ export class Network {
   addPeer(publicKey: string, peer: NetworkPeer): Network {
     if (!this.mapPeer.has(publicKey)) {
       this.mapPeer.set(publicKey, peer);
-      this.morphPeerNetwork();
 
       // initialize gossip map
       publicKey !== this.publicKey && (this.aGossip[publicKey] = []);
@@ -145,7 +144,6 @@ export class Network {
 
       delete this.aGossip[publicKey];
       this.mapPeer.delete(publicKey);
-      this.morphPeerNetwork();
     }
     return this;
   }
@@ -332,7 +330,7 @@ export class Network {
 
   private refresh() {
     for (const publicKey of this.arrayPeerNetwork) {
-      if (!this.peersOut[publicKey]) {
+      if (this.mapPeer.has(publicKey) && !this.peersOut[publicKey]) {
         this.connect(publicKey);
       }
     }
@@ -352,17 +350,14 @@ export class Network {
 
     let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys()).filter(_pk => _pk !== this.publicKey);
     if (arrayPublicKey.length > this.server.config.network_size) {
-      const size = this.arrayPeerNetwork.length > this.server.config.network_size
-        ? this.server.config.network_size
-        : this.arrayPeerNetwork.length;
       const _a = Util.shuffleArray(arrayPublicKey);
-      arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(size / 2));
-      while (_a.length && arrayPublicKey.length < size) {
+      arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(this.server.config.network_size / 2));
+      while (_a.length && arrayPublicKey.length < this.server.config.network_size) {
         const _pk = _a.pop();
         arrayPublicKey.indexOf(_pk) < 0 && arrayPublicKey.push(_pk);
       }
     }
-    this.arrayPeerNetwork = arrayPublicKey;
+    this.arrayPeerNetwork = arrayPublicKey.slice();
 
     this.timeoutMorph = setTimeout(() => {
       this.morphPeerNetwork();
