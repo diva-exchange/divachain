@@ -24,20 +24,29 @@ import path from 'path';
 import { Config } from '../config';
 
 export class Wallet {
-  private readonly ident: string;
+  private config: Config;
+  private ident: string = '';
   private readonly publicKey: Buffer;
   private readonly secretKey: Buffer;
 
-  constructor(config: Config, ident: string = '') {
-    this.ident = ident || (config.ip + '_' + config.port).replace(/[^a-z0-9_-]+/gi, '-');
+  static make(config: Config): Wallet {
+    return new Wallet(config);
+  }
 
+  private constructor(config: Config) {
+    this.config = config;
     this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
+  }
+
+  open(): Wallet {
+    this.ident = this.config.address.replace(/[^a-z0-9_-]+/gi, '-');
+
     sodium.sodium_mlock(this.secretKey);
 
     // look for keys
-    const pathPublic = path.join(config.path_keys, this.ident + '.public');
-    const pathSecret = path.join(config.path_keys, this.ident + '.secret');
+    const pathPublic = path.join(this.config.path_keys, this.ident + '.public');
+    const pathSecret = path.join(this.config.path_keys, this.ident + '.secret');
     if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
       this.publicKey.fill(Buffer.from(base64url.unescape(fs.readFileSync(pathPublic).toString()), 'base64'));
       this.secretKey.fill(fs.readFileSync(pathSecret));
@@ -47,6 +56,8 @@ export class Wallet {
       fs.writeFileSync(pathPublic, base64url.escape(this.publicKey.toString('base64')), { mode: '0644' });
       fs.writeFileSync(pathSecret, this.secretKey, { mode: '0600' });
     }
+
+    return this;
   }
 
   close() {
@@ -58,6 +69,10 @@ export class Wallet {
    * @returns {string} - base64url encoded signature
    */
   sign(data: string): string {
+    if (!this.ident) {
+      this.open();
+    }
+
     const bufferSignature: Buffer = sodium.sodium_malloc(sodium.crypto_sign_BYTES);
     const bufferDataHash: Buffer = Buffer.from(data);
 
@@ -70,6 +85,9 @@ export class Wallet {
    * @returns {string} - base64url encoded
    */
   getPublicKey(): string {
+    if (!this.ident) {
+      this.open();
+    }
     return base64url.escape(this.publicKey.toString('base64'));
   }
 }

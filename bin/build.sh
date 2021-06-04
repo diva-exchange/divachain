@@ -33,7 +33,7 @@ if ! command_exists pkg; then
   exit 1
 fi
 
-info "Transpiling TypScript to Javascript..."
+info "Transpiling TypeScript to JavaScript..."
 rm -rf ${PROJECT_PATH}dist/*
 ${PROJECT_PATH}node_modules/.bin/tsc
 cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}dist/schema

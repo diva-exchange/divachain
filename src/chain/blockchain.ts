@@ -17,37 +17,51 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Config } from '../config';
-import { Logger } from '../logger';
 import { BlockStruct } from './block';
 import { Util } from './util';
 import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import { TransactionStruct } from './transaction';
-import { State } from './state';
-import { Network } from '../net/network';
+import { CommandAddPeer, CommandRemovePeer, TransactionStruct } from './transaction';
+import { Server } from '../net/server';
+import { NetworkPeer } from '../net/network';
 
 export class Blockchain {
-  private readonly config: Config;
-  private readonly network: Network;
+  private readonly server: Server;
   private readonly publicKey: string;
-  private readonly state: State;
-  private height: number;
-  private dbBlockchain: InstanceType<typeof LevelUp>;
+  private readonly dbBlockchain: InstanceType<typeof LevelUp>;
+  private readonly dbState: InstanceType<typeof LevelUp>;
+
+  private height: number = 0;
   private mapBlocks: Map<number, BlockStruct> = new Map();
   private mapHashes: Map<number, string> = new Map();
   private latestBlock: BlockStruct = {} as BlockStruct;
 
-  constructor(config: Config, network: Network) {
-    this.config = config;
-    this.network = network;
-    this.publicKey = this.network.getIdentity();
-    this.height = 1;
-    this.state = new State(this.config, this.network);
+  private mapPeer: Map<string, NetworkPeer> = new Map();
 
-    this.dbBlockchain = LevelUp(LevelDown(path.join(this.config.path_blockstore, this.publicKey)), {
+  static async make(server: Server): Promise<Blockchain> {
+    const b = new Blockchain(server);
+    if (server.config.bootstrap) {
+      await b.clear();
+    } else {
+      await b.init();
+    }
+    return b;
+  }
+
+  private constructor(server: Server) {
+    this.server = server;
+    this.publicKey = this.server.getWallet().getPublicKey();
+
+    this.dbBlockchain = LevelUp(LevelDown(path.join(this.server.config.path_blockstore, this.publicKey)), {
+      createIfMissing: true,
+      errorIfExists: false,
+      compression: true,
+      cacheSize: 2 * 1024 * 1024, // 2 MB
+    });
+
+    this.dbState = LevelUp(LevelDown(path.join(this.server.config.path_state, this.publicKey)), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
@@ -55,35 +69,25 @@ export class Blockchain {
     });
   }
 
-  async init(): Promise<void> {
-    try {
-      await this.dbBlockchain.get(1);
-    } catch (error) {
-      await this.dbBlockchain.put(
-        String(1).padStart(16, '0'),
-        JSON.stringify(Blockchain.genesis(this.config.path_genesis))
-      );
-    }
-
-    await this.state.init();
+  private async init(): Promise<void> {
+    this.height = 0;
+    this.mapBlocks = new Map();
+    this.mapHashes = new Map();
+    this.latestBlock = {} as BlockStruct;
 
     return new Promise((resolve, reject) => {
       this.dbBlockchain
-        .createReadStream({ reverse: true, limit: 1 })
-        .on('data', (data) => {
-          this.height = Number(data.key);
-          this.latestBlock = JSON.parse(data.value) as BlockStruct;
-        })
-        .on('error', reject);
-
-      this.dbBlockchain
-        .createReadStream({ limit: this.config.max_blocks_in_memory })
+        .createReadStream()
         .on('data', async (data) => {
           const k = Number(data.key);
           const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
-          this.mapBlocks.set(k, b);
-          this.mapHashes.set(k, b.hash);
-          await this.state.process(b);
+          await this.processState(b);
+
+          // cache
+          if (b.height + this.server.config.blockchain_max_blocks_in_memory > this.height) {
+            this.mapBlocks.set(k, b);
+            this.mapHashes.set(k, b.hash);
+          }
         })
         .on('end', resolve)
         .on('error', reject);
@@ -92,23 +96,43 @@ export class Blockchain {
 
   async shutdown() {
     await this.dbBlockchain.close();
+    await this.dbState.close();
+  }
+
+  async clear() {
+    await this.dbBlockchain.clear();
+    await this.dbState.clear();
+
+    this.height = 0;
+    this.mapBlocks = new Map();
+    this.mapHashes = new Map();
+    this.latestBlock = {} as BlockStruct;
+    this.mapPeer = new Map();
+  }
+
+  async reset(genesis: BlockStruct) {
+    await this.clear();
+    this.server.getNetwork().resetNetwork();
+
+    await this.dbBlockchain.put(String(1).padStart(16, '0'), JSON.stringify(genesis));
+
+    await this.init();
   }
 
   async add(block: BlockStruct): Promise<void> {
     if (!this.verifyBlock(block)) {
       throw new Error(`Blockchain.add(): failed to add block ${block.height} (${block.hash})`);
     }
-    this.height = block.height;
-    this.latestBlock = block;
+
     this.mapBlocks.set(block.height, block);
     this.mapHashes.set(block.height, block.hash);
-    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
-    if (this.mapBlocks.size > this.config.max_blocks_in_memory) {
-      this.mapBlocks.delete(this.height - this.config.max_blocks_in_memory);
-      this.mapHashes.delete(this.height - this.config.max_blocks_in_memory);
+    await this.dbBlockchain.put(String(block.height).padStart(16, '0'), JSON.stringify(block));
+    if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
+      this.mapBlocks.delete(block.height - this.server.config.blockchain_max_blocks_in_memory);
+      this.mapHashes.delete(block.height - this.server.config.blockchain_max_blocks_in_memory);
     }
 
-    await this.state.process(block);
+    await this.processState(block);
   }
 
   async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<BlockStruct>> {
@@ -121,14 +145,17 @@ export class Blockchain {
       gte = gte < 1 ? 1 : gte <= this.height ? gte : this.height;
       lte = lte < 1 ? 1 : lte <= this.height ? lte : this.height;
       gte = lte - gte > 0 ? gte : lte;
-      gte = lte - gte > this.config.max_blocks_in_memory ? lte - this.config.max_blocks_in_memory + 1 : gte;
+      gte =
+        lte - gte >= this.server.config.blockchain_max_query_size
+          ? lte - this.server.config.blockchain_max_query_size + 1
+          : gte;
 
       const a: Array<BlockStruct> = [];
       return new Promise((resolve, reject) => {
         this.dbBlockchain
           .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
           .on('data', (data) => {
-            a.unshift(JSON.parse(data));
+            a.push(JSON.parse(data));
           })
           .on('end', () => {
             resolve(a);
@@ -141,18 +168,24 @@ export class Blockchain {
     return new Promise((resolve) => {
       limit =
         limit >= 1
-          ? limit > this.config.max_blocks_in_memory
-            ? this.config.max_blocks_in_memory
+          ? limit > this.server.config.blockchain_max_blocks_in_memory
+            ? this.server.config.blockchain_max_blocks_in_memory
             : limit
-          : this.config.max_blocks_in_memory;
+          : this.server.config.blockchain_max_blocks_in_memory;
 
-      resolve([...this.mapBlocks.values()].slice(limit * -1).reverse());
+      resolve(Array.from(this.mapBlocks.values()).slice(limit * -1));
     });
   }
 
-  async getPage(page: number = 1, size: number = this.config.max_blocks_in_memory): Promise<Array<BlockStruct>> {
+  async getPage(
+    page: number = 1,
+    size: number = this.server.config.blockchain_max_blocks_in_memory
+  ): Promise<Array<BlockStruct>> {
     page = page < 1 ? 1 : Math.floor(page);
-    size = size < 1 || size > this.config.max_blocks_in_memory ? this.config.max_blocks_in_memory : Math.floor(size);
+    size =
+      size < 1 || size > this.server.config.blockchain_max_blocks_in_memory
+        ? this.server.config.blockchain_max_blocks_in_memory
+        : Math.floor(size);
     size = size > this.height ? this.height : size;
     const gte = (page - 1) * size <= this.height ? (page - 1) * size + 1 : 1;
     const lte = page * size <= this.height ? page * size : this.height;
@@ -195,10 +228,6 @@ export class Blockchain {
     return this.height;
   }
 
-  getState(): State {
-    return this.state;
-  }
-
   /**
    * Get the genesis block from disk
    *
@@ -208,7 +237,9 @@ export class Blockchain {
     if (!fs.existsSync(p)) {
       throw new Error('Genesis Block not found at: ' + p);
     }
-    return JSON.parse(fs.readFileSync(p).toString());
+    const b: BlockStruct = JSON.parse(fs.readFileSync(p).toString());
+    b.hash = Blockchain.hashBlock(b);
+    return b;
   }
 
   private static hashBlock(block: BlockStruct): string {
@@ -235,9 +266,50 @@ export class Blockchain {
         !Array.from(this.mapHashes.values()).includes(block.hash)
       );
     } catch (error) {
-      //@FIXME logging
-      Logger.trace(error);
       return false;
+    }
+  }
+
+  private async processState(block: BlockStruct) {
+    if (this.height < block.height) {
+      this.height = block.height;
+      this.latestBlock = block;
+      await this.dbState.put('height', this.height);
+      await this.dbState.put('latestBlock', JSON.stringify(this.latestBlock));
+    }
+
+    for (const t of block.tx) {
+      for (const c of t.commands) {
+        switch (c.command) {
+          case 'testLoad':
+            break;
+          case 'addPeer':
+            await this.addPeer(c as CommandAddPeer);
+            break;
+          case 'removePeer':
+            await this.removePeer(c as CommandRemovePeer);
+            break;
+        }
+      }
+    }
+  }
+
+  private async addPeer(command: CommandAddPeer) {
+    if (this.mapPeer.has(command.publicKey)) {
+      return;
+    }
+
+    const peer: NetworkPeer = { host: command.host, port: command.port };
+    this.mapPeer.set(command.publicKey, peer);
+    await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+    this.server.getNetwork().addPeer(command.publicKey, peer);
+  }
+
+  private async removePeer(command: CommandRemovePeer) {
+    if (this.mapPeer.has(command.publicKey)) {
+      this.mapPeer.delete(command.publicKey);
+      await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+      this.server.getNetwork().removePeer(command.publicKey);
     }
   }
 }

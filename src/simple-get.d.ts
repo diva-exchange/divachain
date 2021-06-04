@@ -17,33 +17,4 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Server } from './net/server';
-import { Config, Configuration } from './config';
-
-const c: Configuration = {} as Configuration;
-
-class Main {
-  private readonly config: Config;
-
-  constructor(c: Configuration) {
-    this.config = new Config(c);
-    this.start();
-  }
-
-  private start() {
-    new Server(this.config).start().then((server) => {
-      process.once('SIGINT', () => {
-        server.shutdown().then(() => {
-          process.exit(0);
-        });
-      });
-      process.once('SIGTERM', () => {
-        server.shutdown().then(() => {
-          process.exit(0);
-        });
-      });
-    });
-  }
-}
-
-new Main(c);
+declare module 'simple-get';

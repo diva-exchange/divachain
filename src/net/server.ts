@@ -24,6 +24,7 @@ import express, { Express, NextFunction, Request, Response } from 'express';
 import http from 'http';
 import WebSocket from 'ws';
 import compression from 'compression';
+import { Bootstrap } from './bootstrap';
 import { Block, BlockStruct } from '../chain/block';
 import { Blockchain } from '../chain/blockchain';
 import { TransactionPool } from '../pool/transaction-pool';
@@ -42,39 +43,30 @@ import { Sync } from './message/sync';
 
 export class Server {
   public readonly config: Config;
-  public readonly wallet: Wallet;
-
-  public readonly network: Network;
-  public readonly transactionPool: TransactionPool;
-  public readonly blockPool: BlockPool;
-  public readonly votePool: VotePool;
-  public readonly commitPool: CommitPool;
-  public readonly blockchain: Blockchain;
-
   public readonly app: Express;
-  public readonly httpServer: http.Server;
-  public readonly webSocketServer: WebSocket.Server;
+
+  private readonly httpServer: http.Server;
+  private readonly webSocketServer: WebSocket.Server;
+
+  private transactionPool: TransactionPool = {} as TransactionPool;
+  private blockPool: BlockPool = {} as BlockPool;
+  private votePool: VotePool = {} as VotePool;
+  private commitPool: CommitPool = {} as CommitPool;
+
+  private bootstrap: Bootstrap = {} as Bootstrap;
+  private wallet: Wallet = {} as Wallet;
+  private network: Network = {} as Network;
+  private blockchain: Blockchain = {} as Blockchain;
 
   private staleBlockHash: string = '';
 
   constructor(config: Config) {
     this.config = config;
     Logger.info(`divachain ${this.config.VERSION} instantiating...`);
-    Logger.trace(config);
 
-    this.wallet = new Wallet(this.config);
-    this.transactionPool = new TransactionPool(this.wallet);
-    this.blockPool = new BlockPool();
-    this.votePool = new VotePool();
-    this.commitPool = new CommitPool();
-
-    this.network = new Network(this, async (type: number, message: Buffer | string) => {
-      await this.onMessage(type, message);
-    });
-    this.blockchain = new Blockchain(this.config, this.network);
-
+    // express application
     this.app = express();
-    // generic
+    // hide express
     this.app.set('x-powered-by', false);
 
     // compression
@@ -83,11 +75,14 @@ export class Server {
     // json
     this.app.use(express.json());
 
-    // routes
-    new Api(this, this.wallet);
-
     // catch unavailable favicon.ico
-    this.app.get('/favicon.ico', (req, res) => res.sendStatus(204));
+    this.app.get('/favicon.ico', (req: Request, res: Response) => {
+      res.sendStatus(204);
+    });
+
+    // init API
+    Api.make(this);
+    Logger.info('Api initialized');
 
     // catch 404 and forward to error handler
     this.app.use((req: Request, res: Response, next: NextFunction) => {
@@ -122,15 +117,43 @@ export class Server {
     });
   }
 
-  async listen(): Promise<Server> {
-    this.network.init();
+  async start(): Promise<Server> {
+    this.bootstrap = await Bootstrap.make(this);
+    Logger.info(`Bootstrapped, address ${this.config.address}`);
+
+    Logger.trace(this.config);
+
+    this.wallet = Wallet.make(this.config);
+    Logger.info('Wallet initialized');
+
+    this.network = Network.make(this, async (type: number, message: Buffer | string) => {
+      await this.onMessage(type, message);
+    });
     Logger.info('Network initialized');
 
-    await this.blockchain.init();
+    // pools
+    this.transactionPool = new TransactionPool(this.wallet);
+    this.blockPool = new BlockPool();
+    this.votePool = new VotePool();
+    this.commitPool = new CommitPool();
+
+    this.blockchain = await Blockchain.make(this);
     Logger.info('Blockchain initialized');
 
     await this.httpServer.listen(this.config.port, this.config.ip);
 
+    if (this.config.bootstrap) {
+      await this.bootstrap.syncWithNetwork();
+      if (!this.network.hasNetworkAddress(this.config.address)) {
+        await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
+      }
+    }
+
+    if (this.blockchain.getHeight() === 0) {
+      await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
+    }
+
+    // check for stale blocks
     this.checkBlockPool();
 
     return this;
@@ -152,6 +175,42 @@ export class Server {
         this.httpServer.close(resolve);
       });
     }
+  }
+
+  getWebSocketServer(): WebSocket.Server {
+    return this.webSocketServer;
+  }
+
+  getBootstrap(): Bootstrap {
+    return this.bootstrap;
+  }
+
+  getTransactionPool(): TransactionPool {
+    return this.transactionPool;
+  }
+
+  getVotePool(): VotePool {
+    return this.votePool;
+  }
+
+  getCommitPool(): CommitPool {
+    return this.commitPool;
+  }
+
+  getBlockPool(): BlockPool {
+    return this.blockPool;
+  }
+
+  getWallet(): Wallet {
+    return this.wallet;
+  }
+
+  getNetwork(): Network {
+    return this.network;
+  }
+
+  getBlockchain(): Blockchain {
+    return this.blockchain;
   }
 
   stackTransaction(t: TransactionStruct): boolean {
@@ -284,44 +343,41 @@ export class Server {
     }
   }
 
-  private processConfirm(confirm: Confirm) {
+  private async processConfirm(confirm: Confirm) {
     const c: VoteStruct = confirm.get();
     if (this.blockchain.getHeight() >= c.block.height || !Commit.isValid(c, this.network.getQuorum())) {
       return this.network.stopGossip(confirm.ident());
     }
 
-    this.blockchain
-      .add(c.block)
-      .then(() => {
-        this.votePool.clear();
-        this.commitPool.clear(c.block);
-        this.blockPool.clear();
-        this.transactionPool.clear(c.block);
+    try {
+      await this.blockchain.add(c.block);
+      this.votePool.clear();
+      this.commitPool.clear(c.block);
+      this.blockPool.clear();
+      this.transactionPool.clear(c.block);
 
-        const nextBlock = this.commitPool.best();
-        if (c.block.height + 1 === nextBlock.height) {
-          this.transactionPool.add(nextBlock.tx);
-        }
-        // if there is another transaction on the stack: release and process it!
-        setImmediate(() => {
-          this.createProposal();
-        });
-      })
-      .catch((error) => {
-        Logger.warn(error);
+      const nextBlock = this.commitPool.best();
+      if (c.block.height + 1 === nextBlock.height) {
+        this.transactionPool.add(nextBlock.tx);
+      }
+      // if there is another transaction on the stack: release and process it!
+      setImmediate(() => {
+        this.createProposal();
       });
+    } catch (error) {
+      Logger.warn(error);
+    }
   }
 
-  private processSync(sync: Sync) {
-    sync.get().forEach(async (block) => {
+  private async processSync(sync: Sync) {
+    const h = this.blockchain.getHeight();
+    for (const block of sync.get().filter((b) => h < b.height)) {
       try {
-        if (this.blockchain.getHeight() < block.height) {
-          await this.blockchain.add(block);
-        }
+        await this.blockchain.add(block);
       } catch (error) {
         Logger.warn(error);
       }
-    });
+    }
   }
 
   private async onMessage(type: number, message: Buffer | string) {
@@ -333,10 +389,10 @@ export class Server {
         this.processCommit(new Commit(message));
         break;
       case Message.TYPE_CONFIRM:
-        this.processConfirm(new Confirm(message));
+        await this.processConfirm(new Confirm(message));
         break;
       case Message.TYPE_SYNC:
-        this.processSync(new Sync(message));
+        await this.processSync(new Sync(message));
         break;
       default:
         throw new Error('Invalid message type');

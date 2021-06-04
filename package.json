@@ -15,13 +15,13 @@
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
-    "url": "https://codeberg.org/diva.exchange/diva-blockchain.git"
+    "url": "https://codeberg.org/diva.exchange/divachain.git"
   },
   "scripts": {
     "build": "bin/build.sh",
     "lint": "prettier -w \"**/*.ts\" && eslint --fix src/ test/ --ext .ts",
-    "start": "NODE_ENV=production node dist/main.js",
-    "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty",
+    "start": "NODE_ENV=production node dist/main.js | pino-pretty -t -i pid,hostname",
+    "start-dev": "tsc ; NODE_ENV=development node --enable-source-maps dist/main.js | pino-pretty -t -i pid,hostname",
     "test": "test/bin/clean-testenv.sh ; cp genesis/block.json test/genesis/block.json ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace nyc mocha"
   },
   "dependencies": {
@@ -29,14 +29,15 @@
     "base64-url": "^2.3.3",
     "compression": "^1.7.4",
     "express": "^4.17.1",
-    "http-errors": "^1.7.2",
+    "http-errors": "^1.8.0",
     "leveldown": "^6.0.0",
     "levelup": "^5.0.0",
     "nanoid": "^3.1.23",
     "pino": "^6.11.3",
+    "simple-get": "^4.0.0",
     "socks-proxy-agent": "^5.0.0",
     "sodium-native": "^3.2.1",
-    "ws": "^7.4.5"
+    "ws": "^7.4.6"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
@@ -45,18 +46,19 @@
     "@types/base64-url": "^2.2.0",
     "@types/chai": "^4.2.18",
     "@types/compression": "^1.7.0",
-    "@types/express": "^4.17.11",
+    "@types/express": "^4.17.12",
+    "@types/express-serve-static-core": "^4.17.21",
     "@types/http-errors": "^1.8.0",
     "@types/leveldown": "^4.0.2",
     "@types/levelup": "^4.3.1",
     "@types/mocha": "^8.2.2",
-    "@types/node": "^15.6.1",
+    "@types/node": "^15.12.0",
     "@types/pino": "^6.3.8",
     "@types/sodium-native": "^2.3.5",
     "@types/tunnel": "^0.0.2",
     "@types/ws": "^7.4.4",
-    "@typescript-eslint/eslint-plugin": "^4.25.0",
-    "@typescript-eslint/parser": "^4.25.0",
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.26.0",
     "ajv-cli": "^5.0.0",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
@@ -65,9 +67,9 @@
     "eslint-plugin-prettier": "^3.4.0",
     "mocha": "^8.4.0",
     "nyc": "^15.1.0",
-    "pino-pretty": "^4.8.0",
+    "pino-pretty": "^5.0.2",
     "prettier": "^2.3.0",
     "ts-node": "^10.0.0",
-    "typescript": "^4.2.4"
+    "typescript": "^4.3.2"
   }
 }

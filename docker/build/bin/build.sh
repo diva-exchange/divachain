@@ -32,8 +32,9 @@ SIZE_NETWORK=${SIZE_NETWORK:-7}
 IS_NAME_BASED=${IS_NAME_BASED:-0}
 BASE_DOMAIN=${BASE_DOMAIN:-testnet.diva.i2p}
 BASE_IP=${BASE_IP:-172.20.72.}
-PORT_P2P=${PORT_P2P:-17468}
+PORT=${PORT:-17468}
 HAS_I2P=${HAS_I2P:-0}
+I2P_CONSOLE_PORT=${I2P_CONSOLE_PORT:-7070}
 NODE_ENV=${NODE_ENV:-production}
 LOG_LEVEL=${LOG_LEVEL:-trace}
 NETWORK_SYNC_THRESHOLD=${NETWORK_SYNC_THRESHOLD:-2}
@@ -44,7 +45,7 @@ then
   SIZE_NETWORK=${SIZE_NETWORK} \
     BASE_DOMAIN=${BASE_DOMAIN} \
     BASE_IP=${BASE_IP} \
-    PORT_P2P=${PORT_P2P} \
+    PORT=${PORT} \
     CREATE_I2P=1 \
     ${PROJECT_PATH}../../node_modules/.bin/ts-node ${PROJECT_PATH}main.ts
 
@@ -55,9 +56,9 @@ then
   do
     sleep 2
     IP=${BASE_IP}$((50 + t))
-    echo http://${IP}:7070
-    curl -s http://${IP}:7070/?page=i2p_tunnels | \
-      grep -Po "[a-z2-7]+\.b32\.i2p\:${PORT_P2P}" 2>&1 \
+    echo http://${IP}:${I2P_CONSOLE_PORT}
+    curl -s http://${IP}:${I2P_CONSOLE_PORT}/?page=i2p_tunnels | \
+      grep -Po "[a-z2-7]+\.b32\.i2p\:${PORT}" 2>&1 \
       >${PROJECT_PATH}i2p-b32/n${t}.${BASE_DOMAIN}
   done
 
@@ -70,7 +71,7 @@ SIZE_NETWORK=${SIZE_NETWORK} \
   IS_NAME_BASED=${IS_NAME_BASED} \
   BASE_DOMAIN=${BASE_DOMAIN} \
   BASE_IP=${BASE_IP} \
-  PORT_P2P=${PORT_P2P} \
+  PORT=${PORT} \
   HAS_I2P=${HAS_I2P} \
   NODE_ENV=${NODE_ENV} \
   LOG_LEVEL=${LOG_LEVEL} \

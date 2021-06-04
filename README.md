@@ -84,6 +84,10 @@ Start and stop the environment using docker-compose (see above).
 ## Configuration
 The configuration can be controlled using environment variables.
 
+### BOOTSTRAP
+URL to a entrypoint in the network, like http://diva.i2p.
+Default: (empty)
+
 ### NAME_BLOCK_GENESIS
 Default: block
 
@@ -93,10 +97,13 @@ Default: 127.0.0.1
 ### PORT
 Default: 17468
 
-### SOCKS_PROXY_HOST
+### I2P_SOCKS_PROXY_HOST
 Default: (empty)
 
-### SOCKS_PROXY_PORT
+### I2P_SOCKS_PROXY_PORT
+Default: 0
+
+### I2P_SOCKS_PROXY_CONSOLE_PORT
 Default: 0
 
 ### MAX_BLOCKS_IN_MEMORY
@@ -125,31 +132,37 @@ Default: 5 * NETWORK_REFRESH_INTERVAL_MS
 Timeout, in milliseconds, after authorisation fails.
 
 ### NETWORK_PING_INTERVAL_MS
-Default: 2000
+Default: 5000ms
 
 Interval, in milliseconds, to ping the peers in the network.
 
 ### NETWORK_CLEAN_INTERVAL_MS
-Default: 2 * NETWORK_SIZE * NETWORK_PING_INTERVAL_MS
+Default: 5 * NETWORK_PING_INTERVAL_MS
 
 Interval, in milliseconds, to clean up the network environment (like gossiping data).
 
-### NETWORK_SYNC_THRESHOLD
+### NETWORK_STALE_THRESHOLD
 Default: 2
 
-Number of blocks a blockchain can get behind before synchronisation is triggered.
+Number of pings from a stale peer until synchronization gets triggered.
 
 ### NETWORK_SYNC_SIZE
 Default: 10
-Maximum number of blocks of synchronization message might contain. Must not exceed NETWORK_MAX_BLOCKS_IN_MEMORY.
+Maximum number of blocks of synchronization message might contain. Must not exceed BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY.
 
 ### NETWORK_VERBOSE_LOGGING
 Default: 0
 
 Whether to log all network traffic (very verbose). Set to 1 to enable verbose logging.
 
+### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
+Default: 1000
+
+### API_MAX_QUERY_SIZE
+Default: 50
+
 ### BLOCK_POOL_CHECK_INTERVAL_MS
-Default: 10000
+Default: 10000ms
 
 Interval, in milliseconds, to check whether the block pool is stale.
 
@@ -171,7 +184,9 @@ Interval, in milliseconds, to check whether the block pool is stale.
 
 ### GET /pool/commits
 
-### GET /state/peers
+### GET /block/genesis
+
+### GET /block/latest
 
 ### GET /blocks
 
@@ -180,10 +195,6 @@ Interval, in milliseconds, to check whether the block pool is stale.
 ### GET /transaction/{origin}/{ident}
 
 ### PUT /transaction/{ident?}
-
-### POST /peer/add
-
-### POST /peer/remove
 
 ## How to Run Unit Tests
 

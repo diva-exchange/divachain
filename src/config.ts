@@ -21,16 +21,20 @@ import path from 'path';
 import fs from 'fs';
 
 export type Configuration = {
+  bootstrap?: string;
+
   ip?: string;
   port?: number;
+  address?: string;
   per_message_deflate?: boolean;
   path_genesis?: string;
   path_blockstore?: string;
   path_state?: string;
   path_keys?: string;
 
-  socks_proxy_host?: string;
-  socks_proxy_port?: number;
+  i2p_socks_proxy_host?: string;
+  i2p_socks_proxy_port?: number;
+  i2p_socks_proxy_console_port?: number;
 
   network_size?: number;
   network_morph_interval_ms?: number;
@@ -38,16 +42,17 @@ export type Configuration = {
   network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
   network_ping_interval_ms?: number;
-  max_blocks_in_memory?: number;
-  network_sync_threshold?: number;
+  network_stale_threshold?: number;
   network_sync_size?: number;
   network_verbose_logging?: boolean;
+
+  blockchain_max_blocks_in_memory?: number;
+  blockchain_max_query_size?: number;
 
   block_pool_check_interval_ms?: number;
 };
 
 const DEFAULT_PORT = 17468;
-const DEFAULT_MAX_BLOCKS_IN_MEMORY = 1000;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
 const MIN_NETWORK_SIZE = 7;
@@ -55,41 +60,53 @@ const MAX_NETWORK_SIZE = 64;
 const MIN_NETWORK_MORPH_INTERVAL_MS = 120000;
 const MAX_NETWORK_MORPH_INTERVAL_MS = 600000;
 const DEFAULT_NETWORK_REFRESH_INTERVAL_MS = 3000;
-const DEFAULT_NETWORK_PING_INTERVAL_MS = 2000;
-const DEFAULT_NETWORK_SYNC_THRESHOLD = 1;
+const DEFAULT_NETWORK_PING_INTERVAL_MS = 5000;
+const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
 const DEFAULT_NETWORK_SYNC_SIZE = 10;
 const DEFAULT_BLOCK_POOL_CHECK_INTERVAL_MS = 10000;
 
+const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
+const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 50;
+
 export class Config {
+  public readonly bootstrap: string;
+
   public readonly path_app: string;
   public readonly VERSION: string;
 
   public readonly ip: string;
   public readonly port: number;
+  public address: string;
   public readonly per_message_deflate: boolean;
   public readonly path_genesis: string;
   public readonly path_blockstore: string;
   public readonly path_state: string;
   public readonly path_keys: string;
-  public readonly socks_proxy_host: string;
-  public readonly socks_proxy_port: number;
+  public readonly i2p_socks_proxy_host: string;
+  public readonly i2p_socks_proxy_port: number;
+  public readonly i2p_socks_proxy_console_port: number;
   public readonly network_size: number;
   public readonly network_morph_interval_ms: number;
   public readonly network_refresh_interval_ms: number;
   public readonly network_auth_timeout_ms: number;
   public readonly network_clean_interval_ms: number;
   public readonly network_ping_interval_ms: number;
-  public readonly max_blocks_in_memory: number;
-  public readonly network_sync_threshold: number;
+  public readonly network_stale_threshold: number;
   public readonly network_sync_size: number;
   public readonly network_verbose_logging: boolean;
+
+  public readonly blockchain_max_blocks_in_memory: number;
+  public readonly blockchain_max_query_size: number;
+
   public readonly block_pool_check_interval_ms: number;
 
-  constructor(c: Configuration = {}) {
+  constructor(c: Configuration) {
     const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
       /[^a-z0-9_-]/gi,
       ''
     );
+
+    this.bootstrap = c.bootstrap || process.env.BOOTSTRAP || '';
 
     this.path_app = path.join(
       Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname,
@@ -99,12 +116,10 @@ export class Config {
 
     this.ip = c.ip || process.env.IP || '127.0.0.1';
     this.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
+    this.address = c.address || this.ip + ':' + this.port;
     this.per_message_deflate = c.per_message_deflate || true;
 
     this.path_genesis = c.path_genesis || path.join(this.path_app, `genesis/${nameBlockGenesis}.json`);
-    if (!fs.existsSync(this.path_genesis)) {
-      throw new Error('Path to genesis block not found.');
-    }
 
     this.path_blockstore = c.path_blockstore || path.join(this.path_app, 'blockstore/');
     if (!fs.existsSync(this.path_blockstore)) {
@@ -121,12 +136,11 @@ export class Config {
       fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
     }
 
-    this.max_blocks_in_memory = Config.gte1(
-      c.max_blocks_in_memory || process.env.NETWORK_MAX_BLOCKS_IN_MEMORY || DEFAULT_MAX_BLOCKS_IN_MEMORY
+    this.i2p_socks_proxy_host = c.i2p_socks_proxy_host || process.env.I2P_SOCKS_PROXY_HOST || '';
+    this.i2p_socks_proxy_port = Config.port(c.i2p_socks_proxy_port || process.env.I2P_SOCKS_PROXY_PORT);
+    this.i2p_socks_proxy_console_port = Config.port(
+      c.i2p_socks_proxy_console_port || process.env.I2P_SOCKS_PROXY_CONSOLE_PORT
     );
-
-    this.socks_proxy_host = c.socks_proxy_host || process.env.SOCKS_PROXY_HOST || '';
-    this.socks_proxy_port = Config.port(c.socks_proxy_port || process.env.SOCKS_PROXY_PORT);
 
     this.network_size = Config.b(c.network_size || process.env.NETWORK_SIZE, MIN_NETWORK_SIZE, MAX_NETWORK_SIZE);
     this.network_morph_interval_ms = Config.b(
@@ -147,11 +161,14 @@ export class Config {
       c.network_ping_interval_ms || process.env.NETWORK_PING_INTERVAL_MS,
       DEFAULT_NETWORK_PING_INTERVAL_MS
     );
-    this.network_clean_interval_ms = this.network_size * this.network_ping_interval_ms * 2;
+    this.network_clean_interval_ms = Config.gte1(
+      c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS,
+      this.network_ping_interval_ms * 5
+    );
 
-    this.network_sync_threshold = Config.gte1(
-      c.network_sync_threshold || process.env.NETWORK_SYNC_THRESHOLD,
-      DEFAULT_NETWORK_SYNC_THRESHOLD
+    this.network_stale_threshold = Config.gte1(
+      c.network_stale_threshold || process.env.NETWORK_STALE_THRESHOLD,
+      DEFAULT_NETWORK_STALE_THRESHOLD
     );
     this.network_sync_size = Config.gte1(
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
@@ -159,6 +176,15 @@ export class Config {
     );
 
     this.network_verbose_logging = Config.tf(c.network_verbose_logging || process.env.NETWORK_VERBOSE_LOGGING);
+
+    this.blockchain_max_blocks_in_memory = Config.gte1(
+      c.blockchain_max_blocks_in_memory || process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY,
+      DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
+    );
+    this.blockchain_max_query_size = Config.gte1(
+      c.blockchain_max_query_size || process.env.API_MAX_QUERY_SIZE,
+      DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE
+    );
 
     this.block_pool_check_interval_ms = Config.gte1(
       c.block_pool_check_interval_ms || process.env.BLOCK_POOL_CHECK_INTERVAL_MS,
@@ -184,6 +210,6 @@ export class Config {
   }
 
   private static port(n: any): number {
-    return Config.b(Number(n), 1025, 65535);
+    return Number(n) ? Config.b(Number(n), 1025, 65535) : 0;
   }
 }

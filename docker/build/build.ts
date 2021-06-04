@@ -115,7 +115,8 @@ export class Build {
       host = config.ip;
       let port = config.port.toString();
       if (this.hasI2P && fs.existsSync(pathB32)) {
-        [host, port] = fs.readFileSync(pathB32).toString().split(':');
+        config.address = fs.readFileSync(pathB32).toString().trim();
+        [host, port] = config.address.split(':');
       }
 
       commands.push({
@@ -123,17 +124,17 @@ export class Build {
         command: 'addPeer',
         host: host,
         port: Number(port),
-        publicKey: new Wallet(config).getPublicKey(),
+        publicKey: Wallet.make(config).getPublicKey(),
       });
     }
 
     genesis.tx = [
       {
         ident: 'genesis',
-        origin: '1234567890123456789012345678901234567890123',
+        origin: '0000000000000000000000000000000000000000000',
         timestamp: 88355100000,
         commands: commands,
-        sig: '12345678901234567890123456789012345678901234567890123456789012345678901234567890123456',
+        sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       },
     ];
 
@@ -145,6 +146,12 @@ export class Build {
     for (let seq = 1; seq <= this.sizeNetwork; seq++) {
       const hostChain = this.isNameBased ? `n${seq}.${this.baseDomain}` : `${this.baseIP}${150 + seq}`;
       const nameChain = `n${seq}.chain.${this.baseDomain}`;
+      let proxy = '';
+      if (this.hasI2P) {
+        proxy =
+          `      I2P_SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n` +
+          '      I2P_SOCKS_PROXY_PORT: 4445\n      I2P_SOCKS_PROXY_CONSOLE_PORT: 7070\n';
+      }
       yml =
         yml +
         `  ${nameChain}:\n` +
@@ -156,7 +163,7 @@ export class Build {
         `      LOG_LEVEL: ${this.levelLog}\n` +
         `      IP: ${this.baseIP}${150 + seq}\n` +
         `      PORT: ${this.port}\n` +
-        (this.hasI2P ? `      SOCKS_PROXY_HOST: ${this.baseIP}${50 + seq}\n      SOCKS_PROXY_PORT: 4445\n` : '') +
+        proxy +
         `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
         `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +
         '    volumes:\n' +

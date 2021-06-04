@@ -119,7 +119,7 @@ class TestServer {
         },
       })
     );
-    await s.listen();
+    await s.start();
     TestServer.mapServer.set(publicKey, s);
     return s;
   }
@@ -132,7 +132,10 @@ class TestServer {
 
   @test
   async transaction() {
-    const res = await chai.request(`http://${IP}:17001`).put('/transaction').send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
+    const res = await chai
+      .request(`http://${IP}:17001`)
+      .put('/transaction')
+      .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
     expect(res).to.have.status(200);
   }
 
@@ -246,12 +249,15 @@ class TestServer {
     }
 
     // wait a bit
-    await new Promise((resolve) => { setTimeout(resolve, 3000); });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 3000);
+    });
 
     for (let _i = 0; _i < _outer; _i++) {
       const origin = arrayRequests.shift();
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
-      const res = await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
+      const res = await chai
+        .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
         .get(`/transaction/${origin}/seq${_i}`);
       expect(res.status).eq(200);
       expect(res.body.ident).eq(`seq${_i}`);

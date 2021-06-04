@@ -1,0 +1,26 @@
+version: "3.7"
+services:
+  i2p.testnet.diva.local:
+    container_name: i2p.testnet.diva.local
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_TUNNELS: 1
+    volumes:
+      - ./i2p.testnet.diva.local:/home/i2pd/tunnels.source.conf.d/
+      - i2p.testnet.diva.local:/home/i2pd/data/
+    networks:
+      i2p.testnet.diva.local:
+        ipv4_address: 172.20.68.201
+
+networks:
+  i2p.testnet.diva.local:
+    name: i2p.testnet.diva.local
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.68.0/24
+
+volumes:
+  i2p.testnet.diva.local:
+    name: i2p.testnet.diva.local

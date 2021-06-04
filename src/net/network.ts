@@ -28,6 +28,7 @@ import { Validation } from './validation';
 import { Util } from '../chain/util';
 import { Server } from './server';
 import { Sync } from './message/sync';
+import Timeout = NodeJS.Timeout;
 
 const GOSSIP_MAX_MESSAGES_PER_PEER = 250;
 
@@ -44,12 +45,13 @@ export type NetworkPeer = {
 interface Peer {
   address: string;
   alive: number;
+  stale: number;
   ws: WebSocket;
 }
 
 export class Network {
   private readonly server: Server;
-  private readonly identity: string;
+  private readonly publicKey: string;
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
   private arrayPeerNetwork: Array<string> = [];
 
@@ -59,42 +61,64 @@ export class Network {
   private readonly _onMessage: Function | false;
   private aGossip: { [publicKeyPeer: string]: Array<string> } = {};
 
-  constructor(server: Server, onMessage: Function) {
+  private timeoutMorph: Timeout = {} as Timeout;
+  private timeoutRefresh: Timeout = {} as Timeout;
+  private timeoutPing: Timeout = {} as Timeout;
+  private timeoutClean: Timeout = {} as Timeout;
+
+  static make(server: Server, onMessage: Function) {
+    return new Network(server, onMessage);
+  }
+
+  private constructor(server: Server, onMessage: Function) {
     this.server = server;
     this._onMessage = onMessage || false;
 
-    this.identity = this.server.wallet.getPublicKey();
+    this.publicKey = this.server.getWallet().getPublicKey();
+    Logger.info(`Network, public key: ${this.publicKey}`);
 
     Validation.init();
 
-    Logger.info(`Identity: ${this.identity}`);
-  }
-
-  init() {
     // incoming connection
-    this.server.webSocketServer.on('connection', (ws, request) => {
+    this.server.getWebSocketServer().on('connection', (ws, request) => {
       const publicKey = request.headers['diva-identity']?.toString() || '';
 
-      if (publicKey && publicKey !== this.identity && [...this.mapPeer.keys()].indexOf(publicKey) > -1) {
+      if (publicKey && publicKey !== this.publicKey && this.mapPeer.has(publicKey)) {
         this.auth(ws, publicKey);
       } else {
         Logger.warn('Connection credentials missing (diva-identity)');
+        ws.close(4003, 'Auth Credentials missing');
       }
     });
 
-    this.server.webSocketServer.on('error', (error: Error) => {
+    this.server.getWebSocketServer().on('error', (error: Error) => {
       Logger.warn('WebsocketServer error');
       Logger.trace(error);
     });
 
-    setTimeout(() => this.morphPeerNetwork(), this.server.config.network_refresh_interval_ms - 1);
-    setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
-    setTimeout(() => this.ping(), this.server.config.network_ping_interval_ms);
-    setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
+    const startDelayMs = this.server.config.i2p_socks_proxy_host
+      ? this.server.config.network_morph_interval_ms
+      : this.server.config.network_refresh_interval_ms;
+
+    Logger.info(`Starting P2P network in about ${Math.floor(startDelayMs / 1000)} secs`);
+
+    // initial timeout
+    setTimeout(() => {
+      Logger.info('Starting P2P network');
+      this.timeoutMorph = setTimeout(() => this.morphPeerNetwork(), 1);
+      this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
+      this.timeoutPing = setTimeout(() => this.ping(), this.server.config.network_ping_interval_ms);
+      this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
+    }, startDelayMs);
   }
 
   shutdown() {
-    if (this.server.webSocketServer) {
+    clearTimeout(this.timeoutMorph);
+    clearTimeout(this.timeoutRefresh);
+    clearTimeout(this.timeoutPing);
+    clearTimeout(this.timeoutClean);
+
+    if (this.server.getWebSocketServer()) {
       Object.values(this.peersOut)
         .concat(Object.values(this.peersIn))
         .forEach((peer) => {
@@ -103,35 +127,33 @@ export class Network {
     }
   }
 
-  getIdentity(): string {
-    return this.identity;
-  }
+  addPeer(publicKey: string, peer: NetworkPeer): Network {
+    if (!this.mapPeer.has(publicKey)) {
+      this.mapPeer.set(publicKey, peer);
+      this.morphPeerNetwork();
 
-  addPeer(publicKey: string, peer: NetworkPeer): boolean {
-    if (this.mapPeer.has(publicKey)) {
-      return false;
+      // initialize gossip map
+      publicKey !== this.publicKey && (this.aGossip[publicKey] = []);
     }
-
-    this.mapPeer.set(publicKey, peer);
-
-    // initialize gossip map
-    publicKey !== this.identity && (this.aGossip[publicKey] = []);
-
-    return false;
+    return this;
   }
 
   removePeer(publicKey: string): Network {
-    if (!this.mapPeer.has(publicKey)) {
-      return this;
+    if (this.mapPeer.has(publicKey)) {
+      this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
+      this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
+
+      delete this.aGossip[publicKey];
+      this.mapPeer.delete(publicKey);
+      this.morphPeerNetwork();
     }
-
-    this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
-    this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
-
-    delete this.aGossip[publicKey];
-    this.mapPeer.delete(publicKey);
-
     return this;
+  }
+
+  resetNetwork() {
+    [...this.mapPeer.keys()].map((publicKey) => {
+      this.removePeer(publicKey);
+    });
   }
 
   getQuorum(): number {
@@ -145,18 +167,43 @@ export class Network {
       out: [],
     };
     Object.keys(this.peersIn).forEach((p) => {
-      peers.in.push({ publicKey: p, address: this.peersIn[p].address, alive: this.peersIn[p].alive });
+      peers.in.push({
+        publicKey: p,
+        address: this.peersIn[p].address,
+        stale: this.peersIn[p].stale,
+        alive: this.peersIn[p].alive,
+      });
     });
     Object.keys(this.peersOut).forEach((p) => {
-      peers.out.push({ publicKey: p, address: this.peersOut[p].address, alive: this.peersOut[p].alive });
+      peers.out.push({
+        publicKey: p,
+        address: this.peersOut[p].address,
+        stale: this.peersOut[p].stale,
+        alive: this.peersOut[p].alive,
+      });
     });
     return peers;
   }
 
-  network(): Array<{publicKey: string, api: string}> {
+  network(): Array<{ publicKey: string; api: string }> {
     return [...this.mapPeer].map((v) => {
-      return { publicKey: v[0], api: v[1].host + ':' + v[1].port};
+      return { publicKey: v[0], api: v[1].host + ':' + v[1].port };
     });
+  }
+
+  hasNetworkPeer(publicKey: string): boolean {
+    return this.mapPeer.has(publicKey);
+  }
+
+  hasNetworkAddress(address: string): boolean {
+    if (address.indexOf(':') > 0) {
+      for (const v of [...this.mapPeer]) {
+        if (v[1].host + ':' + v[1].port === address) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   gossip(): { [publicKey: string]: Array<string> } {
@@ -186,11 +233,11 @@ export class Network {
     }
 
     // populate Gossiping map
-    if (publicKeyPeer && publicKeyPeer !== this.identity && !this.aGossip[publicKeyPeer].includes(ident)) {
+    if (publicKeyPeer && publicKeyPeer !== this.publicKey && !this.aGossip[publicKeyPeer].includes(ident)) {
       this.aGossip[publicKeyPeer].push(ident);
     }
     const origin = m.origin();
-    if (origin && origin !== this.identity && !this.aGossip[origin].includes(ident)) {
+    if (origin && origin !== this.publicKey && !this.aGossip[origin].includes(ident)) {
       this.aGossip[origin].push(ident);
     }
 
@@ -204,7 +251,7 @@ export class Network {
   private broadcast(m: Message) {
     const ident = m.ident();
     const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter((_pk) => {
-      return _pk !== this.identity && !this.aGossip[_pk].includes(ident);
+      return _pk !== this.publicKey && !this.aGossip[_pk].includes(ident);
     });
 
     for (const _pk of arrayBroadcast) {
@@ -249,6 +296,7 @@ export class Network {
       this.peersIn[publicKeyPeer] = {
         address: 'ws://' + peer.host + ':' + peer.port,
         alive: Date.now(),
+        stale: 0,
         ws: ws,
       };
 
@@ -265,9 +313,15 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
-          const sync = await this.getSync(Number(data.toString()));
-          Network.send(ws, sync.pack());
+        if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
+          this.peersIn[publicKeyPeer].stale++;
+          if (this.peersIn[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
+            this.peersIn[publicKeyPeer].stale = 0;
+            const sync = await this.getSync(Number(data.toString()));
+            Network.send(ws, sync.pack());
+          }
+        } else {
+          this.peersIn[publicKeyPeer].stale = 0;
         }
       });
       ws.on('pong', () => {
@@ -278,39 +332,39 @@ export class Network {
 
   private refresh() {
     for (const publicKey of this.arrayPeerNetwork) {
-      if (publicKey !== this.identity && !this.peersOut[publicKey]) {
+      if (publicKey !== this.publicKey && !this.peersOut[publicKey]) {
         this.connect(publicKey);
       }
     }
-    setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
+
+    /*
+    Object.keys(this.peersOut)
+      .filter((_pk) => { return this.arrayPeerNetwork.indexOf(_pk) < 0; })
+      .forEach((_pk) => { this.peersOut[_pk].ws.close(1000, 'Bye'); });
+    */
+
+    this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
   }
 
   private morphPeerNetwork() {
     if (this.mapPeer.size < 1) {
+      this.arrayPeerNetwork = [];
       return;
     }
 
-    const arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys());
+    this.arrayPeerNetwork = Array.from(this.mapPeer.keys());
+    /*
+    let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys());
     if (arrayPublicKey.length <= this.server.config.network_size) {
-      this.arrayPeerNetwork = [...arrayPublicKey];
+      this.arrayPeerNetwork = arrayPublicKey;
       return;
     }
 
-    this.arrayPeerNetwork = this.arrayPeerNetwork.concat(
-      Util.shuffleArray(arrayPublicKey).slice(
-        0,
-        this.arrayPeerNetwork.length >= this.server.config.network_size
-          ? Math.floor(this.server.config.network_size / 2)
-          : this.server.config.network_size
-      )
-    );
-
-    while (this.arrayPeerNetwork.length > this.server.config.network_size) {
-      const publicKey = this.arrayPeerNetwork.shift();
-      publicKey && this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
-    }
-
-    setTimeout(() => {
+    arrayPublicKey = this.arrayPeerNetwork.concat(Util.shuffleArray(arrayPublicKey));
+    const s = Math.floor(this.server.config.network_size / 2);
+    this.arrayPeerNetwork = arrayPublicKey.slice(s, s + this.server.config.network_size);
+    */
+    this.timeoutMorph = setTimeout(() => {
       this.morphPeerNetwork();
     }, this.server.config.network_morph_interval_ms);
   }
@@ -330,7 +384,7 @@ export class Network {
       }
     });
 
-    setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
+    this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
   private connect(publicKeyPeer: string) {
@@ -343,13 +397,17 @@ export class Network {
       followRedirects: false,
       perMessageDeflate: this.server.config.per_message_deflate,
       headers: {
-        'diva-identity': this.identity,
+        'diva-identity': this.publicKey,
       },
     };
 
-    if (this.server.config.socks_proxy_host && this.server.config.socks_proxy_port > 0 && /\.i2p$/.test(peer.host)) {
+    if (
+      this.server.config.i2p_socks_proxy_host &&
+      this.server.config.i2p_socks_proxy_port > 0 &&
+      /\.i2p$/.test(peer.host)
+    ) {
       options.agent = new SocksProxyAgent(
-        `socks://${this.server.config.socks_proxy_host}:${this.server.config.socks_proxy_port}`
+        `socks://${this.server.config.i2p_socks_proxy_host}:${this.server.config.i2p_socks_proxy_port}`
       );
     }
 
@@ -357,6 +415,7 @@ export class Network {
     this.peersOut[publicKeyPeer] = {
       address: address,
       alive: Date.now(),
+      stale: 0,
       ws: ws,
     };
 
@@ -371,7 +430,8 @@ export class Network {
       if (!Validation.validateMessage(mC) || !mC.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
-      Network.send(ws, new Auth().create(this.server.wallet.sign(mC.getChallenge())).pack());
+      const wallet = this.server.getWallet();
+      Network.send(ws, new Auth().create(wallet.sign(mC.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
@@ -380,9 +440,15 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (Number(data.toString()) < this.server.blockchain.getHeight() - this.server.config.network_sync_threshold) {
-          const sync = await this.getSync(Number(data.toString()));
-          Network.send(ws, sync.pack());
+        if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
+          this.peersOut[publicKeyPeer].stale++;
+          if (this.peersOut[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
+            this.peersOut[publicKeyPeer].stale = 0;
+            const sync = await this.getSync(Number(data.toString()));
+            Network.send(ws, sync.pack());
+          }
+        } else {
+          this.peersOut[publicKeyPeer].stale = 0;
         }
       });
       ws.on('pong', () => {
@@ -392,21 +458,22 @@ export class Network {
   }
 
   private ping(): void {
-    const i = this.server.config.network_ping_interval_ms;
-    let t = i;
+    let t = this.server.config.network_ping_interval_ms;
     Util.shuffleArray(Object.values(this.peersOut).concat(Object.values(this.peersIn))).forEach((peer) => {
       setTimeout(() => {
-        peer.ws.readyState === 1 && peer.ws.ping(this.server.blockchain.getHeight());
+        peer.ws.readyState === 1 && peer.ws.ping(this.server.getBlockchain().getHeight());
       }, t);
-      t = t + i;
+      t = t + 10;
     });
 
-    setTimeout(() => this.ping(), t);
+    this.timeoutPing = setTimeout(() => this.ping(), t);
   }
 
   private async getSync(height: number): Promise<Sync> {
-    const arrayBlocks = await this.server.blockchain.get(0, height, height + this.server.config.network_sync_size);
-    return new Sync().create(arrayBlocks.reverse());
+    const arrayBlocks = await this.server
+      .getBlockchain()
+      .get(0, height + 1, height + this.server.config.network_sync_size);
+    return new Sync().create(arrayBlocks);
   }
 
   private static send(ws: WebSocket, data: string) {
