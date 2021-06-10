@@ -46,7 +46,7 @@ class TestValidation {
       path_blockstore: path.join(__dirname, '../blockstore'),
       path_keys: path.join(__dirname, '../keys'),
     });
-    TestValidation.wallet = new Wallet(TestValidation.config);
+    TestValidation.wallet = Wallet.make(TestValidation.config);
   }
 
   @slow(100)

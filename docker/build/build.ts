@@ -125,6 +125,7 @@ export class Build {
         host: host,
         port: Number(port),
         publicKey: Wallet.make(config).getPublicKey(),
+        stake: 1000,
       });
     }
 

@@ -21,13 +21,13 @@ import { suite, test } from '@testdeck/mocha';
 import { expect } from 'chai';
 
 import { Logger } from '../src/logger';
-import { Config } from '../src/config';
+import { Config, Configuration } from '../src/config';
 
 @suite
 class TestConfigLogger {
   @test
   config() {
-    const c = new Config();
+    const c = new Config({} as Configuration);
     expect(c.ip).is.not.empty;
   }
 

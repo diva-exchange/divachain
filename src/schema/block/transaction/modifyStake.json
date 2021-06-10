@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/transaction/addPeer.json",
+  "$id": "/schema/block/transaction/modifyStake.json",
 
   "type": "object",
   "properties": {
@@ -10,16 +10,7 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^addPeer$"
-    },
-    "host": {
-      "type": "string",
-      "pattern": "^[a-zA-Z0-9.-_]{5,64}$"
-    },
-    "port": {
-      "type": "integer",
-      "minimum": 1024,
-      "maximum": 49151
+      "pattern": "^modifyStake$"
     },
     "publicKey": {
       "type": "string",
@@ -35,8 +26,6 @@
   "required": [
     "seq",
     "command",
-    "host",
-    "port",
     "publicKey",
     "stake"
   ]

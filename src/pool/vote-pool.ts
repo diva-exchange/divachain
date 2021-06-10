@@ -22,12 +22,16 @@ import { VoteStruct } from '../net/message/vote';
 export class VotePool {
   private arrayHashes: Array<string> = [];
   private mapVotes: Map<string, Array<{ origin: string; sig: string }>> = new Map();
+  private mapStakes: Map<string, Array<{ origin: string; stake: number }>> = new Map();
 
-  add(structVote: VoteStruct, quorum: number): boolean {
+  add(structVote: VoteStruct, stake: number, quorum: number): boolean {
     const aVotes = this.mapVotes.get(structVote.block.hash) || [];
+    const aStakes = this.mapStakes.get(structVote.block.hash) || [];
+
+    const sumStake = aStakes.reduce((_s, _o) => _s + _o.stake, 0);
 
     // if the quorum has already been reached, return immediately
-    if (aVotes.length >= quorum) {
+    if (sumStake >= quorum) {
       return false;
     }
 
@@ -36,22 +40,25 @@ export class VotePool {
     }
 
     aVotes.push({ origin: structVote.origin, sig: structVote.sig });
+    aStakes.push({ origin: structVote.origin, stake: stake });
     !this.arrayHashes.includes(structVote.block.hash) && this.arrayHashes.push(structVote.block.hash);
     this.mapVotes.set(structVote.block.hash, aVotes);
-    return aVotes.length >= quorum;
+    this.mapStakes.set(structVote.block.hash, aStakes);
+    return sumStake + stake >= quorum;
   }
 
   get(hash: string): Array<{ origin: string; sig: string }> {
     return this.mapVotes.get(hash) || [];
   }
 
-  getAll(): { hashes: Array<any>; votes: Array<any> } {
-    return { hashes: this.arrayHashes, votes: [...this.mapVotes.entries()] };
+  getAll(): { hashes: Array<any>; votes: Array<any>; stakes: Array<any> } {
+    return { hashes: this.arrayHashes, votes: [...this.mapVotes.entries()], stakes: [...this.mapStakes.entries()] };
   }
 
   clear() {
     this.arrayHashes.forEach((hash) => {
       this.mapVotes.delete(hash);
+      this.mapStakes.delete(hash);
     });
     this.arrayHashes = [];
   }

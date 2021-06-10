@@ -37,13 +37,19 @@ export interface CommandAddPeer extends Command {
   host: string;
   port: number;
   publicKey: string;
+  stake: number;
 }
 
 export interface CommandRemovePeer extends Command {
   publicKey: string;
 }
 
-export type ArrayComand = Array<CommandTestLoad | CommandAddPeer | CommandRemovePeer>;
+export interface CommandModifyStake extends Command {
+  publicKey: string;
+  stake: number;
+}
+
+export type ArrayComand = Array<CommandTestLoad | CommandAddPeer | CommandRemovePeer | CommandModifyStake>;
 
 export type TransactionStruct = {
   ident: string;

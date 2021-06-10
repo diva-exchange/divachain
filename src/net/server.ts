@@ -262,7 +262,7 @@ export class Server {
     }
 
     if (v.block.hash === this.blockPool.get().hash) {
-      if (this.votePool.add(v, this.network.getQuorum())) {
+      if (this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
         v.block.votes = this.votePool.get(v.block.hash);
         this.network.processMessage(
           new Commit()
@@ -305,7 +305,13 @@ export class Server {
 
   private processCommit(commit: Commit) {
     const c: VoteStruct = commit.get();
-    if (this.blockchain.getHeight() >= c.block.height || !Commit.isValid(c, this.network.getQuorum())) {
+
+    let sumStake = 0;
+    c.block.votes.forEach((v) => {
+      sumStake = sumStake + this.network.getStake(v.origin);
+    });
+
+    if (this.blockchain.getHeight() >= c.block.height || sumStake < this.network.getQuorum() || !Commit.isValid(c)) {
       return this.network.stopGossip(commit.ident());
     }
 
@@ -313,8 +319,12 @@ export class Server {
       return;
     }
 
-    if (this.commitPool.accepted(this.network.getQuorum())) {
-      const block = this.commitPool.best();
+    const block = this.commitPool.best();
+    sumStake = 0;
+    block.votes.forEach((v) => {
+      sumStake = sumStake + this.network.getStake(v.origin);
+    });
+    if (sumStake >= this.network.getQuorum()) {
       this.network.processMessage(
         new Confirm()
           .create({
@@ -326,7 +336,13 @@ export class Server {
       );
     } else if (c.block.hash === this.blockPool.get().hash) {
       for (const v of c.block.votes) {
-        if (this.votePool.add({ origin: v.origin, block: c.block, sig: v.sig }, this.network.getQuorum())) {
+        if (
+          this.votePool.add(
+            { origin: v.origin, block: c.block, sig: v.sig },
+            this.network.getStake(v.origin),
+            this.network.getQuorum()
+          )
+        ) {
           c.block.votes = this.votePool.get(c.block.hash);
           this.network.processMessage(
             new Commit()
@@ -345,7 +361,13 @@ export class Server {
 
   private async processConfirm(confirm: Confirm) {
     const c: VoteStruct = confirm.get();
-    if (this.blockchain.getHeight() >= c.block.height || !Commit.isValid(c, this.network.getQuorum())) {
+
+    let sumStake = 0;
+    c.block.votes.forEach((v) => {
+      sumStake = sumStake + this.network.getStake(v.origin);
+    });
+
+    if (this.blockchain.getHeight() >= c.block.height || sumStake < this.network.getQuorum() || !Commit.isValid(c)) {
       return this.network.stopGossip(confirm.ident());
     }
 

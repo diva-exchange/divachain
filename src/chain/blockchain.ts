@@ -23,7 +23,7 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import { CommandAddPeer, CommandRemovePeer, TransactionStruct } from './transaction';
+import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, TransactionStruct } from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 
@@ -121,7 +121,7 @@ export class Blockchain {
 
   async add(block: BlockStruct): Promise<void> {
     if (!this.verifyBlock(block)) {
-      throw new Error(`Blockchain.add(): failed to add block ${block.height} (${block.hash})`);
+      return;
     }
 
     this.mapBlocks.set(block.height, block);
@@ -248,26 +248,22 @@ export class Blockchain {
   }
 
   private verifyBlock(block: BlockStruct): boolean {
-    try {
-      const arrayOrigin: Array<string> = [];
-      for (const t of block.tx) {
-        if (
-          arrayOrigin.includes(t.origin) ||
-          !Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))
-        ) {
-          return false;
-        }
-        arrayOrigin.push(t.origin);
+    const arrayOrigin: Array<string> = [];
+    for (const t of block.tx) {
+      if (
+        arrayOrigin.includes(t.origin) ||
+        !Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))
+      ) {
+        throw new Error(`Blockchain.add(): failed to add block ${block.height} (${block.hash})`);
       }
-      return (
-        this.height + 1 === block.height &&
-        block.previousHash === (this.mapHashes.get(this.height) || '') &&
-        block.hash === Blockchain.hashBlock(block) &&
-        !Array.from(this.mapHashes.values()).includes(block.hash)
-      );
-    } catch (error) {
-      return false;
+      arrayOrigin.push(t.origin);
     }
+    return (
+      this.height + 1 === block.height &&
+      block.previousHash === (this.mapHashes.get(this.height) || '') &&
+      block.hash === Blockchain.hashBlock(block) &&
+      !Array.from(this.mapHashes.values()).includes(block.hash)
+    );
   }
 
   private async processState(block: BlockStruct) {
@@ -289,6 +285,9 @@ export class Blockchain {
           case 'removePeer':
             await this.removePeer(c as CommandRemovePeer);
             break;
+          case 'modifyStake':
+            await this.modifyStake(c as CommandModifyStake);
+            break;
         }
       }
     }
@@ -299,17 +298,30 @@ export class Blockchain {
       return;
     }
 
-    const peer: NetworkPeer = { host: command.host, port: command.port };
+    const peer: NetworkPeer = { host: command.host, port: command.port, stake: command.stake };
     this.mapPeer.set(command.publicKey, peer);
-    await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+    await this.dbState.put('peer', JSON.stringify(this.mapPeer.keys()));
     this.server.getNetwork().addPeer(command.publicKey, peer);
   }
 
   private async removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
       this.mapPeer.delete(command.publicKey);
-      await this.dbState.put('peer', JSON.stringify(this.mapPeer));
+      await this.dbState.put('peer', JSON.stringify(this.mapPeer.keys()));
       this.server.getNetwork().removePeer(command.publicKey);
+    }
+  }
+
+  private async modifyStake(command: CommandModifyStake) {
+    if (this.mapPeer.has(command.publicKey)) {
+      const peer: NetworkPeer = this.mapPeer.get(command.publicKey) as NetworkPeer;
+      peer.stake = peer.stake + command.stake;
+      if (peer.stake < 0) {
+        peer.stake = 0;
+      }
+
+      this.mapPeer.set(command.publicKey, peer);
+      await this.dbState.put('stake:' + command.publicKey, peer.stake);
     }
   }
 }

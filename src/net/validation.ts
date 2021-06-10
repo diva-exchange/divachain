@@ -40,6 +40,7 @@ export class Validation {
     const schemaTx: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/tx.json');
     const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addPeer.json');
     const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/removePeer.json');
+    const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modifyStake.json');
 
     //@TODO
     const schemaTestLoad: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/testLoad.json');
@@ -55,12 +56,13 @@ export class Validation {
         schemaTx,
         schemaAddPeer,
         schemaRemovePeer,
+        schemaModifyStake,
         schemaTestLoad,
       ],
     }).compile(schemaMessage);
 
     Validation.tx = new Ajv({
-      schemas: [schemaAddPeer, schemaRemovePeer, schemaTestLoad],
+      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaTestLoad],
     }).compile(schemaTx);
   }
 

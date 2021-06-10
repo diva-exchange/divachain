@@ -40,6 +40,7 @@ const WS_CLIENT_OPTIONS = {
 export type NetworkPeer = {
   host: string;
   port: number;
+  stake: number;
 };
 
 interface Peer {
@@ -155,7 +156,16 @@ export class Network {
   }
 
   getQuorum(): number {
-    return 2 * (this.mapPeer.size / 3); // PBFT
+    let stake = 0;
+    this.mapPeer.forEach((p: NetworkPeer) => {
+      stake = stake + p.stake;
+    });
+
+    return (2 * stake) / 3; // PBFT, PoS
+  }
+
+  getStake(publicKey: string): number {
+    return (this.mapPeer.get(publicKey) as NetworkPeer).stake || 0;
   }
 
   peers() {
@@ -183,9 +193,9 @@ export class Network {
     return peers;
   }
 
-  network(): Array<{ publicKey: string; api: string }> {
+  network(): Array<{ publicKey: string; api: string; stake: number }> {
     return [...this.mapPeer].map((v) => {
-      return { publicKey: v[0], api: v[1].host + ':' + v[1].port };
+      return { publicKey: v[0], api: v[1].host + ':' + v[1].port, stake: v[1].stake };
     });
   }
 
@@ -336,8 +346,12 @@ export class Network {
     }
 
     Object.keys(this.peersOut)
-      .filter((_pk) => { return this.arrayPeerNetwork.indexOf(_pk) < 0; })
-      .forEach((_pk) => { this.peersOut[_pk].ws.close(1000, 'Bye'); });
+      .filter((_pk) => {
+        return this.arrayPeerNetwork.indexOf(_pk) < 0;
+      })
+      .forEach((_pk) => {
+        this.peersOut[_pk].ws.close(1000, 'Bye');
+      });
 
     this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
   }
@@ -348,7 +362,7 @@ export class Network {
       return;
     }
 
-    let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys()).filter(_pk => _pk !== this.publicKey);
+    let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys()).filter((_pk) => _pk !== this.publicKey);
     if (arrayPublicKey.length > this.server.config.network_size) {
       const _a = Util.shuffleArray(arrayPublicKey);
       arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(this.server.config.network_size / 2));

@@ -53,11 +53,6 @@ export class CommitPool {
     return a[0].block;
   }
 
-  accepted(quorum: number): boolean {
-    const block = this.best();
-    return (this.mapVotes.get(block.hash) || []).length >= quorum;
-  }
-
   get(): object {
     return { mapCommits: [...this.mapCommits.entries()], mapVotes: [...this.mapVotes.entries()] };
   }

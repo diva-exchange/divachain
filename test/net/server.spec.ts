@@ -67,7 +67,7 @@ class TestServer {
         network_clean_interval_ms: 20000,
       });
 
-      const publicKey = new Wallet(config).getPublicKey();
+      const publicKey = Wallet.make(config).getPublicKey();
       this.mapConfigServer.set(publicKey, config);
 
       cmds.push({
@@ -76,6 +76,7 @@ class TestServer {
         host: IP,
         port: BASE_PORT + i,
         publicKey: publicKey,
+        stake: 1000,
       });
     }
     tx.commands = cmds;
@@ -142,12 +143,6 @@ class TestServer {
   @test
   async peers() {
     const res = await chai.request(`http://${IP}:17001`).get('/peers');
-    expect(res).to.have.status(200);
-  }
-
-  @test
-  async statePeers() {
-    const res = await chai.request(`http://${IP}:17001`).get('/state/peers');
     expect(res).to.have.status(200);
   }
 
@@ -230,8 +225,8 @@ class TestServer {
   @slow(5000)
   @timeout(10000)
   async stressMultiTransaction() {
-    const _outer = 20;
-    const _inner = 10;
+    const _outer = 30;
+    const _inner = 20;
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -239,7 +234,7 @@ class TestServer {
     const arrayOrigin = [...TestServer.mapConfigServer.keys()];
     const arrayRequests: Array<string> = [];
     for (let _i = 0; _i < _outer; _i++) {
-      const aT = [];
+      const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
         aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
       }
