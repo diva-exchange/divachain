@@ -1,10 +1,10 @@
 # DIVA Blockchain
 
-A blockchain implementation using PBFT (practical byzantine fault tolerance) as a consensus algorithm.
+A blockchain implementation using Practical Byzantine Fault Tolerance (PBFT) in combination with Proof-of-Stake (PoS) as a consensus algorithm. It is therefore a "Weighted Practical Byzantine Fault Tolerance" consensus.
 
 This is a fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
-A PBFT consensus is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
+The load of the PBFT consensus is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
 
 The peers in the network communicate via websockets. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
 
@@ -195,6 +195,7 @@ Interval, in milliseconds, to check whether the block pool is stale.
 ### GET /transaction/{origin}/{ident}
 
 ### PUT /transaction/{ident?}
+
 
 ## How to Run Unit Tests
 
