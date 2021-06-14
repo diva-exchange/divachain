@@ -19,7 +19,6 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { Logger } from '../../logger';
 import { VoteStruct } from './vote';
 
 export class Commit extends Message {
@@ -40,16 +39,10 @@ export class Commit extends Message {
   }
 
   static isValid(c: VoteStruct): boolean {
-    try {
-      let _a: Array<{ origin: string; sig: string }> = [];
-      if (Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.block.votes))) {
-        _a = c.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, c.block.hash));
-      }
-      return _a.length === c.block.votes.length;
-    } catch (error) {
-      //@FIXME logging
-      Logger.trace(`Commit.isValid Exception: ${error}`);
-      return false;
+    let _a: Array<{ origin: string; sig: string }> = [];
+    if (Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.block.votes))) {
+      _a = c.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, c.block.hash));
     }
+    return _a.length === c.block.votes.length;
   }
 }

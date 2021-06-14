@@ -23,7 +23,7 @@ import { Logger } from '../logger';
 import { Server } from './server';
 import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
-import { Transaction, TransactionStruct } from '../chain/transaction';
+import { CommandAddPeer, Transaction, TransactionStruct } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 
 const MAX_RETRY = 10;
@@ -155,7 +155,8 @@ export class Bootstrap {
         host: host,
         port: Number(port),
         publicKey: publicKey,
-      },
+        stake: 0,
+      } as CommandAddPeer,
     ]).get();
 
     this.server.stackTransaction(t);

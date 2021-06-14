@@ -242,10 +242,10 @@ export class Server {
       return;
     }
 
-    const newBlock: BlockStruct = new Block(
+    const newBlock: BlockStruct = Block.make(
       this.blockchain.getLatestBlock(),
       this.transactionPool.get().concat(this.transactionPool.getInTransit())
-    ).get();
+    );
     this.blockPool.set(newBlock);
 
     // vote for the best available version
@@ -254,6 +254,8 @@ export class Server {
 
   private processVote(vote: Vote) {
     const v = vote.get();
+    Block.validate(v.block);
+
     if (!Vote.isValid(v) || this.blockchain.getHeight() >= v.block.height) {
       return this.network.stopGossip(vote.ident());
     }
@@ -281,7 +283,7 @@ export class Server {
       return this.network.stopGossip(vote.ident());
     }
 
-    const newBlock = new Block(this.blockchain.getLatestBlock(), this.transactionPool.get()).get();
+    const newBlock = Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get());
     this.blockPool.set(newBlock);
 
     // vote for the best available version
@@ -371,34 +373,22 @@ export class Server {
       return this.network.stopGossip(confirm.ident());
     }
 
-    try {
-      await this.blockchain.add(c.block);
-      this.votePool.clear();
-      this.commitPool.clear(c.block);
-      this.blockPool.clear();
-      this.transactionPool.clear(c.block);
+    await this.blockchain.add(c.block);
 
-      const nextBlock = this.commitPool.best();
-      if (c.block.height + 1 === nextBlock.height) {
-        this.transactionPool.add(nextBlock.tx);
-      }
-      // if there is another transaction on the stack: release and process it!
-      setImmediate(() => {
-        this.createProposal();
-      });
-    } catch (error) {
-      Logger.warn(error);
+    const nextBlock = this.commitPool.best();
+    if (c.block.height + 1 === nextBlock.height) {
+      this.transactionPool.add(nextBlock.tx);
     }
+    // if there is another transaction on the stack: release and process it!
+    setImmediate(() => {
+      this.createProposal();
+    });
   }
 
   private async processSync(sync: Sync) {
     const h = this.blockchain.getHeight();
     for (const block of sync.get().filter((b) => h < b.height)) {
-      try {
-        await this.blockchain.add(block);
-      } catch (error) {
-        Logger.warn(error);
-      }
+      await this.blockchain.add(block);
     }
   }
 

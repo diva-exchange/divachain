@@ -46,13 +46,6 @@ class TestServer {
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
 
-    const tx: TransactionStruct = {
-      ident: 'genesis',
-      origin: '1234567890123456789012345678901234567890123',
-      timestamp: 88355100000,
-      commands: [],
-      sig: '12345678901234567890123456789012345678901234567890123456789012345678901234567890123456',
-    };
     const cmds: Array<CommandAddPeer> = [];
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
@@ -79,8 +72,15 @@ class TestServer {
         stake: 1000,
       });
     }
-    tx.commands = cmds;
-    genesis.tx = [tx];
+    genesis.tx = [
+      {
+        ident: 'genesis',
+        origin: '0000000000000000000000000000000000000000000',
+        timestamp: 88355100000,
+        commands: cmds,
+        sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      },
+    ];
     fs.writeFileSync(path.join(__dirname, '../genesis/block.json'), JSON.stringify(genesis));
 
     return new Promise((resolve) => {
@@ -222,11 +222,11 @@ class TestServer {
   }
 
   @test
-  @slow(5000)
-  @timeout(10000)
+  @slow(25000)
+  @timeout(30000)
   async stressMultiTransaction() {
-    const _outer = 30;
-    const _inner = 20;
+    const _outer = 50;
+    const _inner = 50;
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -245,7 +245,7 @@ class TestServer {
 
     // wait a bit
     await new Promise((resolve) => {
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, 20000);
     });
 
     for (let _i = 0; _i < _outer; _i++) {

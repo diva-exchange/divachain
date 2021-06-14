@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { BlockStruct } from './block';
+import { Block, BlockStruct } from './block';
 import { Util } from './util';
 import fs from 'fs';
 import LevelUp from 'levelup';
@@ -35,7 +35,6 @@ export class Blockchain {
 
   private height: number = 0;
   private mapBlocks: Map<number, BlockStruct> = new Map();
-  private mapHashes: Map<number, string> = new Map();
   private latestBlock: BlockStruct = {} as BlockStruct;
 
   private mapPeer: Map<string, NetworkPeer> = new Map();
@@ -72,22 +71,13 @@ export class Blockchain {
   private async init(): Promise<void> {
     this.height = 0;
     this.mapBlocks = new Map();
-    this.mapHashes = new Map();
     this.latestBlock = {} as BlockStruct;
 
     return new Promise((resolve, reject) => {
       this.dbBlockchain
         .createReadStream()
         .on('data', async (data) => {
-          const k = Number(data.key);
-          const b: BlockStruct = JSON.parse(data.value) as BlockStruct;
-          await this.processState(b);
-
-          // cache
-          if (b.height + this.server.config.blockchain_max_blocks_in_memory > this.height) {
-            this.mapBlocks.set(k, b);
-            this.mapHashes.set(k, b.hash);
-          }
+          await this.processState(JSON.parse(data.value) as BlockStruct);
         })
         .on('end', resolve)
         .on('error', reject);
@@ -105,7 +95,6 @@ export class Blockchain {
 
     this.height = 0;
     this.mapBlocks = new Map();
-    this.mapHashes = new Map();
     this.latestBlock = {} as BlockStruct;
     this.mapPeer = new Map();
   }
@@ -120,19 +109,22 @@ export class Blockchain {
   }
 
   async add(block: BlockStruct): Promise<void> {
-    if (!this.verifyBlock(block)) {
-      return;
+    Block.validate(block);
+    if (
+      this.height + 1 !== block.height ||
+      block.previousHash !== this.latestBlock.hash ||
+      block.hash !== Blockchain.hashBlock(block)
+    ) {
+      throw new Error('Failed to verify block');
     }
 
-    this.mapBlocks.set(block.height, block);
-    this.mapHashes.set(block.height, block.hash);
     await this.dbBlockchain.put(String(block.height).padStart(16, '0'), JSON.stringify(block));
-    if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
-      this.mapBlocks.delete(block.height - this.server.config.blockchain_max_blocks_in_memory);
-      this.mapHashes.delete(block.height - this.server.config.blockchain_max_blocks_in_memory);
-    }
-
     await this.processState(block);
+
+    this.server.getVotePool().clear();
+    this.server.getBlockPool().clear();
+    this.server.getTransactionPool().clear(block);
+    this.server.getCommitPool().clear(block);
   }
 
   async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<BlockStruct>> {
@@ -247,31 +239,18 @@ export class Blockchain {
     return Util.hash(previousHash + version + height + JSON.stringify(tx));
   }
 
-  private verifyBlock(block: BlockStruct): boolean {
-    const arrayOrigin: Array<string> = [];
-    for (const t of block.tx) {
-      if (
-        arrayOrigin.includes(t.origin) ||
-        !Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))
-      ) {
-        throw new Error(`Blockchain.add(): failed to add block ${block.height} (${block.hash})`);
-      }
-      arrayOrigin.push(t.origin);
-    }
-    return (
-      this.height + 1 === block.height &&
-      block.previousHash === (this.mapHashes.get(this.height) || '') &&
-      block.hash === Blockchain.hashBlock(block) &&
-      !Array.from(this.mapHashes.values()).includes(block.hash)
-    );
-  }
-
   private async processState(block: BlockStruct) {
     if (this.height < block.height) {
       this.height = block.height;
       this.latestBlock = block;
       await this.dbState.put('height', this.height);
       await this.dbState.put('latestBlock', JSON.stringify(this.latestBlock));
+
+      // cache
+      this.mapBlocks.set(block.height, block);
+      if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
+        this.mapBlocks.delete(block.height - this.server.config.blockchain_max_blocks_in_memory);
+      }
     }
 
     for (const t of block.tx) {
