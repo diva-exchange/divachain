@@ -23,6 +23,7 @@ import fs from 'fs';
 export type Configuration = {
   bootstrap?: string;
 
+  path_app?: string;
   ip?: string;
   port?: number;
   address?: string;
@@ -108,10 +109,9 @@ export class Config {
 
     this.bootstrap = c.bootstrap || process.env.BOOTSTRAP || '';
 
-    this.path_app = path.join(
-      Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname,
-      '/../'
-    );
+    this.path_app =
+      c.path_app ||
+      path.join(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname, '/../');
     this.VERSION = require(path.join(this.path_app, 'package.json')).version;
 
     this.ip = c.ip || process.env.IP || '127.0.0.1';
