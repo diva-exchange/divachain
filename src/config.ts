@@ -196,17 +196,16 @@ export class Config {
     return Number(n) > 0;
   }
 
-  private static gte1(n: any, d: number = 1): number {
+  private static gte1(n: any, d: number): number {
     n = Number(n);
-    d = d > 1 ? d : 1;
     return n > 0 ? Math.ceil(n) : Math.floor(d);
   }
 
-  private static b(n: any, min: number = 0, max: number = 65535): number {
+  private static b(n: any, min: number, max: number): number {
     n = Number(n);
     min = Math.floor(min);
     max = Math.ceil(max);
-    return n >= min && n <= max ? Math.floor(n) : n > min ? max : min;
+    return n >= min && n <= max ? Math.floor(n) : n > max ? max : min;
   }
 
   private static port(n: any): number {
