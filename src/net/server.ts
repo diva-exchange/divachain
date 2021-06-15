@@ -254,7 +254,6 @@ export class Server {
 
   private processVote(vote: Vote) {
     const v = vote.get();
-    Block.validate(v.block);
 
     if (!Vote.isValid(v) || this.blockchain.getHeight() >= v.block.height) {
       return this.network.stopGossip(vote.ident());

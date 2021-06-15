@@ -26,7 +26,7 @@ import { Server } from '../../src/net/server';
 import { Config, Configuration } from '../../src/config';
 import { BlockStruct } from '../../src/chain/block';
 import { Blockchain } from '../../src/chain/blockchain';
-import { CommandAddPeer, TransactionStruct } from '../../src/chain/transaction';
+import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import fs from 'fs';
 
@@ -46,7 +46,8 @@ class TestServer {
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
 
-    const cmds: Array<CommandAddPeer> = [];
+    const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
+    let s = 1;
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
         ip: IP,
@@ -64,13 +65,20 @@ class TestServer {
       this.mapConfigServer.set(publicKey, config);
 
       cmds.push({
-        seq: i,
+        seq: s,
         command: 'addPeer',
         host: IP,
         port: BASE_PORT + i,
         publicKey: publicKey,
+      } as CommandAddPeer);
+      s++;
+      cmds.push({
+        seq: s,
+        command: 'modifyStake',
+        publicKey: publicKey,
         stake: 1000,
-      });
+      } as CommandModifyStake);
+      s++;
     }
     genesis.tx = [
       {
@@ -225,8 +233,8 @@ class TestServer {
   @slow(25000)
   @timeout(30000)
   async stressMultiTransaction() {
-    const _outer = 50;
-    const _inner = 50;
+    const _outer = 20;
+    const _inner = 20;
 
     // create blocks containing multiple transactions
     let seq = 1;

@@ -20,6 +20,7 @@
 import { Message } from './message';
 import { Util } from '../../chain/util';
 import { VoteStruct } from './vote';
+import { Validation } from '../validation';
 
 export class Commit extends Message {
   constructor(message?: Buffer | string) {
@@ -43,6 +44,6 @@ export class Commit extends Message {
     if (Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.block.votes))) {
       _a = c.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, c.block.hash));
     }
-    return _a.length === c.block.votes.length;
+    return _a.length === c.block.votes.length && Validation.validateBlock(c.block);
   }
 }

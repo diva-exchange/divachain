@@ -155,7 +155,6 @@ export class Bootstrap {
         host: host,
         port: Number(port),
         publicKey: publicKey,
-        stake: 0,
       } as CommandAddPeer,
     ]).get();
 

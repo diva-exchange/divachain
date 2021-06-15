@@ -19,8 +19,6 @@
 
 import { Wallet } from './wallet';
 import { nanoid } from 'nanoid';
-import { Validation } from '../net/validation';
-import { Util } from './util';
 
 const MAX_LENGTH_IDENT = 32;
 
@@ -37,7 +35,6 @@ export interface CommandAddPeer extends Command {
   host: string;
   port: number;
   publicKey: string;
-  stake: number;
 }
 
 export interface CommandRemovePeer extends Command {
@@ -76,16 +73,5 @@ export class Transaction {
 
   get(): TransactionStruct {
     return this.structTransaction;
-  }
-
-  static isValid(t: TransactionStruct): boolean {
-    try {
-      return (
-        Validation.validateTx(t) &&
-        Util.verifySignature(t.origin, t.sig, t.ident + t.timestamp + JSON.stringify(t.commands))
-      );
-    } catch (e) {
-      return false;
-    }
   }
 }

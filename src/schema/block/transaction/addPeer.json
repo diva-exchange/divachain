@@ -24,11 +24,6 @@
     "publicKey": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
-    },
-    "stake": {
-      "type": "integer",
-      "minimum": -1000,
-      "maximum": 1000
     }
   },
   "additionalProperties": false,
@@ -37,7 +32,6 @@
     "command",
     "host",
     "port",
-    "publicKey",
-    "stake"
+    "publicKey"
   ]
 }

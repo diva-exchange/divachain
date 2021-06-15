@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Block, BlockStruct } from './block';
+import { BlockStruct } from './block';
 import { Util } from './util';
 import fs from 'fs';
 import LevelUp from 'levelup';
@@ -109,7 +109,6 @@ export class Blockchain {
   }
 
   async add(block: BlockStruct): Promise<void> {
-    Block.validate(block);
     if (
       this.height + 1 !== block.height ||
       block.previousHash !== this.latestBlock.hash ||
@@ -277,7 +276,7 @@ export class Blockchain {
       return;
     }
 
-    const peer: NetworkPeer = { host: command.host, port: command.port, stake: command.stake };
+    const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
     this.mapPeer.set(command.publicKey, peer);
     await this.dbState.put('peer', JSON.stringify(this.mapPeer.keys()));
     this.server.getNetwork().addPeer(command.publicKey, peer);

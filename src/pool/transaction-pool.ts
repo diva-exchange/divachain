@@ -19,9 +19,10 @@
 
 'use strict';
 
-import { Transaction, TransactionStruct } from '../chain/transaction';
+import { TransactionStruct } from '../chain/transaction';
 import { Wallet } from '../chain/wallet';
 import { BlockStruct } from '../chain/block';
+import { Validation } from '../net/validation';
 
 export class TransactionPool {
   private readonly wallet: Wallet;
@@ -38,7 +39,7 @@ export class TransactionPool {
   }
 
   stack(t: TransactionStruct): boolean {
-    return t.origin === this.publicKey && Transaction.isValid(t) && this.stackTransaction.push(t) > 0;
+    return t.origin === this.publicKey && Validation.validateTx(t) && this.stackTransaction.push(t) > 0;
   }
 
   getStack() {
@@ -57,12 +58,11 @@ export class TransactionPool {
     return this.inTransit;
   }
 
-  add(arrayT: Array<TransactionStruct>): boolean {
+  add(arrayTx: Array<TransactionStruct>): boolean {
     let r = false;
-    arrayT.forEach((t) => {
-      // Per block (=round), each origin can only once add a TransactionStruct to the pool
-      if (!this.current.has(t.origin) && Transaction.isValid(t)) {
-        this.current.set(t.origin, t);
+    arrayTx.forEach((tx) => {
+      if (!this.current.has(tx.origin) && Validation.validateTx(tx)) {
+        this.current.set(tx.origin, tx);
         r = true;
       }
     });

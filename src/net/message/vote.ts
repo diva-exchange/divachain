@@ -20,6 +20,7 @@
 import { Message } from './message';
 import { Util } from '../../chain/util';
 import { BlockStruct } from '../../chain/block';
+import { Validation } from '../validation';
 
 export type VoteStruct = {
   origin: string;
@@ -45,10 +46,6 @@ export class Vote extends Message {
   }
 
   static isValid(vote: VoteStruct): boolean {
-    try {
-      return Util.verifySignature(vote.origin, vote.sig, vote.block.hash);
-    } catch (error) {
-      return false;
-    }
+    return Validation.validateBlock(vote.block) && Util.verifySignature(vote.origin, vote.sig, vote.block.hash);
   }
 }

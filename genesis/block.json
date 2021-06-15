@@ -13,54 +13,89 @@
           "command": "addPeer",
           "host": "127.27.26.201",
           "port": 17468,
-          "publicKey": "Zfef2MB4o2-YMn5_99AdCU0tNmfLehtPvmlaOd1VMd4",
-          "stake": 1000
+          "publicKey": "Zfef2MB4o2-YMn5_99AdCU0tNmfLehtPvmlaOd1VMd4"
         },
         {
           "seq": 2,
-          "command": "addPeer",
-          "host": "127.27.26.202",
-          "port": 17468,
-          "publicKey": "41wPScPyIefJubclRIXGTqR-rPw5Bkk9AZ_Vscisa0M",
+          "command": "modifyStake",
+          "publicKey": "Zfef2MB4o2-YMn5_99AdCU0tNmfLehtPvmlaOd1VMd4",
           "stake": 1000
         },
         {
           "seq": 3,
           "command": "addPeer",
-          "host": "127.27.26.203",
+          "host": "127.27.26.202",
           "port": 17468,
-          "publicKey": "jDt5CNNoZvFw2dyskjC8foMEEHsDjXqRVjv8KUU1THg",
-          "stake": 1000
+          "publicKey": "41wPScPyIefJubclRIXGTqR-rPw5Bkk9AZ_Vscisa0M"
         },
         {
           "seq": 4,
-          "command": "addPeer",
-          "host": "127.27.26.204",
-          "port": 17468,
-          "publicKey": "ZOzTir2BDHnUm4ZscJJozE5FFhQDJ8mMAgEsn5kYIqg",
+          "command": "modifyStake",
+          "publicKey": "41wPScPyIefJubclRIXGTqR-rPw5Bkk9AZ_Vscisa0M",
           "stake": 1000
         },
         {
           "seq": 5,
           "command": "addPeer",
-          "host": "127.27.26.205",
+          "host": "127.27.26.203",
           "port": 17468,
-          "publicKey": "YWG64iZFX0btUDV6FoW4APBb81h4fSRFUtBt4hmErH0",
-          "stake": 1000
+          "publicKey": "jDt5CNNoZvFw2dyskjC8foMEEHsDjXqRVjv8KUU1THg"
         },
         {
           "seq": 6,
-          "command": "addPeer",
-          "host": "127.27.26.206",
-          "port": 17468,
-          "publicKey": "9Hn3TIO-dfVnxNH3YcD1-0eCCVCJxUhypSOhO8vV-ko",
+          "command": "modifyStake",
+          "publicKey": "jDt5CNNoZvFw2dyskjC8foMEEHsDjXqRVjv8KUU1THg",
           "stake": 1000
         },
         {
           "seq": 7,
           "command": "addPeer",
+          "host": "127.27.26.204",
+          "port": 17468,
+          "publicKey": "ZOzTir2BDHnUm4ZscJJozE5FFhQDJ8mMAgEsn5kYIqg"
+        },
+        {
+          "seq": 8,
+          "command": "modifyStake",
+          "publicKey": "ZOzTir2BDHnUm4ZscJJozE5FFhQDJ8mMAgEsn5kYIqg",
+          "stake": 1000
+        },
+        {
+          "seq": 9,
+          "command": "addPeer",
+          "host": "127.27.26.205",
+          "port": 17468,
+          "publicKey": "YWG64iZFX0btUDV6FoW4APBb81h4fSRFUtBt4hmErH0"
+        },
+        {
+          "seq": 10,
+          "command": "modifyStake",
+          "publicKey": "YWG64iZFX0btUDV6FoW4APBb81h4fSRFUtBt4hmErH0",
+          "stake": 1000
+        },
+        {
+          "seq": 11,
+          "command": "addPeer",
+          "host": "127.27.26.206",
+          "port": 17468,
+          "publicKey": "9Hn3TIO-dfVnxNH3YcD1-0eCCVCJxUhypSOhO8vV-ko"
+        },
+        {
+          "seq": 12,
+          "command": "modifyStake",
+          "publicKey": "9Hn3TIO-dfVnxNH3YcD1-0eCCVCJxUhypSOhO8vV-ko",
+          "stake": 1000
+        },
+        {
+          "seq": 13,
+          "command": "addPeer",
           "host": "127.27.26.207",
           "port": 17468,
+          "publicKey": "-KvoXDm7WXT40pBq32kTeC-p8zyQZm2nlv_SVM2ZiA0"
+        },
+        {
+          "seq": 14,
+          "command": "modifyStake",
           "publicKey": "-KvoXDm7WXT40pBq32kTeC-p8zyQZm2nlv_SVM2ZiA0",
           "stake": 1000
         }

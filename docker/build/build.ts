@@ -20,7 +20,7 @@
 import fs from 'fs';
 import path from 'path';
 import { BlockStruct } from '../../src/chain/block';
-import { CommandAddPeer } from '../../src/chain/transaction';
+import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import { Config } from '../../src/config';
 import { Blockchain } from '../../src/chain/blockchain';
@@ -37,7 +37,6 @@ export class Build {
   private readonly hasI2P: boolean;
   private readonly envNode: string;
   private readonly levelLog: string;
-  private readonly networkSyncThreshold: number;
   private readonly networkVerboseLogging: boolean;
 
   constructor(sizeNetwork: number = DEFAULT_NETWORK_SIZE) {
@@ -54,8 +53,6 @@ export class Build {
     this.port =
       Number(process.env.PORT) > 1024 && Number(process.env.PORT) < 48000 ? Number(process.env.PORT) : DEFAULT_PORT;
     this.hasI2P = Number(process.env.HAS_I2P) > 0;
-    this.networkSyncThreshold =
-      Number(process.env.NETWORK_SYNC_THRESHOLD) > 0 ? Number(process.env.NETWORK_SYNC_THRESHOLD) : 1;
     this.networkVerboseLogging = Number(process.env.NETWORK_VERBOSE_LOGGING) > 0;
     this.envNode = this.networkVerboseLogging || process.env.NODE_ENV === 'development' ? 'development' : 'production';
     this.levelLog = process.env.LOG_LEVEL || 'warn';
@@ -102,16 +99,17 @@ export class Build {
   private createFiles() {
     // genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
-    const commands: Array<CommandAddPeer> = [];
-    for (let seq = 1; seq <= this.sizeNetwork; seq++) {
-      let host = this.isNameBased ? `n${seq}.${this.baseDomain}` : `${this.baseIP}${150 + seq}`;
+    const commands: Array<CommandAddPeer | CommandModifyStake> = [];
+    let seq = 1;
+    for (let t = 1; t <= this.sizeNetwork; t++) {
+      let host = this.isNameBased ? `n${t}.${this.baseDomain}` : `${this.baseIP}${150 + t}`;
       const config = new Config({
         ip: host,
         port: this.port,
         path_keys: path.join(__dirname, 'keys/' + host),
       });
 
-      const pathB32 = path.join(__dirname, `i2p-b32/n${seq}.${this.baseDomain}`);
+      const pathB32 = path.join(__dirname, `i2p-b32/n${t}.${this.baseDomain}`);
       host = config.ip;
       let port = config.port.toString();
       if (this.hasI2P && fs.existsSync(pathB32)) {
@@ -119,14 +117,22 @@ export class Build {
         [host, port] = config.address.split(':');
       }
 
+      const publicKey = Wallet.make(config).getPublicKey();
       commands.push({
         seq: seq,
         command: 'addPeer',
         host: host,
         port: Number(port),
-        publicKey: Wallet.make(config).getPublicKey(),
+        publicKey: publicKey,
+      } as CommandAddPeer);
+      seq++;
+      commands.push({
+        seq: seq,
+        command: 'modifyStake',
+        publicKey: publicKey,
         stake: 1000,
-      });
+      } as CommandModifyStake);
+      seq++;
     }
 
     genesis.tx = [
@@ -165,7 +171,7 @@ export class Build {
         `      IP: ${this.baseIP}${150 + seq}\n` +
         `      PORT: ${this.port}\n` +
         proxy +
-        `      NETWORK_SYNC_THRESHOLD: ${this.networkSyncThreshold}\n` +
+        `      NETWORK_SIZE: ${this.sizeNetwork}\n` +
         `      NETWORK_VERBOSE_LOGGING: ${this.networkVerboseLogging ? 1 : 0}\n` +
         '    volumes:\n' +
         `      - ./keys/${hostChain}:/keys/\n` +

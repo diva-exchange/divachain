@@ -21,8 +21,9 @@ import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
 import { BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
-import { TransactionStruct } from '../chain/transaction';
+import { CommandModifyStake, CommandRemovePeer, TransactionStruct } from '../chain/transaction';
 import path from 'path';
+import { Util } from '../chain/util';
 
 export class Validation {
   private static message: ValidateFunction;
@@ -101,6 +102,45 @@ export class Validation {
       Logger.trace(Validation.tx.errors as object);
       return false;
     }
+
+    let result = true;
+    for (const c of tx.commands) {
+      switch (c.command) {
+        case 'addPeer':
+          break;
+        case 'removePeer':
+          result = (c as CommandRemovePeer).publicKey === tx.origin;
+          break;
+        case 'modifyStake':
+          result = (c as CommandModifyStake).publicKey !== tx.origin;
+          break;
+      }
+      if (!result) {
+        Logger.warn(`Validation.validateTx failed: ${c.seq} - ${c.command}`);
+        Logger.trace(tx);
+        return false;
+      }
+    }
+
+    return Util.verifySignature(tx.origin, tx.sig, tx.ident + tx.timestamp + JSON.stringify(tx.commands));
+  }
+
+  static validateBlock(block: BlockStruct): boolean {
+    const _aOrigin: Array<string> = [];
+    for (const tx of block.tx) {
+      if (_aOrigin.includes(tx.origin)) {
+        //@FIXME logging
+        Logger.trace(JSON.stringify(block.tx));
+        Logger.warn(`Multiple transactions from same origin: ${block.height}`);
+        return false;
+      }
+      _aOrigin.push(tx.origin);
+
+      if (!Validation.validateTx(tx)) {
+        return false;
+      }
+    }
+
     return true;
   }
 }
