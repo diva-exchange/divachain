@@ -23,7 +23,7 @@ import chaiHttp from 'chai-http';
 import path from 'path';
 
 import { Server } from '../../src/net/server';
-import { Config, Configuration } from '../../src/config';
+import { Config } from '../../src/config';
 import { BlockStruct } from '../../src/chain/block';
 import { Blockchain } from '../../src/chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
@@ -38,7 +38,7 @@ const IP = '127.27.27.1';
 
 @suite
 class TestServer {
-  static mapConfigServer: Map<string, Configuration> = new Map();
+  static mapConfigServer: Map<string, Config> = new Map();
   static mapServer: Map<string, Server> = new Map();
 
   @timeout(20000)
@@ -143,7 +143,8 @@ class TestServer {
   @test
   async transaction() {
     const config = [...TestServer.mapConfigServer.values()][0];
-    const token = fs.readFileSync(config.path_api_token || '').toString();
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
     const res = await chai
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
@@ -272,7 +273,11 @@ class TestServer {
         aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
       }
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
-      const token = fs.readFileSync(arrayConfig[i].path_api_token || '').toString();
+      const pathToken = path.join(
+        arrayConfig[i].path_keys,
+        arrayConfig[i].address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token'
+      );
+      const token = fs.readFileSync(pathToken).toString();
       arrayRequests.push(arrayOrigin[i]);
       await chai
         .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)

@@ -22,10 +22,15 @@ import { Request, Response } from 'express';
 import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Logger } from '../logger';
 import fs from 'fs';
+import path from 'path';
+import { nanoid } from 'nanoid';
+
+const LENGTH_API_TOKEN = 32;
 
 export class Api {
   private server: Server;
-  private readonly token: string;
+  private pathToken: string;
+  private token: string = '';
 
   static make(server: Server) {
     return new Api(server);
@@ -33,9 +38,19 @@ export class Api {
 
   private constructor(server: Server) {
     this.server = server;
-    this.token = fs.readFileSync(this.server.config.path_api_token).toString();
 
+    const config = this.server.config;
+    this.pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    this.createToken();
     this.route();
+  }
+
+  private createToken() {
+    fs.writeFileSync(this.pathToken, nanoid(LENGTH_API_TOKEN), { mode: '0600' });
+    this.token = fs.readFileSync(this.pathToken).toString();
+    setTimeout(() => {
+      this.createToken();
+    }, 1000 * 60 * 5); // 5 minutes
   }
 
   private route() {

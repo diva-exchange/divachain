@@ -19,7 +19,6 @@
 
 import path from 'path';
 import fs from 'fs';
-import { nanoid } from 'nanoid';
 
 export type Configuration = {
   bootstrap?: string;
@@ -33,7 +32,6 @@ export type Configuration = {
   path_blockstore?: string;
   path_state?: string;
   path_keys?: string;
-  path_api_token?: string;
 
   i2p_socks_proxy_host?: string;
   i2p_socks_proxy_port?: number;
@@ -85,7 +83,6 @@ export class Config {
   public readonly path_blockstore: string;
   public readonly path_state: string;
   public readonly path_keys: string;
-  public readonly path_api_token: string;
   public readonly i2p_socks_proxy_host: string;
   public readonly i2p_socks_proxy_port: number;
   public readonly i2p_socks_proxy_console_port: number;
@@ -138,9 +135,6 @@ export class Config {
     if (!fs.existsSync(this.path_keys)) {
       fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
     }
-    // create a new api access token
-    this.path_api_token = path.join(this.path_keys, this.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    fs.writeFileSync(this.path_api_token, nanoid(32), { mode: '0600' });
 
     this.i2p_socks_proxy_host = c.i2p_socks_proxy_host || process.env.I2P_SOCKS_PROXY_HOST || '';
     this.i2p_socks_proxy_port = Config.port(c.i2p_socks_proxy_port || process.env.I2P_SOCKS_PROXY_PORT);
