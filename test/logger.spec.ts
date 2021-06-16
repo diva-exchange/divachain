@@ -22,7 +22,6 @@ import { expect } from 'chai';
 
 @suite
 class TestLogger {
-
   @test
   logger() {
     const l = require('../src/logger');

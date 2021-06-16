@@ -21,9 +21,11 @@ import { Server } from './server';
 import { Request, Response } from 'express';
 import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Logger } from '../logger';
+import fs from 'fs';
 
 export class Api {
   private server: Server;
+  private readonly token: string;
 
   static make(server: Server) {
     return new Api(server);
@@ -31,6 +33,7 @@ export class Api {
 
   private constructor(server: Server) {
     this.server = server;
+    this.token = fs.readFileSync(this.server.config.path_api_token).toString();
 
     this.route();
   }
@@ -129,10 +132,12 @@ export class Api {
     });
 
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      const wallet = this.server.getWallet();
-      const t: TransactionStruct = new Transaction(wallet, req.body as ArrayComand, req.params.ident).get();
-      if (this.server.stackTransaction(t)) {
-        return res.json(t);
+      if (req.headers['api-token'] === this.token) {
+        const wallet = this.server.getWallet();
+        const t: TransactionStruct = new Transaction(wallet, req.body as ArrayComand, req.params.ident).get();
+        if (this.server.stackTransaction(t)) {
+          return res.json(t);
+        }
       }
       return res.status(403).end();
     });

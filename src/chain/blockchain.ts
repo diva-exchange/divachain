@@ -114,7 +114,12 @@ export class Blockchain {
       block.previousHash !== this.latestBlock.hash ||
       block.hash !== Blockchain.hashBlock(block)
     ) {
-      throw new Error('Failed to verify block');
+      throw new Error(
+        `Failed to verify block "${block.height}", ` +
+          `Height check: ${this.height + 1 !== block.height ? 'failed' : 'ok'}, ` +
+          `Previous Hash check: ${block.previousHash !== this.latestBlock.hash ? 'failed' : 'ok'}, ` +
+          `Hash check: ${block.hash !== Blockchain.hashBlock(block) ? 'failed' : 'ok'}`
+      );
     }
 
     await this.dbBlockchain.put(String(block.height).padStart(16, '0'), JSON.stringify(block));
