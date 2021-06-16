@@ -29,8 +29,3 @@ rm -rf ${PROJECT_PATH}keys/*
 rm -rf ${PROJECT_PATH}blockstore/*
 rm -rf ${PROJECT_PATH}state/*
 rm -f ${PROJECT_PATH}genesis/*
-
-# performance tests
-rm -f ${PROJECT_PATH}../test-performance/docker/*
-rm -f ${PROJECT_PATH}../test-performance/keys/*
-rm -f ${PROJECT_PATH}../test-performance/genesis/*
