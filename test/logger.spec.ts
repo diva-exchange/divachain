@@ -17,26 +17,15 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import pino from 'pino';
+import { suite, test } from '@testdeck/mocha';
+import { expect } from 'chai';
 
-export const Logger = pino(
-  process.env.NODE_ENV === 'development'
-    ? { level: process.env.LOG_LEVEL || 'trace' }
-    : { level: process.env.LOG_LEVEL || 'warn' }
-);
+@suite
+class TestLogger {
 
-process.on(
-  'uncaughtException',
-  pino.final(Logger, (err, finalLogger) => {
-    finalLogger.error(err, 'uncaughtException');
-    process.env.NODE_ENV !== 'test' && process.exit(1);
-  })
-);
-
-process.on(
-  'unhandledRejection',
-  pino.final(Logger, (err, finalLogger) => {
-    finalLogger.error(err, 'unhandledRejection');
-    process.env.NODE_ENV !== 'test' && process.exit(1);
-  })
-);
+  @test
+  logger() {
+    const l = require('../src/logger');
+    expect(l.Logger).is.not.undefined;
+  }
+}

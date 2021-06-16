@@ -20,12 +20,11 @@
 import { suite, test } from '@testdeck/mocha';
 import { expect } from 'chai';
 
-import { Logger } from '../src/logger';
 import { Config, Configuration } from '../src/config';
 import fs from 'fs';
 
 @suite
-class TestConfigLogger {
+class TestConfig {
   @test
   config() {
     const c = new Config({ network_refresh_interval_ms: 5000, network_size: 100 } as Configuration);
@@ -43,18 +42,15 @@ class TestConfigLogger {
   }
 
   @test
-  logger() {
-    process.env.NODE_ENV = 'development';
-    expect(Logger).is.not.undefined;
-  }
-
-  @test
   configPathExist() {
     fs.rmdirSync(__dirname + '/blockstore', { recursive: true });
     fs.rmdirSync(__dirname + '/state', { recursive: true });
     fs.rmdirSync(__dirname + '/keys', { recursive: true });
     const c = new Config({ path_app: __dirname } as Configuration);
     expect(c.ip).is.not.empty;
+    fs.copyFileSync(__dirname + '/../blockstore/.gitignore', __dirname + '/blockstore/.gitignore');
+    fs.copyFileSync(__dirname + '/../state/.gitignore', __dirname + '/state/.gitignore');
+    fs.copyFileSync(__dirname + '/../keys/.gitignore', __dirname + '/keys/.gitignore');
   }
 
   @test
