@@ -116,7 +116,7 @@ export class Config {
 
     this.ip = c.ip || process.env.IP || '127.0.0.1';
     this.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
-    this.address = c.address || this.ip + ':' + this.port;
+    this.address = c.address || process.env.ADDRESS || this.ip + ':' + this.port;
     this.per_message_deflate = c.per_message_deflate || true;
 
     this.path_genesis = c.path_genesis || path.join(this.path_app, `genesis/${nameBlockGenesis}.json`);
