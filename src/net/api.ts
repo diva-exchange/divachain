@@ -25,7 +25,7 @@ import fs from 'fs';
 import path from 'path';
 import { nanoid } from 'nanoid';
 
-const LENGTH_API_TOKEN = 32;
+const MIN_LENGTH_API_TOKEN = 32;
 
 export class Api {
   private server: Server;
@@ -46,11 +46,12 @@ export class Api {
   }
 
   private createToken() {
-    fs.writeFileSync(this.pathToken, nanoid(LENGTH_API_TOKEN), { mode: '0600' });
+    const l = Math.floor((Math.random() * MIN_LENGTH_API_TOKEN / 3)) + MIN_LENGTH_API_TOKEN;
+    fs.writeFileSync(this.pathToken, nanoid(l), { mode: '0600' });
     this.token = fs.readFileSync(this.pathToken).toString();
     setTimeout(() => {
       this.createToken();
-    }, 1000 * 60 * 5); // 5 minutes
+    }, 1000 * 60 * (Math.floor(Math.random() * 5) + 3)); // between 3 and 8 minutes
   }
 
   private route() {
