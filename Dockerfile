@@ -25,6 +25,9 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
   description="Distributed digital value exchange upholding security, reliability and privacy" \
   url="https://diva.exchange"
 
+#############################################
+# First stage: container used to build the binary
+#############################################
 COPY bin /divachain/bin
 COPY src /divachain/src
 COPY build/node12-linux-x64 /divachain/build/node12-linux-x64
@@ -32,16 +35,26 @@ COPY package.json /divachain/package.json
 COPY tsconfig.json /divachain/tsconfig.json
 
 RUN cd divachain \
+  && mkdir genesis \
+  && mkdir keys \
   && mkdir dist \
   && npm i -g pkg \
   && npm i \
   && bin/build.sh
 
+#############################################
+# Second stage: create the distroless image
+#############################################
 FROM gcr.io/distroless/cc
-COPY --from=build /divachain/build/prebuilds /prebuilds
-COPY --from=build /divachain/build/divachain-linux-x64 /divachain
-COPY genesis /genesis
 COPY package.json /package.json
+
+# Copy the binary and the prebuilt dependencies
+COPY --from=build /divachain/build/divachain-linux-x64 /divachain
+COPY --from=build /divachain/build/prebuilds /prebuilds
+
+# genesis and keys folder are empty - the content must be provided externally (like: a volume mount)
+COPY --from=build /divachain/genesis /genesis
+COPY --from=build /divachain/keys /keys
 
 EXPOSE 17468
 
