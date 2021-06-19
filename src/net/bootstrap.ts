@@ -59,7 +59,7 @@ export class Bootstrap {
     const i2p_socks_proxy_host = this.server.config.i2p_socks_proxy_host;
     const i2p_socks_proxy_console_port = this.server.config.i2p_socks_proxy_console_port;
 
-    if (!i2p_socks_proxy_host || !i2p_socks_proxy_console_port) {
+    if (!i2p_socks_proxy_host || !i2p_socks_proxy_console_port || this.server.config.address.match(/\.i2p$/)) {
       return this;
     }
 

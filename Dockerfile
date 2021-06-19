@@ -52,7 +52,7 @@ COPY package.json /package.json
 COPY --from=build /divachain/build/divachain-linux-x64 /divachain
 COPY --from=build /divachain/build/prebuilds /prebuilds
 
-# genesis and keys folder are empty - the content must be provided externally (like: a volume mount)
+# genesis and keys folder are just created empty - the content must be provided externally (like: a volume mount)
 COPY --from=build /divachain/genesis /genesis
 COPY --from=build /divachain/keys /keys
 
