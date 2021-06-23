@@ -29,7 +29,7 @@ const MIN_LENGTH_API_TOKEN = 32;
 
 export class Api {
   private server: Server;
-  private pathToken: string;
+  private readonly pathToken: string;
   private token: string = '';
 
   static make(server: Server) {
