@@ -46,7 +46,7 @@ export class Api {
   }
 
   private createToken() {
-    const l = Math.floor((Math.random() * MIN_LENGTH_API_TOKEN / 3)) + MIN_LENGTH_API_TOKEN;
+    const l = Math.floor((Math.random() * MIN_LENGTH_API_TOKEN) / 3) + MIN_LENGTH_API_TOKEN;
     fs.writeFileSync(this.pathToken, nanoid(l), { mode: '0600' });
     this.token = fs.readFileSync(this.pathToken).toString();
     setTimeout(() => {
