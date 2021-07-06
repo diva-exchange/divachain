@@ -58,12 +58,12 @@ export class Bootstrap {
 
     const i2p_socks_proxy_host = this.server.config.i2p_socks_proxy_host;
     const i2p_socks_proxy_console_port = this.server.config.i2p_socks_proxy_console_port;
+    const port = this.server.config.port;
 
-    if (!i2p_socks_proxy_host || !i2p_socks_proxy_console_port || this.server.config.address.match(/\.i2p$/)) {
+    const reI2P = new RegExp(`.b32.i2p:${port}$`, 'g');
+    if (!i2p_socks_proxy_host || !i2p_socks_proxy_console_port || this.server.config.address.match(reI2P)) {
       return this;
     }
-
-    const port = this.server.config.port;
 
     const html = await this.fetch(`http://${i2p_socks_proxy_host}:${i2p_socks_proxy_console_port}/?page=i2p_tunnels`);
     const reB32 = new RegExp(`b32=[^>]*>([^<]+).+?([a-z0-9]+.b32.i2p:${port})`, 'g');
