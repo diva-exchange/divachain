@@ -321,15 +321,17 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
-          this.peersIn[publicKeyPeer].stale++;
-          if (this.peersIn[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
+        if (this.peersIn[publicKeyPeer]) {
+          if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
+            this.peersIn[publicKeyPeer].stale++;
+            if (this.peersIn[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
+              this.peersIn[publicKeyPeer].stale = 0;
+              const sync = await this.getSync(Number(data.toString()));
+              Network.send(ws, sync.pack());
+            }
+          } else {
             this.peersIn[publicKeyPeer].stale = 0;
-            const sync = await this.getSync(Number(data.toString()));
-            Network.send(ws, sync.pack());
           }
-        } else {
-          this.peersIn[publicKeyPeer].stale = 0;
         }
       });
       ws.on('pong', () => {
@@ -449,15 +451,17 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
-          this.peersOut[publicKeyPeer].stale++;
-          if (this.peersOut[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
+        if (this.peersOut[publicKeyPeer]) {
+          if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
+            this.peersOut[publicKeyPeer].stale++;
+            if (this.peersOut[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
+              this.peersOut[publicKeyPeer].stale = 0;
+              const sync = await this.getSync(Number(data.toString()));
+              Network.send(ws, sync.pack());
+            }
+          } else {
             this.peersOut[publicKeyPeer].stale = 0;
-            const sync = await this.getSync(Number(data.toString()));
-            Network.send(ws, sync.pack());
           }
-        } else {
-          this.peersOut[publicKeyPeer].stale = 0;
         }
       });
       ws.on('pong', () => {

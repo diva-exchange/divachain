@@ -21,65 +21,7 @@ The network itself is permission- and leaderless. Each peer in the network repre
 
 ## Create Your Local Environment
 
-Important: docker-compose (>v1.24.1) is required. Check with `docker-compose --version`. 
-
-To create a meaningful local environment, several divachain nodes must be created and started. This is done by creating your local docker-compose file.
-
-To create a basic local docker-compose YML file and a matching genesis block (JSON), use
-```
-docker/build/bin/build.sh
-```
-
-After the script has been executed, the created YML file is located here:
-```
-docker/build/build-testnet.yml
-```
-and the corresponding genesis block (JSON) is located here:
-```
-docker/build/genesis/block.json
-```
- 
-Now you can **start** your local environment:
-```
-sudo docker-compose -f docker/build/build-testnet.yml up -d
-```
-
-Afterwards the default number of divachain nodes will be started, check this by using:
-```
-sudo docker ps
-```
-
-Access the local API of any divachain node, like:
-```
-http://172.20.72.151:17469/peers
-```
-The local IP address `172.20.72.151` is the default IP address of the first node (see created YML file). Use environment variables during the build process to change the default values.  
-
-To **stop** your local environment, use:
-```
-sudo docker-compose -f docker/build/build-testnet.yml down
-```
-
-To **stop and purge** all data within your local environment, use:
-```
-sudo docker-compose -f docker/build/build-testnet.yml down --volumes
-```
-
- 
-## Create an I2P-based Local Environment  
-
-To create an I2P-based local docker-compose YML file, use
-```
-HAS_I2P=1 docker/build/bin/build.sh
-```
-
-The script needs elevated privileges, since it needs to start I2P docker containers. Therefore the script will ask for the root password.
-
-The script creates - same procedure as above - a YML file including all I2P containers and the applicable genesis block.
-
-Start and stop the environment using docker-compose (see above).
-
-**Important:** if the volumes are purged, the environment must be rebuilt!
+To create a docker based local environment use the project https://codeberg.org/diva.exchange/diva-dockerized.
 
 ## Configuration
 The configuration can be controlled using environment variables.
