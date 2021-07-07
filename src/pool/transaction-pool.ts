@@ -47,11 +47,11 @@ export class TransactionPool {
   }
 
   release(): boolean {
-    if (this.inTransit.timestamp) {
+    if (this.inTransit.ident) {
       return false;
     }
     this.inTransit = this.stackTransaction.shift() || ({} as TransactionStruct);
-    return this.inTransit.timestamp > 0;
+    return !!this.inTransit.ident;
   }
 
   getInTransit() {
@@ -75,6 +75,9 @@ export class TransactionPool {
 
   clear(block: BlockStruct) {
     this.current = new Map();
+    if (!this.inTransit.ident) {
+      return;
+    }
     const hasTx = block.tx.some((t) => {
       return t.origin === this.inTransit.origin && t.sig === this.inTransit.sig;
     });
