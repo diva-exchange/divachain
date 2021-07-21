@@ -110,34 +110,66 @@ Interval, in milliseconds, to check whether the block pool is stale.
 
 ## API Endpoints
 
-### GET /peers
+### Quering the Blockchain
 
-### GET /network
+#### GET /peers
 
-### GET /gossip
+#### GET /network
 
-### GET /stack/transactions
+#### GET /gossip
 
-### GET /pool/transactions
+#### GET /stack/transactions
 
-### GET /pool/blocks
+#### GET /pool/transactions
 
-### GET /pool/votes
+#### GET /pool/votes
 
-### GET /pool/commits
+#### GET /block/genesis
 
-### GET /block/genesis
+#### GET /block/latest
 
-### GET /block/latest
+#### GET /blocks
 
-### GET /blocks
+Optional query parameters:
 
-### GET /blocks/page/{page?}
+* _limit_, integer, > 0
 
-### GET /transaction/{origin}/{ident}
+OR
 
-### PUT /transaction/{ident?}
+* _gte_, integer, > 0
+* _lte_, integer, > 0
 
+Examples:
+
+* `/blocks?lte=1` will return the genesis block
+* `/blocks?limit=1` will return the latest block
+* `/blocks?limit=5` will return the latest 5 blocks
+* `/blocks?gte=42&lte=42` will return block on height 42
+* `/blocks?gte=42&lte=43` will return blocks 42 and 43
+
+#### GET /blocks/page/{page?}
+
+Optional query parameters:
+
+* _size_, integer, > 0
+
+#### GET /transaction/{origin}/{ident}
+
+### Transmitting Transactions
+
+#### PUT /transaction/{ident?}
+
+### Joining and Leaving the Network
+
+#### GET /join/{address}/{publicKey}
+
+#### GET /leave/{address}
+
+#### GET /challenge/{token}
+
+### Network Synchronization
+
+#### GET /sync/{height}
 
 ## How to Run Unit Tests
 

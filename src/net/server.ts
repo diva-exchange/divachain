@@ -29,7 +29,6 @@ import { Block, BlockStruct } from '../chain/block';
 import { Blockchain } from '../chain/blockchain';
 import { TransactionPool } from '../pool/transaction-pool';
 import { Wallet } from '../chain/wallet';
-import { BlockPool } from '../pool/block-pool';
 import { VotePool } from '../pool/vote-pool';
 import { Network } from './network';
 import { Message } from './message/message';
@@ -37,9 +36,8 @@ import { Vote, VoteStruct } from './message/vote';
 import { Commit } from './message/commit';
 import { Api } from './api';
 import { TransactionStruct } from '../chain/transaction';
-import { CommitPool } from '../pool/commit-pool';
-import { Confirm } from './message/confirm';
 import { Sync } from './message/sync';
+import { CommitPool } from '../pool/commit-pool';
 
 export class Server {
   public readonly config: Config;
@@ -49,7 +47,6 @@ export class Server {
   private readonly webSocketServer: WebSocket.Server;
 
   private transactionPool: TransactionPool = {} as TransactionPool;
-  private blockPool: BlockPool = {} as BlockPool;
   private votePool: VotePool = {} as VotePool;
   private commitPool: CommitPool = {} as CommitPool;
 
@@ -57,8 +54,6 @@ export class Server {
   private wallet: Wallet = {} as Wallet;
   private network: Network = {} as Network;
   private blockchain: Blockchain = {} as Blockchain;
-
-  private staleBlockHash: string = '';
 
   constructor(config: Config) {
     this.config = config;
@@ -133,7 +128,6 @@ export class Server {
 
     // pools
     this.transactionPool = new TransactionPool(this.wallet);
-    this.blockPool = new BlockPool();
     this.votePool = new VotePool();
     this.commitPool = new CommitPool();
 
@@ -152,9 +146,6 @@ export class Server {
     if (this.blockchain.getHeight() === 0) {
       await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
     }
-
-    // check for stale blocks
-    this.checkBlockPool();
 
     return this;
   }
@@ -197,10 +188,6 @@ export class Server {
     return this.commitPool;
   }
 
-  getBlockPool(): BlockPool {
-    return this.blockPool;
-  }
-
   getWallet(): Wallet {
     return this.wallet;
   }
@@ -224,69 +211,13 @@ export class Server {
     return true;
   }
 
-  private checkBlockPool() {
-    const block = this.blockPool.get();
-    if (this.staleBlockHash === block.hash) {
-      this.network.resetGossip();
-      this.doVote(block);
-    }
-    this.staleBlockHash = block.hash || '';
-
-    setTimeout(() => {
-      this.checkBlockPool();
-    }, this.config.block_pool_check_interval_ms);
-  }
-
   private createProposal() {
     if (!this.transactionPool.release()) {
       return;
     }
 
-    const newBlock: BlockStruct = Block.make(
-      this.blockchain.getLatestBlock(),
-      this.transactionPool.get().concat(this.transactionPool.getInTransit())
-    );
-    this.blockPool.set(newBlock);
-
     // vote for the best available version
-    this.doVote(newBlock);
-  }
-
-  private processVote(vote: Vote) {
-    const v = vote.get();
-
-    if (!Vote.isValid(v) || this.blockchain.getHeight() >= v.block.height) {
-      return this.network.stopGossip(vote.ident());
-    }
-    if (this.blockchain.getHeight() + 1 !== v.block.height) {
-      return;
-    }
-
-    if (v.block.hash === this.blockPool.get().hash) {
-      if (this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
-        v.block.votes = this.votePool.get(v.block.hash);
-        this.network.processMessage(
-          new Commit()
-            .create({
-              origin: this.wallet.getPublicKey(),
-              block: v.block,
-              sig: this.wallet.sign(v.block.hash + JSON.stringify(v.block.votes)),
-            })
-            .pack()
-        );
-      }
-      return;
-    }
-
-    if (!this.transactionPool.add(v.block.tx)) {
-      return this.network.stopGossip(vote.ident());
-    }
-
-    const newBlock = Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get());
-    this.blockPool.set(newBlock);
-
-    // vote for the best available version
-    this.doVote(newBlock);
+    this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
   }
 
   private doVote(block: BlockStruct) {
@@ -304,84 +235,63 @@ export class Server {
     });
   }
 
-  private processCommit(commit: Commit) {
-    const c: VoteStruct = commit.get();
+  private processVote(vote: Vote) {
+    const v = vote.get();
 
-    let sumStake = 0;
-    c.block.votes.forEach((v) => {
-      sumStake = sumStake + this.network.getStake(v.origin);
-    });
-
-    if (this.blockchain.getHeight() >= c.block.height || sumStake < this.network.getQuorum() || !Commit.isValid(c)) {
-      return this.network.stopGossip(commit.ident());
-    }
-
-    if (!this.commitPool.add(c)) {
+    // not interested in any data beyond the current new block
+    if (this.blockchain.getHeight() + 1 !== v.block.height) {
       return;
     }
 
-    const block = this.commitPool.best();
-    sumStake = 0;
-    block.votes.forEach((v) => {
-      sumStake = sumStake + this.network.getStake(v.origin);
-    });
-    if (sumStake >= this.network.getQuorum()) {
+    // invalid incoming voting data
+    if (!Vote.isValid(v)) {
+      return this.network.stopGossip(vote.ident());
+    }
+
+    if (this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
+      v.block.votes = this.votePool.get();
       this.network.processMessage(
-        new Confirm()
+        new Commit()
           .create({
             origin: this.wallet.getPublicKey(),
-            block: block,
-            sig: this.wallet.sign(block.hash + JSON.stringify(block.votes)),
+            block: v.block,
+            sig: this.wallet.sign(v.block.hash + JSON.stringify(v.block.votes)),
           })
           .pack()
       );
-    } else if (c.block.hash === this.blockPool.get().hash) {
-      for (const v of c.block.votes) {
-        if (
-          this.votePool.add(
-            { origin: v.origin, block: c.block, sig: v.sig },
-            this.network.getStake(v.origin),
-            this.network.getQuorum()
-          )
-        ) {
-          c.block.votes = this.votePool.get(c.block.hash);
-          this.network.processMessage(
-            new Commit()
-              .create({
-                origin: this.wallet.getPublicKey(),
-                block: c.block,
-                sig: this.wallet.sign(c.block.hash + JSON.stringify(c.block.votes)),
-              })
-              .pack()
-          );
-          break;
-        }
-      }
+      return;
     }
+
+    // if there are no locally unknown transactions within the block, return
+    if (!this.transactionPool.add(v.block.tx)) {
+      return;
+    }
+
+    // vote for the best available version
+    this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
   }
 
-  private async processConfirm(confirm: Confirm) {
-    const c: VoteStruct = confirm.get();
+  private async processCommit(commit: Commit) {
+    const c: VoteStruct = commit.get();
 
-    let sumStake = 0;
-    c.block.votes.forEach((v) => {
-      sumStake = sumStake + this.network.getStake(v.origin);
-    });
-
-    if (this.blockchain.getHeight() >= c.block.height || sumStake < this.network.getQuorum() || !Commit.isValid(c)) {
-      return this.network.stopGossip(confirm.ident());
+    // not interested in any data beyond the current new block
+    if (this.blockchain.getHeight() + 1 !== c.block.height) {
+      return;
     }
 
-    await this.blockchain.add(c.block);
-
-    const nextBlock = this.commitPool.best();
-    if (c.block.height + 1 === nextBlock.height) {
-      this.transactionPool.add(nextBlock.tx);
+    // invalid incoming commit data
+    if (!Commit.isValid(c)) {
+      return this.network.stopGossip(commit.ident());
     }
-    // if there is another transaction on the stack: release and process it!
-    setImmediate(() => {
-      this.createProposal();
-    });
+
+    if (this.commitPool.add(c, this.network.getStake(c.origin), this.network.getQuorum())) {
+      await this.blockchain.add(c.block);
+
+      // if there is another transaction on the stack: release and process it!
+      setImmediate(() => {
+        this.createProposal();
+      });
+    }
   }
 
   private async processSync(sync: Sync) {
@@ -397,10 +307,7 @@ export class Server {
         this.processVote(new Vote(message));
         break;
       case Message.TYPE_COMMIT:
-        this.processCommit(new Commit(message));
-        break;
-      case Message.TYPE_CONFIRM:
-        await this.processConfirm(new Confirm(message));
+        await this.processCommit(new Commit(message));
         break;
       case Message.TYPE_SYNC:
         await this.processSync(new Sync(message));

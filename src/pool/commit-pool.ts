@@ -17,52 +17,30 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { BlockStruct } from '../chain/block';
 import { VoteStruct } from '../net/message/vote';
 
 export class CommitPool {
-  private mapVotes: Map<string, Array<string>> = new Map(); // votes holding hashes and origins
-  private mapCommits: Map<string, VoteStruct> = new Map();
+  private currentHash: string = '';
+  private arrayCommits: Array<string> = [];
+  private arrayStakes: Array<number> = [];
 
-  add(c: VoteStruct): boolean {
-    const aVotes = this.mapVotes.get(c.block.hash) || [];
-    if (aVotes.includes(c.origin)) {
-      return false;
+  add(structVote: VoteStruct, stake: number, quorum: number): boolean {
+    if (structVote.block.hash !== this.currentHash) {
+      this.currentHash = structVote.block.hash;
+      this.arrayCommits = [];
+      this.arrayStakes = [];
     }
-    aVotes.push(c.origin);
-    this.mapVotes.set(c.block.hash, aVotes);
-    this.mapCommits.set(c.block.hash, c);
-    return true;
-  }
-
-  best(): BlockStruct {
-    if (!this.mapCommits.size) {
-      return {} as BlockStruct;
+    if (this.arrayCommits.indexOf(structVote.origin) < 0) {
+      this.arrayCommits.push(structVote.origin);
+      this.arrayStakes.push(stake);
+      return this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
     }
-    const a = Array.from(this.mapCommits.values());
-    a.sort((a, b) => {
-      return a.block.height > b.block.height
-        ? 1
-        : a.block.height < b.block.height
-        ? -1
-        : a.block.tx.length > b.block.tx.length
-        ? -1
-        : 1;
-    });
-
-    return a[0].block;
+    return false;
   }
 
-  get(): object {
-    return { mapCommits: [...this.mapCommits.entries()], mapVotes: [...this.mapVotes.entries()] };
-  }
-
-  clear(block: BlockStruct) {
-    this.mapCommits.forEach((c, h) => {
-      if (c.block.height <= block.height) {
-        this.mapVotes.delete(h);
-        this.mapCommits.delete(h);
-      }
-    });
+  clear() {
+    this.currentHash = '';
+    this.arrayCommits = [];
+    this.arrayStakes = [];
   }
 }

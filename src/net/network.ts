@@ -161,6 +161,10 @@ export class Network {
       stake = stake + p.stake;
     });
 
+    if (stake <= 0) {
+      throw new Error('Invalid network quorum');
+    }
+
     return (2 * stake) / 3; // PBFT, PoS
   }
 
@@ -218,23 +222,28 @@ export class Network {
     return this.aGossip;
   }
 
+  /**
+   * Prevent any further gossiping of a specific message
+   *
+   * @param {string} ident - Message identifier
+   */
   stopGossip(ident: string) {
     Object.keys(this.aGossip).forEach((publicKeyPeer) => {
       !this.aGossip[publicKeyPeer].includes(ident) && this.aGossip[publicKeyPeer].push(ident);
     });
   }
 
-  resetGossip() {
-    Object.keys(this.aGossip).forEach((publicKeyPeer) => {
-      this.aGossip[publicKeyPeer] = [];
-    });
-  }
-
+  /**
+   * Process an incoming message
+   *
+   * @param {Buffer|string} message - Incoming message
+   * @param {string} publicKeyPeer - Sender of the message
+   */
   processMessage(message: Buffer | string, publicKeyPeer: string = '') {
     const m = new Message(message);
     const ident = m.ident();
     this.server.config.network_verbose_logging &&
-      Logger.trace(`Network.processMessage: ${JSON.stringify(m.getMessage())}`);
+      Logger.trace(`Network.processMessage from ${publicKeyPeer}: ${JSON.stringify(m.getMessage())}`);
 
     if (!Validation.validateMessage(m)) {
       return this.stopGossip(ident);

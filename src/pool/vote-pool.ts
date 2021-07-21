@@ -20,46 +20,42 @@
 import { VoteStruct } from '../net/message/vote';
 
 export class VotePool {
-  private arrayHashes: Array<string> = [];
-  private mapVotes: Map<string, Array<{ origin: string; sig: string }>> = new Map();
-  private mapStakes: Map<string, Array<{ origin: string; stake: number }>> = new Map();
+  private currentHash: string = '';
+  private countTx: number = 0;
+  private arrayVotes: Array<{ origin: string; sig: string }> = [];
+  private arrayStakes: Array<number> = [];
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
-    const aVotes = this.mapVotes.get(structVote.block.hash) || [];
-    const aStakes = this.mapStakes.get(structVote.block.hash) || [];
-
-    const sumStake = aStakes.reduce((_s, _o) => _s + _o.stake, 0);
-
-    // if the quorum has already been reached, return immediately
-    if (sumStake >= quorum) {
-      return false;
+    let isRelevant = this.currentHash === structVote.block.hash || this.countTx < structVote.block.tx.length;
+    if (isRelevant) {
+      if (this.currentHash !== structVote.block.hash) {
+        this.currentHash = structVote.block.hash;
+        this.countTx = structVote.block.tx.length;
+        this.arrayVotes = [];
+        this.arrayStakes = [];
+      }
+      isRelevant = !this.arrayVotes.some((v) => structVote.origin === v.origin);
+      if (isRelevant) {
+        this.arrayVotes.push({ origin: structVote.origin, sig: structVote.sig });
+        this.arrayStakes.push(stake);
+      }
     }
 
-    if (aVotes.some((v) => v.origin === structVote.origin)) {
-      return false;
-    }
-
-    aVotes.push({ origin: structVote.origin, sig: structVote.sig });
-    aStakes.push({ origin: structVote.origin, stake: stake });
-    !this.arrayHashes.includes(structVote.block.hash) && this.arrayHashes.push(structVote.block.hash);
-    this.mapVotes.set(structVote.block.hash, aVotes);
-    this.mapStakes.set(structVote.block.hash, aStakes);
-    return sumStake + stake >= quorum;
+    return isRelevant && this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
   }
 
-  get(hash: string): Array<{ origin: string; sig: string }> {
-    return this.mapVotes.get(hash) || [];
+  get(): Array<{ origin: string; sig: string }> {
+    return this.arrayVotes;
   }
 
-  getAll(): { hashes: Array<any>; votes: Array<any>; stakes: Array<any> } {
-    return { hashes: this.arrayHashes, votes: [...this.mapVotes.entries()], stakes: [...this.mapStakes.entries()] };
+  getAll(): { hash: string; votes: Array<any>; stakes: Array<any> } {
+    return { hash: this.currentHash, votes: this.arrayVotes, stakes: this.arrayStakes };
   }
 
   clear() {
-    this.arrayHashes.forEach((hash) => {
-      this.mapVotes.delete(hash);
-      this.mapStakes.delete(hash);
-    });
-    this.arrayHashes = [];
+    this.currentHash = '';
+    this.countTx = 0;
+    this.arrayVotes = [];
+    this.arrayStakes = [];
   }
 }

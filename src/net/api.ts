@@ -21,11 +21,12 @@ import { Server } from './server';
 import { Request, Response } from 'express';
 import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Logger } from '../logger';
+import { nanoid } from 'nanoid';
 import fs from 'fs';
 import path from 'path';
-import { nanoid } from 'nanoid';
 
 const MIN_LENGTH_API_TOKEN = 32;
+export const NAME_HEADER_API_TOKEN = 'diva-api-token';
 
 export class Api {
   private server: Server;
@@ -95,16 +96,8 @@ export class Api {
       return res.json(this.server.getTransactionPool().get());
     });
 
-    this.server.app.get('/pool/blocks', (req: Request, res: Response) => {
-      return res.json(this.server.getBlockPool().get());
-    });
-
     this.server.app.get('/pool/votes', (req: Request, res: Response) => {
       return res.json(this.server.getVotePool().getAll());
-    });
-
-    this.server.app.get('/pool/commits', (req: Request, res: Response) => {
-      return res.json(this.server.getCommitPool().get());
     });
 
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {
@@ -122,7 +115,7 @@ export class Api {
           await blockchain.get(Number(req.query.limit || 0), Number(req.query.gte || 0), Number(req.query.lte || 0))
         );
       } catch (error) {
-        Logger.warn(error);
+        Logger.trace(error);
         return res.status(500).end();
       }
     });
@@ -132,7 +125,7 @@ export class Api {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
       } catch (error) {
-        Logger.warn(error);
+        Logger.trace(error);
         return res.status(500).end();
       }
     });
@@ -142,13 +135,23 @@ export class Api {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getTransaction(req.params.origin, req.params.ident));
       } catch (error) {
-        Logger.warn(error);
+        Logger.trace(error);
+        return res.status(404).end();
+      }
+    });
+
+    this.server.app.get('/debug/performance/:height', async (req: Request, res: Response) => {
+      try {
+        const blockchain = this.server.getBlockchain();
+        return res.json(await blockchain.getPerformance(Number(req.params.height)));
+      } catch (error) {
+        Logger.trace(error);
         return res.status(404).end();
       }
     });
 
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      if (req.headers['api-token'] === this.token) {
+      if (req.headers[NAME_HEADER_API_TOKEN] === this.token) {
         const wallet = this.server.getWallet();
         const t: TransactionStruct = new Transaction(wallet, req.body as ArrayComand, req.params.ident).get();
         if (this.server.stackTransaction(t)) {

@@ -22,6 +22,7 @@ import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
 import path from 'path';
 
+import { NAME_HEADER_API_TOKEN } from '../../src/net/api';
 import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
 import { BlockStruct } from '../../src/chain/block';
@@ -32,7 +33,7 @@ import fs from 'fs';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 7;
+const SIZE_TESTNET = 17;
 const BASE_PORT = 17000;
 const IP = '127.27.27.1';
 
@@ -148,7 +149,7 @@ class TestServer {
     const res = await chai
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
-      .set('api-token', token)
+      .set(NAME_HEADER_API_TOKEN, token)
       .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
     expect(res).to.have.status(200);
   }
@@ -206,13 +207,6 @@ class TestServer {
   }
 
   @test
-  async poolCommits() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/commits');
-    expect(res).to.have.status(200);
-  }
-
-  @test
   async poolBlocks() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/blocks');
@@ -255,17 +249,19 @@ class TestServer {
   }
 
   @test
-  @slow(25000)
-  @timeout(30000)
+  @slow(399000)
+  @timeout(400000)
   async stressMultiTransaction() {
-    const _outer = 20;
-    const _inner = 20;
+    const _outer = 29;
+    const _inner = 7;
 
     // create blocks containing multiple transactions
     let seq = 1;
     const arrayConfig = [...TestServer.mapConfigServer.values()];
     const arrayOrigin = [...TestServer.mapConfigServer.keys()];
     const arrayRequests: Array<string> = [];
+    const arrayIdents: Array<string> = [];
+    const arrayTimestamp: Array<number> = [];
 
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
@@ -279,27 +275,53 @@ class TestServer {
       );
       const token = fs.readFileSync(pathToken).toString();
       arrayRequests.push(arrayOrigin[i]);
-      await chai
-        .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
-        .put(`/transaction/seq${_i}`)
-        .set('api-token', token)
-        .send(aT);
-    }
-
-    // wait a bit
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20000);
-    });
-
-    for (let _i = 0; _i < _outer; _i++) {
-      const origin = arrayRequests.shift();
-      const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+      arrayTimestamp.push(new Date().getTime());
       const res = await chai
         .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
-        .get(`/transaction/${origin}/seq${_i}`);
-      expect(res.status).eq(200);
-      expect(res.body.ident).eq(`seq${_i}`);
-      expect(res.body.commands.length).eq(_inner);
+        .put('/transaction')
+        .set('diva-api-token', token)
+        .send(aT);
+      arrayIdents.push(res.body.ident);
+      console.log(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}/transaction/${arrayOrigin[i]}/${res.body.ident}`);
+      await TestServer.wait(300);
     }
+
+    await TestServer.wait(120000);
+
+    while (arrayRequests.length) {
+      const origin = arrayRequests.shift();
+      const ident = arrayIdents.shift();
+      const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+      const baseUrl = `http://${arrayConfig[i].ip}:${arrayConfig[i].port}`;
+      const res = await chai.request(baseUrl).get(`/transaction/${origin}/${ident}`);
+      expect(res.status).eq(200);
+      expect(res.body.transaction.ident).eq(`${ident}`);
+      expect(res.body.transaction.commands.length).eq(_inner);
+
+      const perf = await chai.request(baseUrl).get(`/debug/performance/${res.body.height}`);
+      expect(perf.status).eq(200);
+      expect(perf.body.timestamp).gt(0);
+
+      const ts = arrayTimestamp.shift() || 0;
+      console.log(perf.body.timestamp - ts + ' ms');
+    }
+
+    // all blockchains have to be equal
+    const arrayBlocks: Array<any> = [];
+    for (const config of arrayConfig) {
+      const res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?limit=1');
+      arrayBlocks.push(res.body);
+    }
+    const _h = arrayBlocks[0][0].hash;
+    arrayBlocks.forEach((_a) => {
+      expect(_h).eq(_a[0].hash);
+    });
+  }
+
+  private static async wait(s: number) {
+    // wait a bit
+    await new Promise((resolve) => {
+      setTimeout(resolve, s, true);
+    });
   }
 }

@@ -70,6 +70,8 @@ const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
 const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 50;
 
 export class Config {
+  public readonly debug_performance: boolean;
+
   public readonly bootstrap: string;
 
   public readonly path_app: string;
@@ -102,6 +104,8 @@ export class Config {
   public readonly block_pool_check_interval_ms: number;
 
   constructor(c: Configuration) {
+    this.debug_performance = !!process.env.DEBUG_PERFORMANCE || false;
+
     const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
       /[^a-z0-9_-]/gi,
       ''

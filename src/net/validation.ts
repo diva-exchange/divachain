@@ -77,7 +77,6 @@ export class Validation {
       case Message.TYPE_AUTH:
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
-      case Message.TYPE_CONFIRM:
       case Message.TYPE_SYNC:
         if (!Validation.message(m.getMessage())) {
           //@FIXME logging

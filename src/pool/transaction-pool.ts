@@ -47,15 +47,13 @@ export class TransactionPool {
   }
 
   release(): boolean {
-    if (this.inTransit.ident) {
+    if (this.inTransit.ident || !this.stackTransaction.length) {
       return false;
     }
-    this.inTransit = this.stackTransaction.shift() || ({} as TransactionStruct);
-    return !!this.inTransit.ident;
-  }
 
-  getInTransit() {
-    return this.inTransit;
+    this.inTransit = this.stackTransaction.shift() as TransactionStruct;
+    this.current.set(this.publicKey, this.inTransit);
+    return true;
   }
 
   add(arrayTx: Array<TransactionStruct>): boolean {
@@ -70,7 +68,7 @@ export class TransactionPool {
   }
 
   get(): Array<TransactionStruct> {
-    return Array.from(this.current.values());
+    return [...this.current.values()];
   }
 
   clear(block: BlockStruct) {

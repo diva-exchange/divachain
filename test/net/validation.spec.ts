@@ -29,7 +29,6 @@ import { Blockchain } from '../../src/chain/blockchain';
 import { Commit } from '../../src/net/message/commit';
 import { Vote } from '../../src/net/message/vote';
 import { BlockStruct } from '../../src/chain/block';
-import { Confirm } from '../../src/net/message/confirm';
 import { Config } from '../../src/config';
 import path from 'path';
 
@@ -88,23 +87,6 @@ class TestValidation {
       },
     ];
     const m = new Commit().create({
-      origin: TestValidation.wallet.getPublicKey(),
-      block: structBlock,
-      sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(structBlock.votes)),
-    });
-    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
-  }
-
-  @test
-  validateConfirm() {
-    const structBlock: BlockStruct = Blockchain.genesis(TestValidation.config.path_genesis);
-    structBlock.votes = [
-      {
-        origin: TestValidation.wallet.getPublicKey(),
-        sig: TestValidation.wallet.sign(structBlock.hash),
-      },
-    ];
-    const m = new Confirm().create({
       origin: TestValidation.wallet.getPublicKey(),
       block: structBlock,
       sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(structBlock.votes)),

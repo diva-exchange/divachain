@@ -27,10 +27,10 @@ export class Commit extends Message {
     super(message);
   }
 
-  create(commit: VoteStruct): Commit {
+  create(structVote: VoteStruct): Commit {
     this.message.type = Message.TYPE_COMMIT;
-    this.message.ident = this.message.type + commit.origin + commit.block.hash;
-    this.message.data = commit;
+    this.message.ident = this.message.type + structVote.origin + structVote.block.hash;
+    this.message.data = structVote;
     this.message.broadcast = true;
     return this;
   }
@@ -39,11 +39,27 @@ export class Commit extends Message {
     return this.message.data as VoteStruct;
   }
 
-  static isValid(c: VoteStruct): boolean {
-    let _a: Array<{ origin: string; sig: string }> = [];
-    if (Util.verifySignature(c.origin, c.sig, c.block.hash + JSON.stringify(c.block.votes))) {
-      _a = c.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, c.block.hash));
+  /**
+   * Validate the hash and all the votes of a block
+   *
+   * @param {VoteStruct} structVote - Data structure to validate
+   */
+  static isValid(structVote: VoteStruct): boolean {
+    if (!structVote.block.votes.length) {
+      return false;
     }
-    return _a.length === c.block.votes.length && Validation.validateBlock(c.block);
+
+    let _a: Array<{ origin: string; sig: string }> = [];
+    if (
+      Util.verifySignature(
+        structVote.origin,
+        structVote.sig,
+        structVote.block.hash + JSON.stringify(structVote.block.votes)
+      )
+    ) {
+      _a = structVote.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, structVote.block.hash));
+    }
+
+    return _a.length === structVote.block.votes.length && Validation.validateBlock(structVote.block);
   }
 }

@@ -125,12 +125,12 @@ export class Blockchain {
     await this.dbBlockchain.put(String(block.height).padStart(16, '0'), JSON.stringify(block));
     await this.processState(block);
 
+    this.server.getCommitPool().clear();
     this.server.getVotePool().clear();
-    this.server.getBlockPool().clear();
     this.server.getTransactionPool().clear(block);
-    this.server.getCommitPool().clear(block);
   }
 
+  //@FIXME the behaviour (either gte and lte OR limit) is crap
   async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<BlockStruct>> {
     limit = Math.floor(limit);
     gte = Math.floor(gte);
@@ -200,14 +200,14 @@ export class Blockchain {
     });
   }
 
-  async getTransaction(origin: string, ident: string): Promise<TransactionStruct> {
+  async getTransaction(origin: string, ident: string): Promise<{ height: number; transaction: TransactionStruct }> {
     return new Promise((resolve, reject) => {
       this.dbBlockchain
         .createValueStream()
         .on('data', (data) => {
           const b: BlockStruct = JSON.parse(data) as BlockStruct;
           const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
-          t && resolve(t);
+          t && resolve({ height: b.height, transaction: t });
         })
         .on('end', () => {
           reject(new Error('Not found'));
@@ -224,10 +224,14 @@ export class Blockchain {
     return this.height;
   }
 
+  async getPerformance(height: number): Promise<{ timestamp: number }> {
+    return { timestamp: Number(((await this.dbState.get('debug-performance-' + height)) || 0).toString()) };
+  }
+
   /**
    * Get the genesis block from disk
    *
-   * @param p Path
+   * @param {string} p - Path
    */
   static genesis(p: string): BlockStruct {
     if (!fs.existsSync(p)) {
@@ -247,8 +251,9 @@ export class Blockchain {
     if (this.height < block.height) {
       this.height = block.height;
       this.latestBlock = block;
-      await this.dbState.put('height', this.height);
-      await this.dbState.put('latestBlock', JSON.stringify(this.latestBlock));
+      if (this.server.config.debug_performance) {
+        await this.dbState.put('debug-performance-' + this.height, new Date().getTime());
+      }
 
       // cache
       this.mapBlocks.set(block.height, block);
