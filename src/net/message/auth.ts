@@ -23,10 +23,11 @@ import { Util } from '../../chain/util';
 export class Auth extends Message {
   constructor(message?: Buffer | string) {
     super(message);
+    this.message.type = Message.TYPE_AUTH;
+    this.message.broadcast = false;
   }
 
   create(sig: string): Auth {
-    this.message.type = Message.TYPE_AUTH;
     this.message.data = sig;
     return this;
   }

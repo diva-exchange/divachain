@@ -31,13 +31,13 @@ export type VoteStruct = {
 export class Vote extends Message {
   constructor(message?: Buffer | string) {
     super(message);
+    this.message.type = Message.TYPE_VOTE;
+    this.message.broadcast = true;
   }
 
-  create(vote: VoteStruct): Vote {
-    this.message.type = Message.TYPE_VOTE;
-    this.message.ident = this.message.type + vote.origin + vote.block.hash;
-    this.message.data = vote;
-    this.message.broadcast = true;
+  create(structVote: VoteStruct): Vote {
+    this.message.ident = this.message.type + structVote.sig;
+    this.message.data = structVote;
     return this;
   }
 
@@ -45,7 +45,10 @@ export class Vote extends Message {
     return this.message.data as VoteStruct;
   }
 
-  static isValid(vote: VoteStruct): boolean {
-    return Validation.validateBlock(vote.block) && Util.verifySignature(vote.origin, vote.sig, vote.block.hash);
+  static isValid(structVote: VoteStruct): boolean {
+    return (
+      Validation.validateBlock(structVote.block) &&
+      Util.verifySignature(structVote.origin, structVote.sig, structVote.block.hash)
+    );
   }
 }

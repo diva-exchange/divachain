@@ -104,7 +104,7 @@ export class Config {
   public readonly block_pool_check_interval_ms: number;
 
   constructor(c: Configuration) {
-    this.debug_performance = !!process.env.DEBUG_PERFORMANCE || false;
+    this.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
 
     const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
       /[^a-z0-9_-]/gi,

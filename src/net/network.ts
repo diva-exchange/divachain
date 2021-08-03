@@ -30,7 +30,7 @@ import { Server } from './server';
 import { Sync } from './message/sync';
 import Timeout = NodeJS.Timeout;
 
-const GOSSIP_MAX_MESSAGES_PER_PEER = 250;
+const GOSSIP_MAX_MESSAGES_PER_PEER = 2500;
 
 const WS_CLIENT_OPTIONS = {
   compress: true,
@@ -228,8 +228,8 @@ export class Network {
    * @param {string} ident - Message identifier
    */
   stopGossip(ident: string) {
-    Object.keys(this.aGossip).forEach((publicKeyPeer) => {
-      !this.aGossip[publicKeyPeer].includes(ident) && this.aGossip[publicKeyPeer].push(ident);
+    Object.keys(this.aGossip).forEach((_pk) => {
+      this.aGossip[_pk].push(ident);
     });
   }
 
@@ -245,45 +245,46 @@ export class Network {
     this.server.config.network_verbose_logging &&
       Logger.trace(`Network.processMessage from ${publicKeyPeer}: ${JSON.stringify(m.getMessage())}`);
 
+    // stateless validation
     if (!Validation.validateMessage(m)) {
       return this.stopGossip(ident);
     }
 
     // populate Gossiping map
-    if (publicKeyPeer && publicKeyPeer !== this.publicKey && !this.aGossip[publicKeyPeer].includes(ident)) {
-      this.aGossip[publicKeyPeer].push(ident);
-    }
-    const origin = m.origin();
-    if (origin && origin !== this.publicKey && !this.aGossip[origin].includes(ident)) {
-      this.aGossip[origin].push(ident);
-    }
+    m.trail().forEach((_pk) => {
+      this.aGossip[_pk] ? this.aGossip[_pk].push(ident) : (this.aGossip[_pk] = [ident]);
+    });
 
     // process message handler callback
     this._onMessage && this._onMessage(m.type(), message);
 
     // broadcasting / gossip
-    m.isBroadcast() && this.broadcast(m);
-  }
-
-  private broadcast(m: Message) {
-    const ident = m.ident();
-    const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter((_pk) => {
-      return _pk !== this.publicKey && !this.aGossip[_pk].includes(ident);
-    });
-
-    for (const _pk of arrayBroadcast) {
-      try {
-        if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
-          Network.send(this.peersOut[_pk].ws, m.pack());
-        } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
-          Network.send(this.peersIn[_pk].ws, m.pack());
-        } else {
-          continue;
+    if (m.isBroadcast()) {
+      const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
+        (_pk) => {
+          return !this.aGossip[_pk].includes(ident);
         }
-        !this.aGossip[_pk].includes(ident) && this.aGossip[_pk].push(ident);
-      } catch (error) {
-        Logger.warn('broadcast(): Websocket Error');
-        Logger.trace(JSON.stringify(error));
+      );
+
+      if (!arrayBroadcast.length) {
+        return;
+      }
+
+      m.updateTrail(arrayBroadcast.concat([this.publicKey, m.origin(), publicKeyPeer]));
+      for (const _pk of arrayBroadcast) {
+        try {
+          if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
+            Network.send(this.peersOut[_pk].ws, m.pack());
+          } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
+            Network.send(this.peersIn[_pk].ws, m.pack());
+          } else {
+            continue;
+          }
+          this.aGossip[_pk].push(ident);
+        } catch (error) {
+          Logger.warn('broadcast(): Websocket Error');
+          Logger.trace(JSON.stringify(error));
+        }
       }
     }
   }
@@ -358,7 +359,7 @@ export class Network {
 
     Object.keys(this.peersOut)
       .filter((_pk) => {
-        return this.arrayPeerNetwork.indexOf(_pk) < 0;
+        return !this.arrayPeerNetwork.includes(_pk);
       })
       .forEach((_pk) => {
         this.peersOut[_pk].ws.close(1000, 'Bye');
@@ -379,7 +380,7 @@ export class Network {
       arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(this.server.config.network_size / 2));
       while (_a.length && arrayPublicKey.length < this.server.config.network_size) {
         const _pk = _a.pop();
-        arrayPublicKey.indexOf(_pk) < 0 && arrayPublicKey.push(_pk);
+        !arrayPublicKey.includes(_pk) && arrayPublicKey.push(_pk);
       }
     }
     this.arrayPeerNetwork = arrayPublicKey.slice();
@@ -398,9 +399,9 @@ export class Network {
       });
 
     const drop = Math.floor(GOSSIP_MAX_MESSAGES_PER_PEER / 2);
-    Object.keys(this.aGossip).forEach((publicKeyPeer) => {
-      if (this.aGossip[publicKeyPeer].length / 2 > drop) {
-        this.aGossip[publicKeyPeer].splice(0, this.aGossip[publicKeyPeer].length - drop);
+    Object.keys(this.aGossip).forEach((_pk) => {
+      if (this.aGossip[_pk].length / 2 > drop) {
+        this.aGossip[_pk].splice(0, this.aGossip[_pk].length - drop);
       }
     });
 

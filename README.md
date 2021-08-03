@@ -15,7 +15,7 @@ The network itself is permission- and leaderless. Each peer in the network repre
 1. New block proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network.
 2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add one stack of own transactions.
 3. As soon as a peer in the network detects that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
-4. As soon as 2/3 of the network have issued commit messages, peers starting to issue confirm messages. The new block gets written to the chain.
+4. As soon as 2/3 of the network have issued commit messages, the new block gets written to the chain.
 5. A new round starts. 
 
 

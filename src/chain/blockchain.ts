@@ -225,7 +225,13 @@ export class Blockchain {
   }
 
   async getPerformance(height: number): Promise<{ timestamp: number }> {
-    return { timestamp: Number(((await this.dbState.get('debug-performance-' + height)) || 0).toString()) };
+    let ts: number;
+    try {
+      ts = Number((await this.dbState.get('debug-performance-' + height)).toString());
+    } catch (error) {
+      ts = 0;
+    }
+    return { timestamp: ts };
   }
 
   /**

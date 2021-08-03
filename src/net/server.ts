@@ -38,6 +38,7 @@ import { Api } from './api';
 import { TransactionStruct } from '../chain/transaction';
 import { Sync } from './message/sync';
 import { CommitPool } from '../pool/commit-pool';
+import { Util } from '../chain/util';
 
 export class Server {
   public readonly config: Config;
@@ -243,11 +244,6 @@ export class Server {
       return;
     }
 
-    // invalid incoming voting data
-    if (!Vote.isValid(v)) {
-      return this.network.stopGossip(vote.ident());
-    }
-
     if (this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
       v.block.votes = this.votePool.get();
       this.network.processMessage(
@@ -255,7 +251,7 @@ export class Server {
           .create({
             origin: this.wallet.getPublicKey(),
             block: v.block,
-            sig: this.wallet.sign(v.block.hash + JSON.stringify(v.block.votes)),
+            sig: this.wallet.sign(Util.hash(v.block.hash + JSON.stringify(v.block.votes))),
           })
           .pack()
       );
@@ -267,7 +263,8 @@ export class Server {
       return;
     }
 
-    // vote for the best available version
+    // vote for the new best available version
+    this.network.stopGossip(vote.ident());
     this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
   }
 
@@ -277,11 +274,6 @@ export class Server {
     // not interested in any data beyond the current new block
     if (this.blockchain.getHeight() + 1 !== c.block.height) {
       return;
-    }
-
-    // invalid incoming commit data
-    if (!Commit.isValid(c)) {
-      return this.network.stopGossip(commit.ident());
     }
 
     if (this.commitPool.add(c, this.network.getStake(c.origin), this.network.getQuorum())) {

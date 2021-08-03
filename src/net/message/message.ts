@@ -25,6 +25,7 @@ export type MessageStruct = {
   type: number;
   data: any;
   broadcast: boolean;
+  trail: Array<string>;
 };
 
 export class Message {
@@ -56,15 +57,19 @@ export class Message {
   }
 
   ident(): string {
-    return this.message.ident || '';
+    return this.message.ident;
   }
 
   type(): number {
-    return this.message.type || 0;
+    return this.message.type;
   }
 
   isBroadcast(): boolean {
-    return this.message.broadcast || false;
+    return this.message.broadcast;
+  }
+
+  trail(): Array<string> {
+    return this.message.trail || [];
   }
 
   origin(): string {
@@ -76,7 +81,16 @@ export class Message {
   }
 
   hash(): string {
-    return this.message.data.hash || '';
+    return this.message.data.block ? this.message.data.block.hash : '';
+  }
+
+  updateTrail(arrayTrail: Array<string>) {
+    if (!arrayTrail.length) {
+      return;
+    } else if (!this.message.trail) {
+      this.message.trail = [];
+    }
+    arrayTrail.forEach((_pk) => _pk && !this.message.trail.includes(_pk) && this.message.trail.push(_pk));
   }
 
   /**

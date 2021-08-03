@@ -18,29 +18,39 @@
  */
 
 import { VoteStruct } from '../net/message/vote';
+import { Commit } from '../net/message/commit';
 
 export class CommitPool {
   private currentHash: string = '';
   private arrayCommits: Array<string> = [];
   private arrayStakes: Array<number> = [];
+  private hasQuorum: boolean = false;
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
     if (structVote.block.hash !== this.currentHash) {
+      this.clear();
       this.currentHash = structVote.block.hash;
-      this.arrayCommits = [];
-      this.arrayStakes = [];
     }
-    if (this.arrayCommits.indexOf(structVote.origin) < 0) {
-      this.arrayCommits.push(structVote.origin);
-      this.arrayStakes.push(stake);
-      return this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
+
+    // Quorum already reached, double commit or invalid incoming commit data
+    if (this.hasQuorum || this.arrayCommits.includes(structVote.origin) || !Commit.isValid(structVote)) {
+      return false;
     }
-    return false;
+
+    this.arrayCommits.push(structVote.origin);
+    this.arrayStakes.push(stake);
+    this.hasQuorum = this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
+    return this.hasQuorum;
+  }
+
+  getAll(): { hash: string; commits: Array<any>; stakes: Array<any> } {
+    return { hash: this.currentHash, commits: this.arrayCommits, stakes: this.arrayStakes };
   }
 
   clear() {
     this.currentHash = '';
     this.arrayCommits = [];
     this.arrayStakes = [];
+    this.hasQuorum = false;
   }
 }

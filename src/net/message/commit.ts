@@ -25,13 +25,13 @@ import { Validation } from '../validation';
 export class Commit extends Message {
   constructor(message?: Buffer | string) {
     super(message);
+    this.message.type = Message.TYPE_COMMIT;
+    this.message.broadcast = true;
   }
 
   create(structVote: VoteStruct): Commit {
-    this.message.type = Message.TYPE_COMMIT;
-    this.message.ident = this.message.type + structVote.origin + structVote.block.hash;
+    this.message.ident = this.message.type + structVote.sig;
     this.message.data = structVote;
-    this.message.broadcast = true;
     return this;
   }
 
@@ -54,7 +54,7 @@ export class Commit extends Message {
       Util.verifySignature(
         structVote.origin,
         structVote.sig,
-        structVote.block.hash + JSON.stringify(structVote.block.votes)
+        Util.hash(structVote.block.hash + JSON.stringify(structVote.block.votes))
       )
     ) {
       _a = structVote.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, structVote.block.hash));

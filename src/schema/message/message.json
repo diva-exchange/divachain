@@ -31,6 +31,15 @@
     },
     "broadcast": {
       "type": "boolean"
+    },
+    "trail": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z0-9_-]{43}$"
+      },
+      "minItems": 1,
+      "uniqueItems": true
     }
   },
   "required": [

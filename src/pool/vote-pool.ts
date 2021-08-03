@@ -17,31 +17,39 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { VoteStruct } from '../net/message/vote';
+import { Vote, VoteStruct } from '../net/message/vote';
 
 export class VotePool {
   private currentHash: string = '';
   private countTx: number = 0;
+  private arrayOrigins: Array<string> = [];
   private arrayVotes: Array<{ origin: string; sig: string }> = [];
   private arrayStakes: Array<number> = [];
+  private hasQuorum: boolean = false;
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
-    let isRelevant = this.currentHash === structVote.block.hash || this.countTx < structVote.block.tx.length;
-    if (isRelevant) {
-      if (this.currentHash !== structVote.block.hash) {
-        this.currentHash = structVote.block.hash;
-        this.countTx = structVote.block.tx.length;
-        this.arrayVotes = [];
-        this.arrayStakes = [];
-      }
-      isRelevant = !this.arrayVotes.some((v) => structVote.origin === v.origin);
-      if (isRelevant) {
-        this.arrayVotes.push({ origin: structVote.origin, sig: structVote.sig });
-        this.arrayStakes.push(stake);
-      }
+    // non-relevant incoming voting data, quorum already reached, double vote or invalid incoming voting data
+    if (
+      (this.currentHash !== structVote.block.hash && this.countTx >= structVote.block.tx.length) ||
+      (this.currentHash === structVote.block.hash &&
+        (this.hasQuorum || this.arrayOrigins.includes(structVote.origin))) ||
+      !Vote.isValid(structVote)
+    ) {
+      return false;
     }
 
-    return isRelevant && this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
+    if (this.currentHash !== structVote.block.hash) {
+      this.clear();
+      this.currentHash = structVote.block.hash;
+      this.countTx = structVote.block.tx.length;
+    }
+
+    this.arrayOrigins.push(structVote.origin);
+    this.arrayVotes.push({ origin: structVote.origin, sig: structVote.sig });
+    this.arrayStakes.push(stake);
+
+    this.hasQuorum = this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
+    return this.hasQuorum;
   }
 
   get(): Array<{ origin: string; sig: string }> {
@@ -55,7 +63,9 @@ export class VotePool {
   clear() {
     this.currentHash = '';
     this.countTx = 0;
+    this.arrayOrigins = [];
     this.arrayVotes = [];
     this.arrayStakes = [];
+    this.hasQuorum = false;
   }
 }

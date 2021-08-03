@@ -33,7 +33,8 @@ import fs from 'fs';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 17;
+const SIZE_TESTNET = 37;
+const NETWORK_SIZE = 24;
 const BASE_PORT = 17000;
 const IP = '127.27.27.1';
 
@@ -57,7 +58,7 @@ class TestServer {
         path_state: path.join(__dirname, '../state'),
         path_blockstore: path.join(__dirname, '../blockstore'),
         path_keys: path.join(__dirname, '../keys'),
-        network_size: 5,
+        network_size: NETWORK_SIZE,
         network_morph_interval_ms: 30000,
         network_clean_interval_ms: 20000,
       });
@@ -252,8 +253,8 @@ class TestServer {
   @slow(399000)
   @timeout(400000)
   async stressMultiTransaction() {
-    const _outer = 29;
-    const _inner = 7;
+    const _outer = 9;
+    const _inner = 3;
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -286,7 +287,7 @@ class TestServer {
       await TestServer.wait(300);
     }
 
-    await TestServer.wait(120000);
+    await TestServer.wait(90000);
 
     while (arrayRequests.length) {
       const origin = arrayRequests.shift();

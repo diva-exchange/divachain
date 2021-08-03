@@ -100,6 +100,10 @@ export class Api {
       return res.json(this.server.getVotePool().getAll());
     });
 
+    this.server.app.get('/pool/commits', (req: Request, res: Response) => {
+      return res.json(this.server.getCommitPool().getAll());
+    });
+
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {
       return res.json((await this.server.getBlockchain().get(0, 0, 1))[0]);
     });
