@@ -40,7 +40,7 @@ export class Commit extends Message {
   }
 
   /**
-   * Validate the hash and all the votes of a block
+   * Validate the signature of the Commit message, all the votes and the block itself
    *
    * @param {VoteStruct} structVote - Data structure to validate
    */

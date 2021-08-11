@@ -17,46 +17,42 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Vote, VoteStruct } from '../net/message/vote';
+import { VoteStruct } from '../net/message/vote';
 
 export class VotePool {
-  private currentHash: string = '';
+  public currentHash: string = '';
   private countTx: number = 0;
   private arrayOrigins: Array<string> = [];
   private arrayVotes: Array<{ origin: string; sig: string }> = [];
   private arrayStakes: Array<number> = [];
-  private hasQuorum: boolean = false;
+  public hasQuorum: boolean = false;
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
-    // non-relevant incoming voting data, quorum already reached, double vote or invalid incoming voting data
-    if (
-      (this.currentHash !== structVote.block.hash && this.countTx >= structVote.block.tx.length) ||
-      (this.currentHash === structVote.block.hash &&
-        (this.hasQuorum || this.arrayOrigins.includes(structVote.origin))) ||
-      !Vote.isValid(structVote)
-    ) {
+    if (this.currentHash !== structVote.block.hash) {
+      // lesser TX
+      if (structVote.block.tx.length <= this.countTx) {
+        return false;
+      }
+      this.clear();
+    } else if (this.hasQuorum || this.arrayOrigins.includes(structVote.origin)) {
+      // quorum reached or double vote
       return false;
     }
 
-    if (this.currentHash !== structVote.block.hash) {
-      this.clear();
-      this.currentHash = structVote.block.hash;
-      this.countTx = structVote.block.tx.length;
-    }
-
+    this.currentHash = structVote.block.hash;
+    this.countTx = structVote.block.tx.length;
     this.arrayOrigins.push(structVote.origin);
     this.arrayVotes.push({ origin: structVote.origin, sig: structVote.sig });
     this.arrayStakes.push(stake);
-
     this.hasQuorum = this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
-    return this.hasQuorum;
+    return true;
   }
 
   get(): Array<{ origin: string; sig: string }> {
     return this.arrayVotes;
   }
 
-  getAll(): { hash: string; votes: Array<any>; stakes: Array<any> } {
+  getAll(): { hash: string; votes: Array<{ origin: string; sig: string }>; stakes: Array<number> } {
     return { hash: this.currentHash, votes: this.arrayVotes, stakes: this.arrayStakes };
   }
 

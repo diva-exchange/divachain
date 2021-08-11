@@ -33,8 +33,8 @@ import fs from 'fs';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 37;
-const NETWORK_SIZE = 24;
+const SIZE_TESTNET = 11;
+const NETWORK_SIZE = 5;
 const BASE_PORT = 17000;
 const IP = '127.27.27.1';
 
@@ -253,8 +253,8 @@ class TestServer {
   @slow(399000)
   @timeout(400000)
   async stressMultiTransaction() {
-    const _outer = 9;
-    const _inner = 3;
+    const _outer = 50;
+    const _inner = 50;
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -269,7 +269,7 @@ class TestServer {
       for (let _j = 0; _j < _inner; _j++) {
         aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
       }
-      const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+      const i = _i <= arrayConfig.length - 1 ? _i : Math.floor(Math.random() * (arrayConfig.length - 1));
       const pathToken = path.join(
         arrayConfig[i].path_keys,
         arrayConfig[i].address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token'
@@ -277,17 +277,43 @@ class TestServer {
       const token = fs.readFileSync(pathToken).toString();
       arrayRequests.push(arrayOrigin[i]);
       arrayTimestamp.push(new Date().getTime());
+      console.log(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
       const res = await chai
         .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
         .put('/transaction')
         .set('diva-api-token', token)
         .send(aT);
       arrayIdents.push(res.body.ident);
-      console.log(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}/transaction/${arrayOrigin[i]}/${res.body.ident}`);
-      await TestServer.wait(300);
+      //await TestServer.wait(1000);
     }
 
-    await TestServer.wait(90000);
+    let x = 0;
+    while (x < 50) {
+      await TestServer.wait(5000);
+
+      let r = true;
+      for (const n in arrayRequests) {
+        const origin = arrayRequests[n];
+        const ident = arrayIdents[n];
+        const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+        const baseUrl = `http://${arrayConfig[i].ip}:${arrayConfig[i].port}`;
+        let res;
+        try {
+          res = await chai.request(baseUrl).get(`/transaction/${origin}/${ident}`);
+          r = r && res.status === 200;
+        } catch (e) {
+          r = false;
+        }
+      }
+      if (r) {
+        break;
+      }
+      x++;
+    }
+
+    console.log('waiting for sync');
+    // wait for a possible sync
+    await TestServer.wait(10000);
 
     while (arrayRequests.length) {
       const origin = arrayRequests.shift();

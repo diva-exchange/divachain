@@ -47,7 +47,10 @@ export class TransactionPool {
   }
 
   release(): boolean {
-    if (this.inTransit.ident || !this.stackTransaction.length) {
+    if (this.inTransit.ident) {
+      return false;
+    }
+    if (!this.stackTransaction.length) {
       return false;
     }
 
@@ -72,16 +75,15 @@ export class TransactionPool {
   }
 
   clear(block: BlockStruct) {
+    if (this.inTransit.ident) {
+      const hasTx = block.tx.some((t) => {
+        return t.origin === this.inTransit.origin && t.sig === this.inTransit.sig;
+      });
+      if (!hasTx) {
+        this.stackTransaction.unshift(this.inTransit);
+      }
+      this.inTransit = {} as TransactionStruct;
+    }
     this.current = new Map();
-    if (!this.inTransit.ident) {
-      return;
-    }
-    const hasTx = block.tx.some((t) => {
-      return t.origin === this.inTransit.origin && t.sig === this.inTransit.sig;
-    });
-    if (!hasTx) {
-      this.stackTransaction.unshift(this.inTransit);
-    }
-    this.inTransit = {} as TransactionStruct;
   }
 }

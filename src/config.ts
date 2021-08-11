@@ -45,6 +45,7 @@ export type Configuration = {
   network_ping_interval_ms?: number;
   network_stale_threshold?: number;
   network_sync_size?: number;
+  network_gossip_drop_entries_max?: number;
   network_verbose_logging?: boolean;
 
   blockchain_max_blocks_in_memory?: number;
@@ -64,6 +65,8 @@ const DEFAULT_NETWORK_REFRESH_INTERVAL_MS = 3000;
 const DEFAULT_NETWORK_PING_INTERVAL_MS = 5000;
 const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
 const DEFAULT_NETWORK_SYNC_SIZE = 10;
+const DEFAULT_NETWORK_GOSSIP_DROP_ENTRIES_MAX = 5000; // multiplied by network size
+
 const DEFAULT_BLOCK_POOL_CHECK_INTERVAL_MS = 10000;
 
 const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
@@ -96,6 +99,7 @@ export class Config {
   public readonly network_ping_interval_ms: number;
   public readonly network_stale_threshold: number;
   public readonly network_sync_size: number;
+  public readonly network_gossip_drop_entries_max: number;
   public readonly network_verbose_logging: boolean;
 
   public readonly blockchain_max_blocks_in_memory: number;
@@ -179,6 +183,11 @@ export class Config {
       DEFAULT_NETWORK_SYNC_SIZE
     );
 
+    this.network_gossip_drop_entries_max = Config.gte1(
+      c.network_gossip_drop_entries_max || process.env.NETWORK_GOSSIP_DROP_ENTRIES_MAX,
+      this.network_size * DEFAULT_NETWORK_GOSSIP_DROP_ENTRIES_MAX
+    );
+
     this.network_verbose_logging = Config.tf(c.network_verbose_logging || process.env.NETWORK_VERBOSE_LOGGING);
 
     this.blockchain_max_blocks_in_memory = Config.gte1(
@@ -196,15 +205,36 @@ export class Config {
     );
   }
 
+  /**
+   * Boolean transformation
+   * Returns True or False
+   *
+   * @param {any} n - Anything which will be interpreted as a number
+   */
   private static tf(n: any): boolean {
     return Number(n) > 0;
   }
 
+  /**
+   * Number transformation
+   * Returns an integer greater or equal than one
+   *
+   * @param {any} n - Anything transformed to a number
+   * @param {number} d - Default
+   */
   private static gte1(n: any, d: number): number {
     n = Number(n);
     return n > 0 ? Math.ceil(n) : Math.floor(d);
   }
 
+  /**
+   * Number transformation
+   * Boundaries
+   *
+   * @param {any} n - Anything transformed to a number
+   * @param {number} min - Boundary minimum
+   * @param {number} max - Boundary maximum
+   */
   private static b(n: any, min: number, max: number): number {
     n = Number(n);
     min = Math.floor(min);

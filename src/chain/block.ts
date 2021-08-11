@@ -51,9 +51,7 @@ export class Block {
     this.version = 1; //@FIXME
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
-    this.tx = tx.sort((a, b) =>
-      a.timestamp === b.timestamp ? (a.origin > b.origin ? 1 : -1) : a.timestamp > b.timestamp ? 1 : -1
-    );
+    this.tx = tx.sort((a, b) => (a.origin > b.origin ? 1 : -1));
     this.hash = Util.hash(this.previousHash + this.version + this.height + JSON.stringify(this.tx));
   }
 

@@ -119,7 +119,7 @@ export class Api {
           await blockchain.get(Number(req.query.limit || 0), Number(req.query.gte || 0), Number(req.query.lte || 0))
         );
       } catch (error) {
-        Logger.trace(error);
+        this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(500).end();
       }
     });
@@ -129,7 +129,7 @@ export class Api {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
       } catch (error) {
-        Logger.trace(error);
+        this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(500).end();
       }
     });
@@ -139,7 +139,7 @@ export class Api {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getTransaction(req.params.origin, req.params.ident));
       } catch (error) {
-        Logger.trace(error);
+        this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(404).end();
       }
     });
@@ -149,7 +149,7 @@ export class Api {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getPerformance(Number(req.params.height)));
       } catch (error) {
-        Logger.trace(error);
+        this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(404).end();
       }
     });

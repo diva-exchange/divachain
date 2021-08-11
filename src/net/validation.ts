@@ -96,12 +96,14 @@ export class Validation {
       Validation.init();
     }
 
+    // Schema validation
     if (!Validation.tx(tx)) {
       //@FIXME logging
       Logger.trace(Validation.tx.errors as object);
       return false;
     }
 
+    // Protocol validation
     let result = true;
     for (const c of tx.commands) {
       switch (c.command) {
@@ -125,6 +127,12 @@ export class Validation {
   }
 
   static validateBlock(block: BlockStruct): boolean {
+    if (Util.hash(block.previousHash + block.version + block.height + JSON.stringify(block.tx)) !== block.hash) {
+      //@FIXME logging
+      Logger.warn('Invalid block hash');
+      return false;
+    }
+
     const _aOrigin: Array<string> = [];
     for (const tx of block.tx) {
       if (_aOrigin.includes(tx.origin)) {

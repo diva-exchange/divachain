@@ -85,12 +85,8 @@ export class Message {
   }
 
   updateTrail(arrayTrail: Array<string>) {
-    if (!arrayTrail.length) {
-      return;
-    } else if (!this.message.trail) {
-      this.message.trail = [];
-    }
-    arrayTrail.forEach((_pk) => _pk && !this.message.trail.includes(_pk) && this.message.trail.push(_pk));
+    this.message.trail || (this.message.trail = []);
+    this.message.trail = [...new Set(this.message.trail.concat(arrayTrail))].filter((_pk) => _pk);
   }
 
   /**

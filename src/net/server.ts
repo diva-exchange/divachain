@@ -206,9 +206,7 @@ export class Server {
       return false;
     }
 
-    setImmediate(() => {
-      this.createProposal();
-    });
+    this.createProposal();
     return true;
   }
 
@@ -240,49 +238,69 @@ export class Server {
     const v = vote.get();
 
     // not interested in any data beyond the current new block
-    if (this.blockchain.getHeight() + 1 !== v.block.height) {
-      return;
+    const h = this.blockchain.getHeight() + 1;
+    if (h !== v.block.height) {
+      return h > v.block.height ? this.network.stopGossip(vote.ident()) : null;
     }
 
-    if (this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
+    if (!Vote.isValid(v)) {
+      return this.network.stopGossip(vote.ident());
+    }
+
+    // if there are locally unknown transactions within the block, create a new block and vote for it
+    if (this.transactionPool.add(v.block.tx)) {
+      // vote for the new best available version
+      const newBlock = Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get());
+      this.network.stopGossip(vote.ident());
+      return this.doVote(newBlock);
+    }
+
+    if (!this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
+      return this.network.stopGossip(vote.ident());
+    }
+
+    if (this.votePool.hasQuorum) {
       v.block.votes = this.votePool.get();
-      this.network.processMessage(
-        new Commit()
-          .create({
-            origin: this.wallet.getPublicKey(),
-            block: v.block,
-            sig: this.wallet.sign(Util.hash(v.block.hash + JSON.stringify(v.block.votes))),
-          })
-          .pack()
-      );
-      return;
-    }
 
-    // if there are no locally unknown transactions within the block, return
-    if (!this.transactionPool.add(v.block.tx)) {
-      return;
+      setImmediate(() => {
+        this.network.processMessage(
+          new Commit()
+            .create({
+              origin: this.wallet.getPublicKey(),
+              block: v.block,
+              sig: this.wallet.sign(Util.hash(v.block.hash + JSON.stringify(v.block.votes))),
+            })
+            .pack()
+        );
+      });
     }
-
-    // vote for the new best available version
-    this.network.stopGossip(vote.ident());
-    this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
   }
 
   private async processCommit(commit: Commit) {
     const c: VoteStruct = commit.get();
 
     // not interested in any data beyond the current new block
-    if (this.blockchain.getHeight() + 1 !== c.block.height) {
+    const h = this.blockchain.getHeight() + 1;
+    if (h !== c.block.height) {
+      return h > c.block.height ? this.network.stopGossip(commit.ident()) : null;
+    }
+
+    if (!Commit.isValid(c)) {
+      return this.network.stopGossip(commit.ident());
+    }
+
+    if (this.votePool.currentHash !== c.block.hash) {
       return;
     }
 
-    if (this.commitPool.add(c, this.network.getStake(c.origin), this.network.getQuorum())) {
+    if (!this.commitPool.add(c, this.network.getStake(c.origin), this.network.getQuorum())) {
+      return this.network.stopGossip(commit.ident());
+    }
+    if (this.commitPool.hasQuorum) {
       await this.blockchain.add(c.block);
 
-      // if there is another transaction on the stack: release and process it!
-      setImmediate(() => {
-        this.createProposal();
-      });
+      // if there is another transaction on the stack: release and process it
+      this.createProposal();
     }
   }
 
@@ -290,6 +308,9 @@ export class Server {
     const h = this.blockchain.getHeight();
     for (const block of sync.get().filter((b) => h < b.height)) {
       await this.blockchain.add(block);
+
+      // if there is another transaction on the stack: release and process it
+      this.createProposal();
     }
   }
 

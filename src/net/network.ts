@@ -30,8 +30,6 @@ import { Server } from './server';
 import { Sync } from './message/sync';
 import Timeout = NodeJS.Timeout;
 
-const GOSSIP_MAX_MESSAGES_PER_PEER = 2500;
-
 const WS_CLIENT_OPTIONS = {
   compress: true,
   binary: true,
@@ -55,12 +53,13 @@ export class Network {
   private readonly publicKey: string;
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
   private arrayPeerNetwork: Array<string> = [];
+  private arrayBroadcast: Array<string> = [];
 
   private peersIn: { [publicKey: string]: Peer } = {};
   private peersOut: { [publicKey: string]: Peer } = {};
 
   private readonly _onMessage: Function | false;
-  private aGossip: { [publicKeyPeer: string]: Array<string> } = {};
+  private aGossip: Array<string> = [];
 
   private timeoutMorph: Timeout = {} as Timeout;
   private timeoutRefresh: Timeout = {} as Timeout;
@@ -131,9 +130,6 @@ export class Network {
   addPeer(publicKey: string, peer: NetworkPeer): Network {
     if (!this.mapPeer.has(publicKey)) {
       this.mapPeer.set(publicKey, peer);
-
-      // initialize gossip map
-      publicKey !== this.publicKey && (this.aGossip[publicKey] = []);
     }
     return this;
   }
@@ -143,7 +139,6 @@ export class Network {
       this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
       this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
 
-      delete this.aGossip[publicKey];
       this.mapPeer.delete(publicKey);
     }
     return this;
@@ -218,7 +213,7 @@ export class Network {
     return false;
   }
 
-  gossip(): { [publicKey: string]: Array<string> } {
+  gossip(): Array<string> {
     return this.aGossip;
   }
 
@@ -228,9 +223,9 @@ export class Network {
    * @param {string} ident - Message identifier
    */
   stopGossip(ident: string) {
-    Object.keys(this.aGossip).forEach((_pk) => {
-      this.aGossip[_pk].push(ident);
-    });
+    for (const _pk of this.arrayBroadcast) {
+      this.aGossip.push(_pk + ident);
+    }
   }
 
   /**
@@ -250,40 +245,37 @@ export class Network {
       return this.stopGossip(ident);
     }
 
-    // populate Gossiping map
-    m.trail().forEach((_pk) => {
-      this.aGossip[_pk] ? this.aGossip[_pk].push(ident) : (this.aGossip[_pk] = [ident]);
-    });
-
     // process message handler callback
     this._onMessage && this._onMessage(m.type(), message);
 
     // broadcasting / gossip
     if (m.isBroadcast()) {
-      const arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))].filter(
-        (_pk) => {
-          return !this.aGossip[_pk].includes(ident);
-        }
-      );
-
-      if (!arrayBroadcast.length) {
-        return;
+      // populate Gossiping map
+      for (const _pk of m.trail()) {
+        this.aGossip.includes(_pk + ident) || this.aGossip.push(_pk + ident);
       }
 
-      m.updateTrail(arrayBroadcast.concat([this.publicKey, m.origin(), publicKeyPeer]));
-      for (const _pk of arrayBroadcast) {
-        try {
-          if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
-            Network.send(this.peersOut[_pk].ws, m.pack());
-          } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
-            Network.send(this.peersIn[_pk].ws, m.pack());
-          } else {
-            continue;
+      const aBroadcast = this.arrayBroadcast.filter((_pk) => !this.aGossip.includes(_pk + ident));
+
+      if (aBroadcast.length) {
+        // update message trail
+        m.updateTrail([this.publicKey, m.origin(), publicKeyPeer]);
+
+        // broadcast the message
+        for (const _pk of aBroadcast) {
+          try {
+            if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
+              Network.send(this.peersOut[_pk].ws, m.pack());
+            } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
+              Network.send(this.peersIn[_pk].ws, m.pack());
+            } else {
+              continue;
+            }
+            this.aGossip.includes(_pk + ident) || this.aGossip.push(_pk + ident);
+          } catch (error) {
+            Logger.warn('broadcast(): Websocket Error');
+            Logger.trace(JSON.stringify(error));
           }
-          this.aGossip[_pk].push(ident);
-        } catch (error) {
-          Logger.warn('broadcast(): Websocket Error');
-          Logger.trace(JSON.stringify(error));
         }
       }
     }
@@ -317,12 +309,14 @@ export class Network {
         stale: 0,
         ws: ws,
       };
+      this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
 
       ws.on('error', () => {
         ws.close();
       });
       ws.on('close', () => {
         delete this.peersIn[publicKeyPeer];
+        this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
       });
       ws.on('message', (message: Buffer) => {
         if (this.peersIn[publicKeyPeer]) {
@@ -398,12 +392,9 @@ export class Network {
         peer.alive < t && peer.ws.close(4002, 'Timeout');
       });
 
-    const drop = Math.floor(GOSSIP_MAX_MESSAGES_PER_PEER / 2);
-    Object.keys(this.aGossip).forEach((_pk) => {
-      if (this.aGossip[_pk].length / 2 > drop) {
-        this.aGossip[_pk].splice(0, this.aGossip[_pk].length - drop);
-      }
-    });
+    if (this.aGossip.length > this.server.config.network_gossip_drop_entries_max) {
+      this.aGossip.splice(0, Math.floor(this.aGossip.length / 3));
+    }
 
     this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
@@ -439,9 +430,11 @@ export class Network {
       stale: 0,
       ws: ws,
     };
+    this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
 
     ws.on('close', () => {
       delete this.peersOut[publicKeyPeer];
+      this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
     });
     ws.on('error', () => {
       ws.close();

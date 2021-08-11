@@ -18,29 +18,26 @@
  */
 
 import { VoteStruct } from '../net/message/vote';
-import { Commit } from '../net/message/commit';
 
 export class CommitPool {
   private currentHash: string = '';
   private arrayCommits: Array<string> = [];
   private arrayStakes: Array<number> = [];
-  private hasQuorum: boolean = false;
+  public hasQuorum: boolean = false;
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
     if (structVote.block.hash !== this.currentHash) {
       this.clear();
-      this.currentHash = structVote.block.hash;
-    }
-
-    // Quorum already reached, double commit or invalid incoming commit data
-    if (this.hasQuorum || this.arrayCommits.includes(structVote.origin) || !Commit.isValid(structVote)) {
+    } else if (this.hasQuorum || this.arrayCommits.includes(structVote.origin)) {
+      // Quorum already reached or double commit
       return false;
     }
 
+    this.currentHash = structVote.block.hash;
     this.arrayCommits.push(structVote.origin);
     this.arrayStakes.push(stake);
     this.hasQuorum = this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
-    return this.hasQuorum;
+    return true;
   }
 
   getAll(): { hash: string; commits: Array<any>; stakes: Array<any> } {

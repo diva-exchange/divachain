@@ -51,7 +51,7 @@ export type ArrayComand = Array<CommandTestLoad | CommandAddPeer | CommandRemove
 export type TransactionStruct = {
   ident: string;
   origin: string;
-  timestamp: number;
+  timestamp: number; // Format: Milliseconds (1/1,000 second)
   commands: ArrayComand;
   sig: string;
 };
