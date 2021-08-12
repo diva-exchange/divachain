@@ -26,6 +26,7 @@ import path from 'path';
 import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, TransactionStruct } from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
+import { Logger } from '../logger';
 
 export class Blockchain {
   private readonly server: Server;
@@ -77,7 +78,9 @@ export class Blockchain {
       this.dbBlockchain
         .createReadStream()
         .on('data', async (data) => {
-          await this.processState(JSON.parse(data.value) as BlockStruct);
+          const block: BlockStruct = JSON.parse(data.value) as BlockStruct;
+          this.updateCache(block);
+          await this.processState(block);
         })
         .on('end', resolve)
         .on('error', reject);
@@ -114,20 +117,33 @@ export class Blockchain {
       block.previousHash !== this.latestBlock.hash ||
       block.hash !== Blockchain.hashBlock(block)
     ) {
-      throw new Error(
+      Logger.warn(
         `Failed to verify block "${block.height}", ` +
           `Height check: ${this.height + 1 !== block.height ? 'failed' : 'ok'}, ` +
           `Previous Hash check: ${block.previousHash !== this.latestBlock.hash ? 'failed' : 'ok'}, ` +
           `Hash check: ${block.hash !== Blockchain.hashBlock(block) ? 'failed' : 'ok'}`
       );
+      return;
     }
 
-    await this.dbBlockchain.put(String(block.height).padStart(16, '0'), JSON.stringify(block));
+    this.updateCache(block);
+    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
     await this.processState(block);
 
     this.server.getCommitPool().clear();
     this.server.getVotePool().clear();
     this.server.getTransactionPool().clear(block);
+  }
+
+  private updateCache(block: BlockStruct) {
+    this.height = block.height;
+    this.latestBlock = block;
+
+    // cache
+    this.mapBlocks.set(this.height, block);
+    if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
+      this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
+    }
   }
 
   //@FIXME the behaviour (either gte and lte OR limit) is crap
@@ -254,18 +270,8 @@ export class Blockchain {
   }
 
   private async processState(block: BlockStruct) {
-    if (this.height < block.height) {
-      this.height = block.height;
-      this.latestBlock = block;
-      if (this.server.config.debug_performance) {
-        await this.dbState.put('debug-performance-' + this.height, new Date().getTime());
-      }
-
-      // cache
-      this.mapBlocks.set(block.height, block);
-      if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
-        this.mapBlocks.delete(block.height - this.server.config.blockchain_max_blocks_in_memory);
-      }
+    if (this.server.config.debug_performance) {
+      await this.dbState.put('debug-performance-' + this.height, new Date().getTime());
     }
 
     for (const t of block.tx) {
