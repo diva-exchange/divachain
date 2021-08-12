@@ -259,7 +259,7 @@ export class Network {
 
       if (aBroadcast.length) {
         // update message trail
-        m.updateTrail([this.publicKey, m.origin(), publicKeyPeer]);
+        m.updateTrail(aBroadcast.concat([this.publicKey, m.origin(), publicKeyPeer]));
 
         // broadcast the message
         for (const _pk of aBroadcast) {
@@ -269,11 +269,12 @@ export class Network {
             } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
               Network.send(this.peersIn[_pk].ws, m.pack());
             } else {
+              Logger.warn('processMessage() - broadcast: Websocket destination not available');
               continue;
             }
             this.aGossip.includes(_pk + ident) || this.aGossip.push(_pk + ident);
           } catch (error) {
-            Logger.warn('broadcast(): Websocket Error');
+            Logger.warn('processMessage() - broadcast: Websocket Error');
             Logger.trace(JSON.stringify(error));
           }
         }

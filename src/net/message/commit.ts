@@ -30,7 +30,7 @@ export class Commit extends Message {
   }
 
   create(structVote: VoteStruct): Commit {
-    this.message.ident = this.message.type + structVote.sig;
+    this.message.ident = this.message.type + Util.md5hex(structVote.sig);
     this.message.data = structVote;
     return this;
   }
