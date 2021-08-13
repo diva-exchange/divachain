@@ -127,12 +127,13 @@ export class Blockchain {
     }
 
     this.updateCache(block);
-    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
-    await this.processState(block);
-
+    this.server.getNetwork().resetGossip();
     this.server.getCommitPool().clear();
     this.server.getVotePool().clear();
     this.server.getTransactionPool().clear(block);
+
+    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
+    await this.processState(block);
   }
 
   private updateCache(block: BlockStruct) {
