@@ -238,9 +238,8 @@ export class Server {
     const v = vote.get();
 
     // not interested in any data beyond the current new block
-    const h = this.blockchain.getHeight() + 1;
-    if (h !== v.block.height) {
-      return h > v.block.height ? this.network.stopGossip(vote.ident()) : null;
+    if (this.blockchain.getHeight() + 1 !== v.block.height) {
+      return this.network.stopGossip(vote.ident());
     }
 
     if (!Vote.isValid(v)) {
@@ -249,10 +248,9 @@ export class Server {
 
     // if there are locally unknown transactions within the block, create a new block and vote for it
     if (this.transactionPool.add(v.block.tx)) {
-      // vote for the new best available version
-      const newBlock = Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get());
+      // vote for the best available block
       this.network.stopGossip(vote.ident());
-      return this.doVote(newBlock);
+      return this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
     }
 
     if (!this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
@@ -280,17 +278,12 @@ export class Server {
     const c: VoteStruct = commit.get();
 
     // not interested in any data beyond the current new block
-    const h = this.blockchain.getHeight() + 1;
-    if (h !== c.block.height) {
-      return h > c.block.height ? this.network.stopGossip(commit.ident()) : null;
+    if (this.commitPool.hasQuorum || this.blockchain.getHeight() + 1 !== c.block.height) {
+      return this.network.stopGossip(commit.ident());
     }
 
     if (!Commit.isValid(c)) {
       return this.network.stopGossip(commit.ident());
-    }
-
-    if (this.votePool.currentHash !== c.block.hash) {
-      return;
     }
 
     if (!this.commitPool.add(c, this.network.getStake(c.origin), this.network.getQuorum())) {

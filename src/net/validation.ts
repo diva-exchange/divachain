@@ -24,6 +24,7 @@ import { Logger } from '../logger';
 import { CommandModifyStake, CommandRemovePeer, TransactionStruct } from '../chain/transaction';
 import path from 'path';
 import { Util } from '../chain/util';
+import { MAX_TRANSACTIONS } from '../pool/transaction-pool';
 
 export class Validation {
   private static message: ValidateFunction;
@@ -130,6 +131,12 @@ export class Validation {
     if (Util.hash(block.previousHash + block.version + block.height + JSON.stringify(block.tx)) !== block.hash) {
       //@FIXME logging
       Logger.warn('Invalid block hash');
+      return false;
+    }
+
+    if (block.tx.length > MAX_TRANSACTIONS) {
+      //@FIXME logging
+      Logger.warn('Invalid block tx length');
       return false;
     }
 

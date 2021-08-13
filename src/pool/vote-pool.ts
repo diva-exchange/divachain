@@ -20,8 +20,8 @@
 import { VoteStruct } from '../net/message/vote';
 
 export class VotePool {
-  public currentHash: string = '';
-  private countTx: number = 0;
+  private currentHash: string = '';
+  private sortTx: string = '';
   private arrayOrigins: Array<string> = [];
   private arrayVotes: Array<{ origin: string; sig: string }> = [];
   private arrayStakes: Array<number> = [];
@@ -29,18 +29,23 @@ export class VotePool {
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
     if (this.currentHash !== structVote.block.hash) {
-      // lesser TX
-      if (structVote.block.tx.length <= this.countTx) {
+      // check for better Tx
+      const newSortTx = structVote.block.tx.map((_tx) => _tx.sig).join('');
+      if (
+        newSortTx.length < this.sortTx.length ||
+        (newSortTx.length === this.sortTx.length && newSortTx > this.sortTx)
+      ) {
         return false;
       }
+
       this.clear();
+      this.currentHash = structVote.block.hash;
+      this.sortTx = newSortTx;
     } else if (this.hasQuorum || this.arrayOrigins.includes(structVote.origin)) {
       // quorum reached or double vote
       return false;
     }
 
-    this.currentHash = structVote.block.hash;
-    this.countTx = structVote.block.tx.length;
     this.arrayOrigins.push(structVote.origin);
     this.arrayVotes.push({ origin: structVote.origin, sig: structVote.sig });
     this.arrayStakes.push(stake);
@@ -52,13 +57,13 @@ export class VotePool {
     return this.arrayVotes;
   }
 
-  getAll(): { hash: string; votes: Array<{ origin: string; sig: string }>; stakes: Array<number> } {
-    return { hash: this.currentHash, votes: this.arrayVotes, stakes: this.arrayStakes };
+  getAll(): { hash: string; votes: Array<{ origin: string; sig: string }>; stakes: Array<number>; hasQuorum: boolean } {
+    return { hash: this.currentHash, votes: this.arrayVotes, stakes: this.arrayStakes, hasQuorum: this.hasQuorum };
   }
 
   clear() {
     this.currentHash = '';
-    this.countTx = 0;
+    this.sortTx = '';
     this.arrayOrigins = [];
     this.arrayVotes = [];
     this.arrayStakes = [];

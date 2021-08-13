@@ -24,6 +24,9 @@ import { Wallet } from '../chain/wallet';
 import { BlockStruct } from '../chain/block';
 import { Validation } from '../net/validation';
 
+//@FIXME configurable? - not really - it's a protocol thing -> is the constant in the right place?
+export const MAX_TRANSACTIONS = 8;
+
 export class TransactionPool {
   private readonly wallet: Wallet;
   private readonly publicKey: string;
@@ -60,24 +63,24 @@ export class TransactionPool {
   }
 
   add(arrayTx: Array<TransactionStruct>): boolean {
-    let r = false;
+    const _s = this.current.size;
     arrayTx.forEach((tx) => {
       if (!this.current.has(tx.origin) && Validation.validateTx(tx)) {
         this.current.set(tx.origin, tx);
-        r = true;
       }
     });
-    return r;
+    return _s < this.current.size;
   }
 
   get(): Array<TransactionStruct> {
-    return [...this.current.values()];
+    //@FIXME sort algo
+    return [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1)).slice(0, MAX_TRANSACTIONS);
   }
 
   clear(block: BlockStruct) {
     if (this.inTransit.ident) {
       const hasTx = block.tx.some((t) => {
-        return t.origin === this.inTransit.origin && t.sig === this.inTransit.sig;
+        return t.sig === this.inTransit.sig;
       });
       if (!hasTx) {
         this.stackTransaction.unshift(this.inTransit);

@@ -37,7 +37,7 @@ export class Util {
    * @returns {string} - hash, base64url encoded
    */
   static hash(s: string): string {
-    const bufferOutput: Buffer = sodium.sodium_malloc(sodium.crypto_hash_sha256_BYTES);
+    const bufferOutput: Buffer = Buffer.alloc(sodium.crypto_hash_sha256_BYTES);
     sodium.crypto_hash_sha256(bufferOutput, Buffer.from(s));
     return base64url.escape(bufferOutput.toString('base64'));
   }

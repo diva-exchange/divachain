@@ -229,6 +229,13 @@ export class Network {
   }
 
   /**
+   * Reset the gossipping map
+   */
+  resetGossip() {
+    this.aGossip = [];
+  }
+
+  /**
    * Process an incoming message
    *
    * @param {Buffer|string} message - Incoming message
@@ -252,7 +259,7 @@ export class Network {
     if (m.isBroadcast()) {
       // populate Gossiping map
       for (const _pk of m.trail()) {
-        this.aGossip.includes(_pk + ident) || this.aGossip.push(_pk + ident);
+        this.aGossip.push(_pk + ident);
       }
 
       const aBroadcast = this.arrayBroadcast.filter((_pk) => !this.aGossip.includes(_pk + ident));
@@ -272,7 +279,7 @@ export class Network {
               Logger.warn('processMessage() - broadcast: Websocket destination not available');
               continue;
             }
-            this.aGossip.includes(_pk + ident) || this.aGossip.push(_pk + ident);
+            this.aGossip.push(_pk + ident);
           } catch (error) {
             Logger.warn('processMessage() - broadcast: Websocket Error');
             Logger.trace(JSON.stringify(error));

@@ -35,7 +35,7 @@ export class Wallet {
 
   private constructor(config: Config) {
     this.config = config;
-    this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);
+    this.publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
   }
 
@@ -73,7 +73,7 @@ export class Wallet {
       this.open();
     }
 
-    const bufferSignature: Buffer = sodium.sodium_malloc(sodium.crypto_sign_BYTES);
+    const bufferSignature: Buffer = Buffer.alloc(sodium.crypto_sign_BYTES);
     const bufferDataHash: Buffer = Buffer.from(data);
 
     sodium.crypto_sign_detached(bufferSignature, bufferDataHash, this.secretKey);
