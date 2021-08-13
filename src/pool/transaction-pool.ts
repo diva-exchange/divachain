@@ -24,8 +24,8 @@ import { Wallet } from '../chain/wallet';
 import { BlockStruct } from '../chain/block';
 import { Validation } from '../net/validation';
 
-//@FIXME configurable? - not really - it's a protocol thing -> is the constant in the right place?
-export const MAX_TRANSACTIONS = 8;
+//@TODO it's a protocol thing -> is the constant in the right place?
+export const MAX_TRANSACTIONS = 10;
 
 export class TransactionPool {
   private readonly wallet: Wallet;

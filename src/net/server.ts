@@ -259,7 +259,6 @@ export class Server {
 
     if (this.votePool.hasQuorum) {
       v.block.votes = this.votePool.get();
-
       setImmediate(() => {
         this.network.processMessage(
           new Commit()
@@ -290,21 +289,20 @@ export class Server {
       return this.network.stopGossip(commit.ident());
     }
     if (this.commitPool.hasQuorum) {
-      await this.blockchain.add(c.block);
-
-      // if there is another transaction on the stack: release and process it
-      this.createProposal();
+      await this.addBlock(c.block);
     }
   }
 
   private async processSync(sync: Sync) {
     const h = this.blockchain.getHeight();
     for (const block of sync.get().filter((b) => h < b.height)) {
-      await this.blockchain.add(block);
-
-      // if there is another transaction on the stack: release and process it
-      this.createProposal();
+      await this.addBlock(block);
     }
+  }
+
+  private async addBlock(block: BlockStruct) {
+    await this.blockchain.add(block);
+    this.createProposal();
   }
 
   private async onMessage(type: number, message: Buffer | string) {

@@ -21,6 +21,7 @@ import { VoteStruct } from '../net/message/vote';
 
 export class VotePool {
   private currentHash: string = '';
+  private countTx: number = 0;
   private sortTx: string = '';
   private arrayOrigins: Array<string> = [];
   private arrayVotes: Array<{ origin: string; sig: string }> = [];
@@ -28,22 +29,23 @@ export class VotePool {
   public hasQuorum: boolean = false;
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
-    if (this.currentHash !== structVote.block.hash) {
+    if (this.currentHash === structVote.block.hash && this.arrayOrigins.includes(structVote.origin)) {
+      // double vote
+      return false;
+    } else if (this.currentHash !== structVote.block.hash) {
       // check for better Tx
       const newSortTx = structVote.block.tx.map((_tx) => _tx.sig).join('');
       if (
-        newSortTx.length < this.sortTx.length ||
-        (newSortTx.length === this.sortTx.length && newSortTx > this.sortTx)
+        this.countTx > structVote.block.tx.length ||
+        (this.countTx === structVote.block.tx.length && newSortTx > this.sortTx)
       ) {
         return false;
       }
 
       this.clear();
       this.currentHash = structVote.block.hash;
+      this.countTx = structVote.block.tx.length;
       this.sortTx = newSortTx;
-    } else if (this.hasQuorum || this.arrayOrigins.includes(structVote.origin)) {
-      // quorum reached or double vote
-      return false;
     }
 
     this.arrayOrigins.push(structVote.origin);
@@ -63,6 +65,7 @@ export class VotePool {
 
   clear() {
     this.currentHash = '';
+    this.countTx = 0;
     this.sortTx = '';
     this.arrayOrigins = [];
     this.arrayVotes = [];

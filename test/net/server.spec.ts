@@ -34,7 +34,7 @@ import fs from 'fs';
 chai.use(chaiHttp);
 
 const SIZE_TESTNET = 17;
-const NETWORK_SIZE = 13;
+const NETWORK_SIZE = 9;
 const BASE_PORT = 17000;
 const IP = '127.27.27.1';
 
@@ -253,7 +253,7 @@ class TestServer {
   @slow(399000)
   @timeout(400000)
   async stressMultiTransaction() {
-    const _outer = 57;
+    const _outer = 25;
     const _inner = 8;
 
     // create blocks containing multiple transactions
@@ -284,11 +284,11 @@ class TestServer {
         .set('diva-api-token', token)
         .send(aT);
       arrayIdents.push(res.body.ident);
-      await TestServer.wait(1 + Math.floor(Math.random() * 2000));
+      // await TestServer.wait(1 + Math.floor(Math.random() * 2000));
     }
 
     let x = 0;
-    while (x < 10) {
+    while (x < 20) {
       await TestServer.wait(3000);
 
       let r = true;

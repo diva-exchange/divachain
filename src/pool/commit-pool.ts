@@ -28,8 +28,8 @@ export class CommitPool {
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
     if (structVote.block.hash !== this.currentHash) {
       this.clear();
-    } else if (this.hasQuorum || this.arrayCommits.includes(structVote.origin)) {
-      // Quorum already reached or double commit
+    } else if (this.arrayCommits.includes(structVote.origin)) {
+      // double commit
       return false;
     }
 
@@ -40,8 +40,8 @@ export class CommitPool {
     return true;
   }
 
-  getAll(): { hash: string; commits: Array<any>; stakes: Array<any> } {
-    return { hash: this.currentHash, commits: this.arrayCommits, stakes: this.arrayStakes };
+  getAll(): { hash: string; commits: Array<any>; stakes: Array<any>; hasQuorum: boolean } {
+    return { hash: this.currentHash, commits: this.arrayCommits, stakes: this.arrayStakes, hasQuorum: this.hasQuorum };
   }
 
   clear() {
