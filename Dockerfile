@@ -17,7 +17,7 @@
 # Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
 #
 
-FROM node:12-slim AS build
+FROM node:14-slim AS build
 
 LABEL author="Konrad Baechler <konrad@diva.exchange>" \
   maintainer="Konrad Baechler <konrad@diva.exchange>" \
@@ -30,7 +30,7 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
 #############################################
 COPY bin /divachain/bin
 COPY src /divachain/src
-COPY build/node12-linux-x64 /divachain/build/node12-linux-x64
+COPY build/node14-linux-x64 /divachain/build/node14-linux-x64
 COPY package.json /divachain/package.json
 COPY tsconfig.json /divachain/tsconfig.json
 

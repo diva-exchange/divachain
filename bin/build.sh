@@ -44,7 +44,7 @@ rm -rf ${PROJECT_PATH}build/prebuilds
 mkdir -p ${PROJECT_PATH}build/prebuilds/
 cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/linux-x64 ${PROJECT_PATH}build/prebuilds/
 
-cd build/node12-linux-x64
+cd build/node14-linux-x64
 pkg --no-bytecode \
   --public \
   --output ${PROJECT_PATH}build/divachain-linux-x64 \
