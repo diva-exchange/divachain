@@ -111,7 +111,7 @@ export class Config {
     this.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
 
     const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
-      /[^a-z0-9_-]/gi,
+      /[^a-z0-9\._-]|^[\._-]+|[\._-]+$/gi,
       ''
     );
 
