@@ -103,9 +103,6 @@ Default: 1000
 ### API_MAX_QUERY_SIZE
 Default: 50
 
-### BLOCK_POOL_CHECK_INTERVAL_MS
-Default: 10000ms
-
 Interval, in milliseconds, to check whether the block pool is stale.
 
 ## API Endpoints

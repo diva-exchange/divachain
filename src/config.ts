@@ -50,8 +50,6 @@ export type Configuration = {
 
   blockchain_max_blocks_in_memory?: number;
   blockchain_max_query_size?: number;
-
-  block_pool_check_interval_ms?: number;
 };
 
 const DEFAULT_PORT = 17468;
@@ -66,8 +64,6 @@ const DEFAULT_NETWORK_PING_INTERVAL_MS = 5000;
 const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
 const DEFAULT_NETWORK_SYNC_SIZE = 10;
 const DEFAULT_NETWORK_GOSSIP_DROP_ENTRIES_MAX = 5000; // multiplied by network size
-
-const DEFAULT_BLOCK_POOL_CHECK_INTERVAL_MS = 10000;
 
 const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
 const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 50;
@@ -104,8 +100,6 @@ export class Config {
 
   public readonly blockchain_max_blocks_in_memory: number;
   public readonly blockchain_max_query_size: number;
-
-  public readonly block_pool_check_interval_ms: number;
 
   constructor(c: Configuration) {
     this.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
@@ -197,11 +191,6 @@ export class Config {
     this.blockchain_max_query_size = Config.gte1(
       c.blockchain_max_query_size || process.env.API_MAX_QUERY_SIZE,
       DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE
-    );
-
-    this.block_pool_check_interval_ms = Config.gte1(
-      c.block_pool_check_interval_ms || process.env.BLOCK_POOL_CHECK_INTERVAL_MS,
-      DEFAULT_BLOCK_POOL_CHECK_INTERVAL_MS
     );
   }
 
