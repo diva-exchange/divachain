@@ -31,6 +31,18 @@
           },
           {
             "$ref": "testLoad.json"
+          },
+          {
+            "$ref": "addAsset.json"
+          },
+          {
+            "$ref": "deleteAsset.json"
+          },
+          {
+            "$ref": "addOrder.json"
+          },
+          {
+            "$ref": "deleteOrder.json"
           }
         ]
       },

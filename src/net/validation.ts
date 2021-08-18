@@ -80,7 +80,7 @@ export class Validation {
     }).compile(schemaMessage);
 
     Validation.tx = new Ajv({
-      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaTestLoad],
+      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaTestLoad, schemaAddAsset, schemaDeleteAsset, schemaAddOrder, schemaDeleteOrder],
     }).compile(schemaTx);
   }
 
