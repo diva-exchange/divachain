@@ -23,7 +23,16 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, TransactionStruct } from './transaction';
+import {
+  CommandAddPeer,
+  CommandRemovePeer,
+  CommandModifyStake,
+  TransactionStruct,
+  CommandAddAsset,
+  CommandDeleteAsset,
+  CommandAddOrder,
+  CommandDeleteOrder,
+} from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
@@ -289,6 +298,18 @@ export class Blockchain {
           case 'modifyStake':
             await this.modifyStake(c as CommandModifyStake);
             break;
+          case 'addAsset':
+            await this.addAsset(c as CommandAddAsset);
+            break;
+          case 'deleteAsset':
+            await this.deleteAsset(c as CommandDeleteAsset);
+            break;
+          case 'addOrder':
+            await this.addOrder(c as CommandAddOrder);
+            break;
+          case 'deleteOrder':
+            await this.deleteOrder(c as CommandDeleteOrder);
+            break;
         }
       }
     }
@@ -324,5 +345,21 @@ export class Blockchain {
       this.mapPeer.set(command.publicKey, peer);
       await this.dbState.put('stake:' + command.publicKey, peer.stake);
     }
+  }
+
+  private async addAsset(command: CommandAddAsset) {
+    Logger.info(command);
+  }
+
+  private async deleteAsset(command: CommandDeleteAsset) {
+    Logger.info(command);
+  }
+
+  private async addOrder(command: CommandAddOrder) {
+    Logger.info(command);
+  }
+
+  private async deleteOrder(command: CommandDeleteOrder) {
+    Logger.info(command);
   }
 }

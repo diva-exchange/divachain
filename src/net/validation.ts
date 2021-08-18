@@ -21,7 +21,15 @@ import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
 import { BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
-import { CommandModifyStake, CommandRemovePeer, TransactionStruct } from '../chain/transaction';
+import {
+  CommandAddAsset,
+  CommandAddOrder,
+  CommandDeleteAsset,
+  CommandDeleteOrder,
+  CommandModifyStake,
+  CommandRemovePeer,
+  TransactionStruct,
+} from '../chain/transaction';
 import path from 'path';
 import { Util } from '../chain/util';
 import { MAX_TRANSACTIONS } from '../pool/transaction-pool';
@@ -43,6 +51,10 @@ export class Validation {
     const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addPeer.json');
     const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/removePeer.json');
     const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modifyStake.json');
+    const schemaAddAsset: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addAsset.json');
+    const schemaDeleteAsset: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/deleteAsset.json');
+    const schemaAddOrder: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addOrder.json');
+    const schemaDeleteOrder: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/deleteOrder.json');
 
     //@TODO
     const schemaTestLoad: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/testLoad.json');
@@ -60,6 +72,10 @@ export class Validation {
         schemaRemovePeer,
         schemaModifyStake,
         schemaTestLoad,
+        schemaAddAsset,
+        schemaDeleteAsset,
+        schemaAddOrder,
+        schemaDeleteOrder,
       ],
     }).compile(schemaMessage);
 
@@ -115,6 +131,18 @@ export class Validation {
           break;
         case 'modifyStake':
           result = (c as CommandModifyStake).publicKey !== tx.origin;
+          break;
+        case 'addAsset':
+          result = (c as CommandAddAsset).publicKey !== tx.origin;
+          break;
+        case 'deleteAsset':
+          result = (c as CommandDeleteAsset).publicKey !== tx.origin;
+          break;
+        case 'addOrder':
+          result = (c as CommandAddOrder).publicKey !== tx.origin;
+          break;
+        case 'deleteOrder':
+          result = (c as CommandDeleteOrder).publicKey !== tx.origin;
           break;
       }
       if (!result) {

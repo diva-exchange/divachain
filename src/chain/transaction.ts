@@ -46,20 +46,47 @@ export interface CommandModifyStake extends Command {
   stake: number;
 }
 
-export type ArrayComand = Array<CommandTestLoad | CommandAddPeer | CommandRemovePeer | CommandModifyStake>;
+export interface CommandAddOrder extends Command {
+  publicKey: string;
+  identAssetPair: string;
+  flag: boolean;
+  amount: number;
+  price: number;
+}
+
+export interface CommandDeleteOrder extends Command {
+  publicKey: string;
+  identAssetPair: string;
+  flag: boolean;
+  amount: number;
+  price: number;
+}
+
+export interface CommandAddAsset extends Command {
+  publicKey: string;
+  identAssetPair: number;
+}
+
+export interface CommandDeleteAsset extends Command {
+  publicKey: string;
+  identAssetPair: number;
+}
+
+export type ArrayCommand = Array<CommandTestLoad | CommandAddPeer | CommandRemovePeer | CommandModifyStake |
+  CommandAddOrder | CommandDeleteOrder | CommandAddAsset | CommandDeleteAsset>;
 
 export type TransactionStruct = {
   ident: string;
   origin: string;
   timestamp: number; // Format: Milliseconds (1/1,000 second)
-  commands: ArrayComand;
+  commands: ArrayCommand;
   sig: string;
 };
 
 export class Transaction {
   private readonly structTransaction: TransactionStruct;
 
-  constructor(wallet: Wallet, commands: ArrayComand, ident: string = '') {
+  constructor(wallet: Wallet, commands: ArrayCommand, ident: string = '') {
     const _ident = ident.length > 0 && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(8);
     const _ts = Date.now();
     this.structTransaction = {

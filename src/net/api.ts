@@ -19,7 +19,7 @@
 
 import { Server } from './server';
 import { Request, Response } from 'express';
-import { ArrayComand, Transaction, TransactionStruct } from '../chain/transaction';
+import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Logger } from '../logger';
 import { nanoid } from 'nanoid';
 import fs from 'fs';
@@ -157,7 +157,7 @@ export class Api {
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
       if (req.headers[NAME_HEADER_API_TOKEN] === this.token) {
         const wallet = this.server.getWallet();
-        const t: TransactionStruct = new Transaction(wallet, req.body as ArrayComand, req.params.ident).get();
+        const t: TransactionStruct = new Transaction(wallet, req.body as ArrayCommand, req.params.ident).get();
         if (this.server.stackTransaction(t)) {
           return res.json(t);
         }

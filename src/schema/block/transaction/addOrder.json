@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/block/transaction/addOrder.json",
+
+  "type": "object",
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "command": {
+      "type": "string",
+      "pattern": "^addOrder$"
+    },
+    "publicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "identAssetPair": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9.-_]{1,64}$"
+    },
+    "flag": {
+      "type": "boolean"
+    },
+    "amount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "price": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "command",
+    "publicKey",
+    "identAssetPair",
+    "flag",
+    "amount",
+    "price"
+  ]
+}
