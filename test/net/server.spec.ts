@@ -156,8 +156,6 @@ class TestServer {
   }
 
   @test
-  @slow(399000)
-  @timeout(400000)
   async transactionAddAsset() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
@@ -169,8 +167,50 @@ class TestServer {
       .set(NAME_HEADER_API_TOKEN, token)
       .send([{ seq: 1, command: 'addAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
     expect(res).to.have.status(200);
-    await TestServer.wait(120000);
-}
+    //await TestServer.wait(120000);
+  }
+
+  @test
+  async transactionAddOrder() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
+    const publicKey = [...TestServer.mapConfigServer.keys()][0];
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction')
+      .set(NAME_HEADER_API_TOKEN, token)
+      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 1, price: 1000 }]);
+    expect(res).to.have.status(200);
+  }
+
+  @test
+  async transactionDeleteOrder() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
+    const publicKey = [...TestServer.mapConfigServer.keys()][0];
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction')
+      .set(NAME_HEADER_API_TOKEN, token)
+      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 1, price: 1000 }]);
+    expect(res).to.have.status(200);
+  }
+
+  @test
+  async transactionDeleteAsset() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
+    const publicKey = [...TestServer.mapConfigServer.keys()][0];
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction')
+      .set(NAME_HEADER_API_TOKEN, token)
+      .send([{ seq: 1, command: 'deleteAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
+    expect(res).to.have.status(200);
+  }
 
   @test
   async transactionFails() {

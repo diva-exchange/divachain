@@ -20,8 +20,9 @@
       "type": "string",
       "pattern": "^[a-zA-Z0-9._-]{1,64}$"
     },
-    "flag": {
-      "type": "boolean"
+    "orderType": {
+      "type": "string",
+      "enum": ["B", "S"]
     },
     "amount": {
       "type": "integer",
@@ -40,7 +41,7 @@
     "command",
     "publicKey",
     "identAssetPair",
-    "flag",
+    "orderType",
     "amount",
     "price"
   ]

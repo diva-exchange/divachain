@@ -49,7 +49,7 @@ export interface CommandModifyStake extends Command {
 export interface CommandAddOrder extends Command {
   publicKey: string;
   identAssetPair: string;
-  flag: boolean;
+  orderType: string;
   amount: number;
   price: number;
 }
@@ -57,7 +57,7 @@ export interface CommandAddOrder extends Command {
 export interface CommandDeleteOrder extends Command {
   publicKey: string;
   identAssetPair: string;
-  flag: boolean;
+  orderType: string;
   amount: number;
   price: number;
 }
