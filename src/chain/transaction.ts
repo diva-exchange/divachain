@@ -64,12 +64,12 @@ export interface CommandDeleteOrder extends Command {
 
 export interface CommandAddAsset extends Command {
   publicKey: string;
-  identAssetPair: number;
+  identAssetPair: string;
 }
 
 export interface CommandDeleteAsset extends Command {
   publicKey: string;
-  identAssetPair: number;
+  identAssetPair: string;
 }
 
 export type ArrayCommand = Array<
