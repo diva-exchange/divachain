@@ -36,6 +36,7 @@ chai.use(chaiHttp);
 const SIZE_TESTNET = 7;
 const NETWORK_SIZE = 5;
 const BASE_PORT = 17000;
+const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
 
 @suite
@@ -54,6 +55,7 @@ class TestServer {
       const config = new Config({
         ip: IP,
         port: BASE_PORT + i,
+        port_block_feed: BASE_PORT_FEED + i,
         path_genesis: path.join(__dirname, '../genesis/block.json'),
         path_state: path.join(__dirname, '../state'),
         path_blockstore: path.join(__dirname, '../blockstore'),
@@ -170,7 +172,7 @@ class TestServer {
       .send([{ seq: 1, command: 'addAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
     expect(res).to.have.status(200);
     await TestServer.wait(120000);
-}
+  }
 
   @test
   async transactionFails() {
@@ -301,7 +303,7 @@ class TestServer {
         .set('diva-api-token', token)
         .send(aT);
       arrayIdents.push(res.body.ident);
-      // await TestServer.wait(1 + Math.floor(Math.random() * 2000));
+      await TestServer.wait(1 + Math.floor(Math.random() * 2000));
     }
 
     let x = 0;

@@ -72,8 +72,16 @@ export interface CommandDeleteAsset extends Command {
   identAssetPair: number;
 }
 
-export type ArrayCommand = Array<CommandTestLoad | CommandAddPeer | CommandRemovePeer | CommandModifyStake |
-  CommandAddOrder | CommandDeleteOrder | CommandAddAsset | CommandDeleteAsset>;
+export type ArrayCommand = Array<
+  | CommandTestLoad
+  | CommandAddPeer
+  | CommandRemovePeer
+  | CommandModifyStake
+  | CommandAddOrder
+  | CommandDeleteOrder
+  | CommandAddAsset
+  | CommandDeleteAsset
+>;
 
 export type TransactionStruct = {
   ident: string;

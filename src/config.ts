@@ -26,6 +26,7 @@ export type Configuration = {
   path_app?: string;
   ip?: string;
   port?: number;
+  port_block_feed?: number;
   address?: string;
   per_message_deflate?: boolean;
   path_genesis?: string;
@@ -52,7 +53,9 @@ export type Configuration = {
   blockchain_max_query_size?: number;
 };
 
+const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
+const DEFAULT_PORT_BLOCK_FEED = 17469;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
 const MIN_NETWORK_SIZE = 5;
@@ -78,6 +81,7 @@ export class Config {
 
   public readonly ip: string;
   public readonly port: number;
+  public readonly port_block_feed: number;
   public address: string;
   public readonly per_message_deflate: boolean;
   public readonly path_genesis: string;
@@ -105,7 +109,7 @@ export class Config {
     this.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
 
     const nameBlockGenesis = (process.env.NAME_BLOCK_GENESIS || DEFAULT_NAME_GENESIS_BLOCK).replace(
-      /[^a-z0-9\._-]|^[\._-]+|[\._-]+$/gi,
+      /[^a-z0-9._-]|^[._-]+|[._-]+$/gi,
       ''
     );
 
@@ -116,8 +120,9 @@ export class Config {
       path.join(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname, '/../');
     this.VERSION = require(path.join(this.path_app, 'package.json')).version;
 
-    this.ip = c.ip || process.env.IP || '127.0.0.1';
+    this.ip = c.ip || process.env.IP || DEFAULT_IP;
     this.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
+    this.port_block_feed = Config.port(c.port_block_feed || process.env.PORT_BLOCK_FEED || DEFAULT_PORT_BLOCK_FEED);
     this.address = c.address || process.env.ADDRESS || this.ip + ':' + this.port;
     this.per_message_deflate = c.per_message_deflate || true;
 

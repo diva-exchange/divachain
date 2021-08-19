@@ -46,6 +46,7 @@ export class Server {
 
   private readonly httpServer: http.Server;
   private readonly webSocketServer: WebSocket.Server;
+  private readonly webSocketServerBlockFeed: WebSocket.Server;
 
   private transactionPool: TransactionPool = {} as TransactionPool;
   private votePool: VotePool = {} as VotePool;
@@ -104,12 +105,29 @@ export class Server {
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
+        //@FIXME logging
         Logger.trace(error);
         ws.terminate();
       });
     });
     this.webSocketServer.on('close', () => {
       Logger.info('WebSocketServer closing');
+    });
+
+    // standalone Websocket Server to feed block updates
+    this.webSocketServerBlockFeed = new WebSocket.Server({
+      host: this.config.ip,
+      port: this.config.port_block_feed,
+    });
+    this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
+      ws.on('error', (error: Error) => {
+        //@FIXME logging
+        Logger.trace(error);
+        ws.terminate();
+      });
+    });
+    this.webSocketServerBlockFeed.on('close', () => {
+      Logger.info('WebSocketServerBlockFeed closing');
     });
   }
 
@@ -303,6 +321,11 @@ export class Server {
   private async addBlock(block: BlockStruct) {
     await this.blockchain.add(block);
     this.createProposal();
+
+    setImmediate(() => {
+      const feed = JSON.stringify(block);
+      this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(feed));
+    });
   }
 
   private async onMessage(type: number, message: Buffer | string) {
