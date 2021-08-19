@@ -33,8 +33,8 @@ import fs from 'fs';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 17;
-const NETWORK_SIZE = 9;
+const SIZE_TESTNET = 7;
+const NETWORK_SIZE = 5;
 const BASE_PORT = 17000;
 const IP = '127.27.27.1';
 
@@ -143,7 +143,7 @@ class TestServer {
   }
 
   @test
-  async transaction() {
+  async transactionTestLoad() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
     const token = fs.readFileSync(pathToken).toString();
@@ -154,6 +154,23 @@ class TestServer {
       .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
     expect(res).to.have.status(200);
   }
+
+  @test
+  @slow(399000)
+  @timeout(400000)
+  async transactionAddAsset() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
+    const publicKey = [...TestServer.mapConfigServer.keys()][0];
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction')
+      .set(NAME_HEADER_API_TOKEN, token)
+      .send([{ seq: 1, command: 'addAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
+    expect(res).to.have.status(200);
+    await TestServer.wait(120000);
+}
 
   @test
   async transactionFails() {

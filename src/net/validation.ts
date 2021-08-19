@@ -133,16 +133,16 @@ export class Validation {
           result = (c as CommandModifyStake).publicKey !== tx.origin;
           break;
         case 'addAsset':
-          result = (c as CommandAddAsset).publicKey !== tx.origin;
+          result = (c as CommandAddAsset).publicKey === tx.origin;
           break;
         case 'deleteAsset':
-          result = (c as CommandDeleteAsset).publicKey !== tx.origin;
+          result = (c as CommandDeleteAsset).publicKey === tx.origin;
           break;
         case 'addOrder':
-          result = (c as CommandAddOrder).publicKey !== tx.origin;
+          result = (c as CommandAddOrder).publicKey === tx.origin;
           break;
         case 'deleteOrder':
-          result = (c as CommandDeleteOrder).publicKey !== tx.origin;
+          result = (c as CommandDeleteOrder).publicKey === tx.origin;
           break;
       }
       if (!result) {
