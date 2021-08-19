@@ -88,6 +88,10 @@ export class Api {
       return res.json(this.server.getNetwork().gossip());
     });
 
+    this.server.app.get('/state/:key?', async (req: Request, res: Response) => {
+      return res.json(await this.server.getBlockchain().getState(req.params.key || ''));
+    });
+
     this.server.app.get('/stack/transactions', (req: Request, res: Response) => {
       return res.json(this.server.getTransactionPool().getStack());
     });

@@ -242,6 +242,26 @@ export class Blockchain {
     });
   }
 
+  async getState(key: string = ''): Promise<Array<string>> {
+    return new Promise((resolve, reject) => {
+      if (!key.length) {
+        const a: Array<any> = [];
+        this.dbState.createKeyStream()
+          .on('data', (key: Buffer) => {
+            a.push(key.toString());
+          })
+          .on('end', () => {
+            resolve(a);
+          })
+          .on('error', (e) => {
+            reject(e);
+          });
+      } else {
+        this.dbState.get(key, (error, value: Buffer) => { error ? reject(error) : resolve([value.toString()]); });
+      }
+    });
+  }
+
   getLatestBlock(): BlockStruct {
     return this.latestBlock;
   }
@@ -322,14 +342,16 @@ export class Blockchain {
 
     const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
     this.mapPeer.set(command.publicKey, peer);
-    await this.dbState.put('peer', JSON.stringify(this.mapPeer.keys()));
+    await this.dbState.put('peers', [...this.mapPeer.keys()].join());
+    await this.dbState.put('peer:' + command.publicKey, peer.stake);
     this.server.getNetwork().addPeer(command.publicKey, peer);
   }
 
   private async removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
       this.mapPeer.delete(command.publicKey);
-      await this.dbState.put('peer', JSON.stringify(this.mapPeer.keys()));
+      await this.dbState.put('peers', [...this.mapPeer.keys()].join());
+      await this.dbState.del('peer:' + command.publicKey);
       this.server.getNetwork().removePeer(command.publicKey);
     }
   }
@@ -343,7 +365,7 @@ export class Blockchain {
       }
 
       this.mapPeer.set(command.publicKey, peer);
-      await this.dbState.put('stake:' + command.publicKey, peer.stake);
+      await this.dbState.put('peer:' + command.publicKey, peer.stake);
     }
   }
 

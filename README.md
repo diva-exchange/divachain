@@ -39,6 +39,9 @@ Default: 127.0.0.1
 ### PORT
 Default: 17468
 
+### PORT_BLOCK_FEED
+Default: 17469
+
 ### I2P_SOCKS_PROXY_HOST
 Default: (empty)
 
@@ -115,11 +118,15 @@ Interval, in milliseconds, to check whether the block pool is stale.
 
 #### GET /gossip
 
+#### GET /state/{key?}
+
 #### GET /stack/transactions
 
 #### GET /pool/transactions
 
 #### GET /pool/votes
+
+#### GET /pool/commits
 
 #### GET /block/genesis
 
