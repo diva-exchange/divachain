@@ -21,18 +21,15 @@
       "pattern": "^[a-zA-Z0-9._-]{1,64}$"
     },
     "orderType": {
-      "type": "string",
       "enum": ["B", "S"]
     },
     "amount": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100000
+      "type": "number",
+      "exclusiveMinimum": 0
     },
     "price": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 100000
+      "type": "number",
+      "exclusiveMinimum": 0
     }
   },
   "additionalProperties": false,
