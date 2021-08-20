@@ -27,7 +27,7 @@ import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
 import { BlockStruct } from '../../src/chain/block';
 import { Blockchain } from '../../src/chain/blockchain';
-import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
+import { CommandAddAsset, CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import fs from 'fs';
 
@@ -49,7 +49,7 @@ class TestServer {
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
 
-    const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
+    const cmds: Array<CommandAddPeer | CommandModifyStake | CommandAddAsset> = [];
     let s = 1;
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
@@ -83,6 +83,13 @@ class TestServer {
         stake: 1000,
       } as CommandModifyStake);
       s++;
+      // cmds.push({
+      //   seq: s,
+      //   command: 'addAsset',
+      //   publicKey: publicKey,
+      //   identAssetPair: 'BTC-XMR',
+      // } as CommandAddAsset);
+      // s++;
     }
     genesis.tx = [
       {
@@ -158,6 +165,8 @@ class TestServer {
   }
 
   @test
+  @slow(399000)
+  @timeout(400000)
   async transactionAddAsset() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
@@ -169,10 +178,12 @@ class TestServer {
       .set(NAME_HEADER_API_TOKEN, token)
       .send([{ seq: 1, command: 'addAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
     expect(res).to.have.status(200);
-    //await TestServer.wait(120000);
+    await TestServer.wait(9000);
   }
 
   @test
+  @slow(399000)
+  @timeout(400000)
   async transactionAddOrder() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
@@ -182,11 +193,14 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 1, price: 1000 }]);
+      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 10, price: 1000 }]);
     expect(res).to.have.status(200);
+    await TestServer.wait(19000);
   }
 
   @test
+  @slow(399000)
+  @timeout(400000)
   async transactionDeleteOrder() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
@@ -198,9 +212,46 @@ class TestServer {
       .set(NAME_HEADER_API_TOKEN, token)
       .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 1, price: 1000 }]);
     expect(res).to.have.status(200);
+    await TestServer.wait(9000);
   }
 
   @test
+  @slow(399000)
+  @timeout(400000)
+  async transactionAddOrder2() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
+    const publicKey = [...TestServer.mapConfigServer.keys()][0];
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction')
+      .set(NAME_HEADER_API_TOKEN, token)
+      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 5, price: 1000 }]);
+    expect(res).to.have.status(200);
+    await TestServer.wait(19000);
+  }
+
+  @test
+  @slow(399000)
+  @timeout(400000)
+  async transactionDeleteOrder2() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    const token = fs.readFileSync(pathToken).toString();
+    const publicKey = [...TestServer.mapConfigServer.keys()][0];
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction')
+      .set(NAME_HEADER_API_TOKEN, token)
+      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 2, price: 1000 }]);
+    expect(res).to.have.status(200);
+    await TestServer.wait(9000);
+  }
+
+  @test
+  @slow(399000)
+  @timeout(400000)
   async transactionDeleteAsset() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
@@ -212,9 +263,12 @@ class TestServer {
       .set(NAME_HEADER_API_TOKEN, token)
       .send([{ seq: 1, command: 'deleteAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
     expect(res).to.have.status(200);
+    await TestServer.wait(2000);
   }
 
   @test
+  @slow(399000)
+  @timeout(400000)
   async transactionFails() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const res = await chai
@@ -222,6 +276,7 @@ class TestServer {
       .put('/transaction')
       .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
     expect(res).to.have.status(403);
+    await TestServer.wait(10000);
   }
 
   @test
@@ -343,7 +398,7 @@ class TestServer {
         .set('diva-api-token', token)
         .send(aT);
       arrayIdents.push(res.body.ident);
-      await TestServer.wait(1 + Math.floor(Math.random() * 2000));
+      await TestServer.wait(1 + Math.floor(Math.random() * 20000));
     }
 
     let x = 0;
