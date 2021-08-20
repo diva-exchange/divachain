@@ -242,13 +242,13 @@ export class Blockchain {
     });
   }
 
-  async getState(key: string = ''): Promise<Array<string>> {
+  async getState(key: string = ''): Promise<Array<{key: string, value: string}>> {
     return new Promise((resolve, reject) => {
       if (!key.length) {
         const a: Array<any> = [];
-        this.dbState.createKeyStream()
-          .on('data', (key: Buffer) => {
-            a.push(key.toString());
+        this.dbState.createReadStream()
+          .on('data', (data) => {
+            a.push({ key: data.key.toString(), value: data.value.toString() });
           })
           .on('end', () => {
             resolve(a);
@@ -257,7 +257,7 @@ export class Blockchain {
             reject(e);
           });
       } else {
-        this.dbState.get(key, (error, value: Buffer) => { error ? reject(error) : resolve([value.toString()]); });
+        this.dbState.get(key, (error, value: Buffer) => { error ? reject(error) : resolve([{ key: key, value: value.toString() }]); });
       }
     });
   }
