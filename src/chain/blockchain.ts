@@ -370,18 +370,24 @@ export class Blockchain {
   }
 
   private async addAsset(command: CommandAddAsset) {
-    Logger.info(command);
+    await this.dbState.put('asset:' + command.identAssetPair, command.identAssetPair);
   }
 
   private async deleteAsset(command: CommandDeleteAsset) {
-    Logger.info(command);
+    await this.dbState.del('asset:' + command.identAssetPair);
   }
 
   private async addOrder(command: CommandAddOrder) {
-    Logger.info(command);
+    let amount: number = 0;
+    try {
+      amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+    } catch (err) {
+      Logger.error(err);
+    }
+    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, command.amount + amount);
   }
 
   private async deleteOrder(command: CommandDeleteOrder) {
-    Logger.info(command);
+    await this.dbState.del('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
   }
 }
