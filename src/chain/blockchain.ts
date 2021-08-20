@@ -374,6 +374,17 @@ export class Blockchain {
   }
 
   private async deleteAsset(command: CommandDeleteAsset) {
+    new Promise((resolve, reject) => {
+      this.dbState.createReadStream()
+        .on('data', (data) => {
+          if (data.key.toString().includes(command.identAssetPair)) {
+            this.dbState.del(data.key.toString());
+          }
+        })
+        .on('error', (e) => {
+          reject(e);
+        });
+    });
     await this.dbState.del('asset:' + command.identAssetPair);
   }
 
@@ -384,10 +395,22 @@ export class Blockchain {
     } catch (err) {
       Logger.error(err);
     }
-    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, command.amount + amount);
+    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, +command.amount + +amount);
   }
 
   private async deleteOrder(command: CommandDeleteOrder) {
-    await this.dbState.del('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+    let amount: number = 0;
+    try {
+      amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+    } catch (err) {
+      Logger.error(err);
+    }
+    if (amount > 0) {
+      if (command.amount >= amount) {
+        await this.dbState.del('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+      } else {
+        await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, +amount - +command.amount);
+      }
+    }
   }
 }
