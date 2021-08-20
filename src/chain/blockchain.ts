@@ -209,8 +209,8 @@ export class Blockchain {
         ? this.server.config.blockchain_max_blocks_in_memory
         : Math.floor(size);
     size = size > this.height ? this.height : size;
-    const gte = (page - 1) * size <= this.height ? (page - 1) * size + 1 : 1;
-    const lte = page * size <= this.height ? page * size : this.height;
+    const lte = this.height - ((page - 1) * size) < 1 ? size : this.height - ((page - 1) * size);
+    const gte = lte - size + 1;
 
     return new Promise((resolve, reject) => {
       const a: Array<BlockStruct> = [];
