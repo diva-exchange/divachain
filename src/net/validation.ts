@@ -118,6 +118,12 @@ export class Validation {
   }
 
   static validateTx(tx: TransactionStruct): boolean {
+    const commandsArray = ['testLoad', 'addPeer', 'removePeer', 'modifyStake', 'addAsset', 'deleteAsset', 'addOrder', 'deleteOrder'];
+    for (const c of tx.commands) {
+      if (!commandsArray.includes(c.command)) {
+        return false;
+      }
+    }
     if (!Validation.tx) {
       Validation.init();
     }
@@ -148,10 +154,10 @@ export class Validation {
           result = (c as CommandDeleteAsset).publicKey === tx.origin;
           break;
         case 'addOrder':
-          result = (c as CommandAddOrder).publicKey === tx.origin;
+          result = this.validateOrder(c as CommandAddOrder, tx.origin);
           break;
         case 'deleteOrder':
-          result = (c as CommandDeleteOrder).publicKey === tx.origin;
+          result = this.validateOrder(c as CommandDeleteOrder, tx.origin);
           break;
       }
       if (!result) {
@@ -193,5 +199,16 @@ export class Validation {
     }
 
     return true;
+  }
+
+  private static validateOrder(c: CommandAddOrder|CommandDeleteOrder, publicKey: string) {
+    if (!this.isNumber(c.price) || !this.isNumber(c.amount) || c.publicKey !== publicKey) {
+      return false;
+    }
+    return true;
+  }
+
+  private static isNumber(input: string) {
+    return (parseFloat(input) - 0) == parseFloat(input) && (''+input).trim().length > 0 && parseFloat(input) > 0;
   }
 }

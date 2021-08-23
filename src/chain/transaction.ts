@@ -50,16 +50,16 @@ export interface CommandAddOrder extends Command {
   publicKey: string;
   identAssetPair: string;
   orderType: string;
-  amount: number;
-  price: number;
+  amount: string;
+  price: string;
 }
 
 export interface CommandDeleteOrder extends Command {
   publicKey: string;
   identAssetPair: string;
   orderType: string;
-  amount: number;
-  price: number;
+  amount: string;
+  price: string;
 }
 
 export interface CommandAddAsset extends Command {

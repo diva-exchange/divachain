@@ -389,28 +389,50 @@ export class Blockchain {
   }
 
   private async addOrder(command: CommandAddOrder) {
-    let amount: number = 0;
+    let amount: string = '0';
+    command = this.deleteDotFromTheEnd(command);
     try {
       amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
     } catch (err) {
       Logger.error(err);
     }
-    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, +command.amount + +amount);
+    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, this.round(parseFloat(command.amount) + parseFloat(amount), 9) );
   }
 
   private async deleteOrder(command: CommandDeleteOrder) {
-    let amount: number = 0;
+    let amount: string = '0';
+    command = this.deleteDotFromTheEnd(command);
     try {
       amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
     } catch (err) {
       Logger.error(err);
     }
-    if (amount > 0) {
-      if (command.amount >= amount) {
+    if (parseFloat(amount) > 0) {
+      if (parseFloat(command.amount) >= parseFloat(amount)) {
         await this.dbState.del('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
       } else {
-        await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, +amount - +command.amount);
+        await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, this.round(parseFloat(amount) - parseFloat(command.amount), 9));
       }
+    }
+  }
+
+  private deleteDotFromTheEnd(command: CommandAddOrder|CommandDeleteOrder) {
+    if (command.price[command.price.length - 1] === '.') {
+      command.price = command.price.slice(0, -1);
+    }
+    if (command.amount[command.amount.length - 1] === '.') {
+      command.amount = command.amount.slice(0, -1);
+    }
+    return command;
+  }
+
+  private round(value: number, precision: number) {
+    if (Number.isInteger(precision)) {
+      const shift = Math.pow(10, precision);
+      // Limited preventing decimal issue
+      return (Math.round( value * shift + 0.00000000000001 ) / shift);
+    } else {
+      return Math.round(value);
     }
   }
 }
