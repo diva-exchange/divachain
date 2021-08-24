@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "keywords": [
     "blockchain",
@@ -42,7 +42,7 @@
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
     "@testdeck/mocha": "^0.1.2",
-    "@tsconfig/node12": "^1.0.9",
+    "@tsconfig/node14": "^1.0.1",
     "@types/base64-url": "^2.2.0",
     "@types/chai": "^4.2.21",
     "@types/compression": "^1.7.1",
