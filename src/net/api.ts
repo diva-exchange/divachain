@@ -29,6 +29,7 @@ const MIN_LENGTH_API_TOKEN = 32;
 export const NAME_HEADER_API_TOKEN = 'diva-api-token';
 
 export class Api {
+  private package: any = require('../../package.json');
   private server: Server;
   private readonly pathToken: string;
   private token: string = '';
@@ -74,6 +75,10 @@ export class Api {
       }
 
       return res.json(await this.server.getBlockchain().get(0, h, h + this.server.config.network_sync_size));
+    });
+
+    this.server.app.get('/about', (req: Request, res: Response) => {
+      return res.json({ version: this.package.version, license: this.package.license });
     });
 
     this.server.app.get('/peers', (req: Request, res: Response) => {

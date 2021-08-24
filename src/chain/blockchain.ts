@@ -327,7 +327,6 @@ export class Blockchain {
 
     const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
     this.mapPeer.set(command.publicKey, peer);
-    await this.dbState.put('peers', [...this.mapPeer.keys()].join());
     await this.dbState.put('peer:' + command.publicKey, peer.stake);
     this.server.getNetwork().addPeer(command.publicKey, peer);
   }
@@ -335,7 +334,6 @@ export class Blockchain {
   private async removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
       this.mapPeer.delete(command.publicKey);
-      await this.dbState.put('peers', [...this.mapPeer.keys()].join());
       await this.dbState.del('peer:' + command.publicKey);
       this.server.getNetwork().removePeer(command.publicKey);
     }

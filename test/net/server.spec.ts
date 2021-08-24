@@ -167,7 +167,13 @@ class TestServer {
       .put('/transaction')
       .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
     expect(res).to.have.status(403);
-    await TestServer.wait(10000);
+  }
+
+  @test
+  async about() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/about');
+    expect(res).to.have.status(200);
   }
 
   @test
@@ -188,6 +194,13 @@ class TestServer {
   async gossip() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const res = await chai.request(`http://${config.ip}:${config.port}`).get('/gossip');
+    expect(res).to.have.status(200);
+  }
+
+  @test
+  async state() {
+    const config = [...TestServer.mapConfigServer.values()][0];
+    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/state');
     expect(res).to.have.status(200);
   }
 
@@ -213,9 +226,9 @@ class TestServer {
   }
 
   @test
-  async poolBlocks() {
+  async poolCommits() {
     const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/blocks');
+    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/commits');
     expect(res).to.have.status(200);
   }
 
@@ -223,6 +236,12 @@ class TestServer {
   async blocks() {
     const config = [...TestServer.mapConfigServer.values()][0];
     let res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/genesis');
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/latest');
     expect(res).to.have.status(200);
 
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?limit=1');
