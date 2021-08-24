@@ -25,8 +25,10 @@
     "test": "test/bin/clean-testenv.sh ; cp genesis/block.json test/genesis/block.json ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace DEBUG_PERFORMANCE=1 nyc mocha"
   },
   "dependencies": {
+    "@types/big.js": "^6.1.1",
     "ajv": "^8.6.2",
     "base64-url": "^2.3.3",
+    "big.js": "^6.1.1",
     "compression": "^1.7.4",
     "express": "^4.17.1",
     "http-errors": "^1.8.0",

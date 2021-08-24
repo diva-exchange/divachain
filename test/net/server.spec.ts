@@ -193,7 +193,7 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 10, price: 1000 }]);
+      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'BUY', amount: '10.12000', price: '10.' }]);
     expect(res).to.have.status(200);
     await TestServer.wait(19000);
   }
@@ -210,7 +210,7 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 1, price: 1000 }]);
+      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'BUY', amount: '0.01', price: '10' }]);
     expect(res).to.have.status(200);
     await TestServer.wait(9000);
   }
@@ -227,7 +227,7 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 5, price: 1000 }]);
+      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'BUY', amount: '5.00001', price: '1000' }]);
     expect(res).to.have.status(200);
     await TestServer.wait(19000);
   }
@@ -244,7 +244,7 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 2, price: 1000 }]);
+      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'BUY', amount: '0.0022', price: '1000.' }]);
     expect(res).to.have.status(200);
     await TestServer.wait(9000);
   }

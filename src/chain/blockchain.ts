@@ -23,6 +23,7 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
+import Big from 'big.js';
 import {
   CommandAddPeer,
   CommandRemovePeer,
@@ -48,6 +49,7 @@ export class Blockchain {
   private latestBlock: BlockStruct = {} as BlockStruct;
 
   private mapPeer: Map<string, NetworkPeer> = new Map();
+  private precision = 9;
 
   static async make(server: Server): Promise<Blockchain> {
     const b = new Blockchain(server);
@@ -389,29 +391,33 @@ export class Blockchain {
   }
 
   private async addOrder(command: CommandAddOrder) {
-    let amount: string = '0';
+    let amount: number = 0;
     command = this.deleteDotFromTheEnd(command);
+    const key = 'order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price;
     try {
-      amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+      amount = await this.dbState.get(key);
     } catch (err) {
       Logger.error(err);
     }
-    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, this.round(parseFloat(command.amount) + parseFloat(amount), 9) );
+    amount = (new Big(amount || 0)).toNumber();
+    await this.dbState.put(key, (new Big(command.amount || 0)).plus(amount).toFixed(this.precision));
   }
 
   private async deleteOrder(command: CommandDeleteOrder) {
-    let amount: string = '0';
+    let amount: number = 0;
     command = this.deleteDotFromTheEnd(command);
+    const key = 'order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price;
     try {
-      amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+      amount = await this.dbState.get(key);
     } catch (err) {
       Logger.error(err);
     }
-    if (parseFloat(amount) > 0) {
-      if (parseFloat(command.amount) >= parseFloat(amount)) {
-        await this.dbState.del('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
+    amount = (new Big(amount || 0)).toNumber();
+    if (amount > 0) {
+      if (parseFloat(command.amount) >= amount) {
+        await this.dbState.del(key);
       } else {
-        await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, this.round(parseFloat(amount) - parseFloat(command.amount), 9));
+        await this.dbState.put(key, (new Big(amount || 0)).minus(new Big(command.amount || 0)).toFixed(this.precision));
       }
     }
   }
@@ -424,15 +430,5 @@ export class Blockchain {
       command.amount = command.amount.slice(0, -1);
     }
     return command;
-  }
-
-  private round(value: number, precision: number) {
-    if (Number.isInteger(precision)) {
-      const shift = Math.pow(10, precision);
-      // Limited preventing decimal issue
-      return (Math.round( value * shift + 0.00000000000001 ) / shift);
-    } else {
-      return Math.round(value);
-    }
   }
 }
