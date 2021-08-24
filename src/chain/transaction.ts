@@ -27,8 +27,8 @@ interface Command {
   command: string;
 }
 
-interface CommandTestLoad extends Command {
-  timestamp: number;
+interface CommandData extends Command {
+  base64url: string;
 }
 
 export interface CommandAddPeer extends Command {
@@ -46,42 +46,7 @@ export interface CommandModifyStake extends Command {
   stake: number;
 }
 
-export interface CommandAddOrder extends Command {
-  publicKey: string;
-  identAssetPair: string;
-  orderType: string;
-  amount: string;
-  price: string;
-}
-
-export interface CommandDeleteOrder extends Command {
-  publicKey: string;
-  identAssetPair: string;
-  orderType: string;
-  amount: string;
-  price: string;
-}
-
-export interface CommandAddAsset extends Command {
-  publicKey: string;
-  identAssetPair: string;
-}
-
-export interface CommandDeleteAsset extends Command {
-  publicKey: string;
-  identAssetPair: string;
-}
-
-export type ArrayCommand = Array<
-  | CommandTestLoad
-  | CommandAddPeer
-  | CommandRemovePeer
-  | CommandModifyStake
-  | CommandAddOrder
-  | CommandDeleteOrder
-  | CommandAddAsset
-  | CommandDeleteAsset
->;
+export type ArrayCommand = Array<CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData>;
 
 export type TransactionStruct = {
   ident: string;

@@ -28,10 +28,6 @@ import {
   CommandRemovePeer,
   CommandModifyStake,
   TransactionStruct,
-  CommandAddAsset,
-  CommandDeleteAsset,
-  CommandAddOrder,
-  CommandDeleteOrder,
 } from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
@@ -209,7 +205,7 @@ export class Blockchain {
         ? this.server.config.blockchain_max_blocks_in_memory
         : Math.floor(size);
     size = size > this.height ? this.height : size;
-    const lte = this.height - ((page - 1) * size) < 1 ? size : this.height - ((page - 1) * size);
+    const lte = this.height - (page - 1) * size < 1 ? size : this.height - (page - 1) * size;
     const gte = lte - size + 1;
 
     return new Promise((resolve, reject) => {
@@ -242,11 +238,12 @@ export class Blockchain {
     });
   }
 
-  async getState(key: string = ''): Promise<Array<{key: string, value: string}>> {
+  async getState(key: string = ''): Promise<Array<{ key: string; value: string }>> {
     return new Promise((resolve, reject) => {
       if (!key.length) {
         const a: Array<any> = [];
-        this.dbState.createReadStream()
+        this.dbState
+          .createReadStream()
           .on('data', (data) => {
             a.push({ key: data.key.toString(), value: data.value.toString() });
           })
@@ -257,7 +254,9 @@ export class Blockchain {
             reject(e);
           });
       } else {
-        this.dbState.get(key, (error, value: Buffer) => { error ? reject(error) : resolve([{ key: key, value: value.toString() }]); });
+        this.dbState.get(key, (error, value: Buffer) => {
+          error ? reject(error) : resolve([{ key: key, value: value.toString() }]);
+        });
       }
     });
   }
@@ -307,8 +306,6 @@ export class Blockchain {
     for (const t of block.tx) {
       for (const c of t.commands) {
         switch (c.command) {
-          case 'testLoad':
-            break;
           case 'addPeer':
             await this.addPeer(c as CommandAddPeer);
             break;
@@ -317,18 +314,6 @@ export class Blockchain {
             break;
           case 'modifyStake':
             await this.modifyStake(c as CommandModifyStake);
-            break;
-          case 'addAsset':
-            await this.addAsset(c as CommandAddAsset);
-            break;
-          case 'deleteAsset':
-            await this.deleteAsset(c as CommandDeleteAsset);
-            break;
-          case 'addOrder':
-            await this.addOrder(c as CommandAddOrder);
-            break;
-          case 'deleteOrder':
-            await this.deleteOrder(c as CommandDeleteOrder);
             break;
         }
       }
@@ -366,73 +351,6 @@ export class Blockchain {
 
       this.mapPeer.set(command.publicKey, peer);
       await this.dbState.put('peer:' + command.publicKey, peer.stake);
-    }
-  }
-
-  private async addAsset(command: CommandAddAsset) {
-    await this.dbState.put('asset:' + command.identAssetPair, command.identAssetPair);
-  }
-
-  private async deleteAsset(command: CommandDeleteAsset) {
-    new Promise((resolve, reject) => {
-      this.dbState.createReadStream()
-        .on('data', (data) => {
-          if (data.key.toString().includes(command.identAssetPair)) {
-            this.dbState.del(data.key.toString());
-          }
-        })
-        .on('error', (e) => {
-          reject(e);
-        });
-    });
-    await this.dbState.del('asset:' + command.identAssetPair);
-  }
-
-  private async addOrder(command: CommandAddOrder) {
-    let amount: string = '0';
-    command = this.deleteDotFromTheEnd(command);
-    try {
-      amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
-    } catch (err) {
-      Logger.error(err);
-    }
-    await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, this.round(parseFloat(command.amount) + parseFloat(amount), 9) );
-  }
-
-  private async deleteOrder(command: CommandDeleteOrder) {
-    let amount: string = '0';
-    command = this.deleteDotFromTheEnd(command);
-    try {
-      amount = await this.dbState.get('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
-    } catch (err) {
-      Logger.error(err);
-    }
-    if (parseFloat(amount) > 0) {
-      if (parseFloat(command.amount) >= parseFloat(amount)) {
-        await this.dbState.del('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price);
-      } else {
-        await this.dbState.put('order:' + command.identAssetPair + ':' + command.orderType + ':' + command.price, this.round(parseFloat(amount) - parseFloat(command.amount), 9));
-      }
-    }
-  }
-
-  private deleteDotFromTheEnd(command: CommandAddOrder|CommandDeleteOrder) {
-    if (command.price[command.price.length - 1] === '.') {
-      command.price = command.price.slice(0, -1);
-    }
-    if (command.amount[command.amount.length - 1] === '.') {
-      command.amount = command.amount.slice(0, -1);
-    }
-    return command;
-  }
-
-  private round(value: number, precision: number) {
-    if (Number.isInteger(precision)) {
-      const shift = Math.pow(10, precision);
-      // Limited preventing decimal issue
-      return (Math.round( value * shift + 0.00000000000001 ) / shift);
-    } else {
-      return Math.round(value);
     }
   }
 }

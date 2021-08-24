@@ -21,15 +21,7 @@ import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
 import { BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
-import {
-  CommandAddAsset,
-  CommandAddOrder,
-  CommandDeleteAsset,
-  CommandDeleteOrder,
-  CommandModifyStake,
-  CommandRemovePeer,
-  TransactionStruct,
-} from '../chain/transaction';
+import { TransactionStruct } from '../chain/transaction';
 import path from 'path';
 import { Util } from '../chain/util';
 import { MAX_TRANSACTIONS } from '../pool/transaction-pool';
@@ -37,6 +29,8 @@ import { MAX_TRANSACTIONS } from '../pool/transaction-pool';
 export class Validation {
   private static message: ValidateFunction;
   private static tx: ValidateFunction;
+
+  private static isInitialized: Boolean = false;
 
   static init() {
     const pathSchema = path.join(__dirname, '../schema/');
@@ -51,13 +45,7 @@ export class Validation {
     const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addPeer.json');
     const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/removePeer.json');
     const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modifyStake.json');
-    const schemaAddAsset: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addAsset.json');
-    const schemaDeleteAsset: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/deleteAsset.json');
-    const schemaAddOrder: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addOrder.json');
-    const schemaDeleteOrder: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/deleteOrder.json');
-
-    //@TODO
-    const schemaTestLoad: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/testLoad.json');
+    const schemaData: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/data.json');
 
     Validation.message = new Ajv({
       schemas: [
@@ -71,11 +59,7 @@ export class Validation {
         schemaAddPeer,
         schemaRemovePeer,
         schemaModifyStake,
-        schemaTestLoad,
-        schemaAddAsset,
-        schemaDeleteAsset,
-        schemaAddOrder,
-        schemaDeleteOrder,
+        schemaData,
       ],
     }).compile(schemaMessage);
 
@@ -84,90 +68,51 @@ export class Validation {
         schemaAddPeer,
         schemaRemovePeer,
         schemaModifyStake,
-        schemaTestLoad,
-        schemaAddAsset,
-        schemaDeleteAsset,
-        schemaAddOrder,
-        schemaDeleteOrder,
+        schemaData,
       ],
     }).compile(schemaTx);
+
+    Validation.isInitialized = true;
   }
 
   static validateMessage(m: Message): boolean {
-    if (!Validation.message) {
+    if (!Validation.isInitialized) {
       Validation.init();
     }
 
     switch (m.type()) {
-      case Message.TYPE_CHALLENGE:
       case Message.TYPE_AUTH:
+      case Message.TYPE_CHALLENGE:
       case Message.TYPE_VOTE:
       case Message.TYPE_COMMIT:
       case Message.TYPE_SYNC:
-        if (!Validation.message(m.getMessage())) {
-          //@FIXME logging
-          Logger.trace(Validation.message.errors as object);
-          return false;
-        }
-        break;
+        return Validation.message(m.getMessage());
       default:
         Logger.error('Unknown message type');
         return false;
     }
-    return true;
   }
 
   static validateTx(tx: TransactionStruct): boolean {
-    const commandsArray = ['testLoad', 'addPeer', 'removePeer', 'modifyStake', 'addAsset', 'deleteAsset', 'addOrder', 'deleteOrder'];
-    for (const c of tx.commands) {
-      if (!commandsArray.includes(c.command)) {
-        return false;
-      }
-    }
-    if (!Validation.tx) {
+    if (!Validation.isInitialized) {
       Validation.init();
     }
 
-    // Schema validation
-    if (!Validation.tx(tx)) {
-      //@FIXME logging
-      Logger.trace(Validation.tx.errors as object);
-      return false;
-    }
-
-    // Protocol validation
-    let result = true;
-    for (const c of tx.commands) {
-      switch (c.command) {
-        case 'addPeer':
-          break;
-        case 'removePeer':
-          result = (c as CommandRemovePeer).publicKey === tx.origin;
-          break;
-        case 'modifyStake':
-          result = (c as CommandModifyStake).publicKey !== tx.origin;
-          break;
-        case 'addAsset':
-          result = (c as CommandAddAsset).publicKey === tx.origin;
-          break;
-        case 'deleteAsset':
-          result = (c as CommandDeleteAsset).publicKey === tx.origin;
-          break;
-        case 'addOrder':
-          result = this.validateOrder(c as CommandAddOrder, tx.origin);
-          break;
-        case 'deleteOrder':
-          result = this.validateOrder(c as CommandDeleteOrder, tx.origin);
-          break;
-      }
-      if (!result) {
-        Logger.warn(`Validation.validateTx failed: ${c.seq} - ${c.command}`);
-        Logger.trace(tx);
-        return false;
-      }
-    }
-
-    return Util.verifySignature(tx.origin, tx.sig, tx.ident + tx.timestamp + JSON.stringify(tx.commands));
+    // Signature and Schema validation
+    return (
+      Util.verifySignature(tx.origin, tx.sig, tx.ident + tx.timestamp + JSON.stringify(tx.commands)) &&
+      tx.commands.filter((c) => {
+        switch (c.command || '') {
+          case 'addPeer':
+          case 'removePeer':
+          case 'modifyStake':
+          case 'data':
+            return Validation.tx(tx);
+          default:
+            return false;
+        }
+      }).length === tx.commands.length
+    );
   }
 
   static validateBlock(block: BlockStruct): boolean {
@@ -199,16 +144,5 @@ export class Validation {
     }
 
     return true;
-  }
-
-  private static validateOrder(c: CommandAddOrder|CommandDeleteOrder, publicKey: string) {
-    if (!this.isNumber(c.price) || !this.isNumber(c.amount) || c.publicKey !== publicKey) {
-      return false;
-    }
-    return true;
-  }
-
-  private static isNumber(input: string) {
-    return (parseFloat(input) - 0) == parseFloat(input) && (''+input).trim().length > 0 && parseFloat(input) > 0;
   }
 }

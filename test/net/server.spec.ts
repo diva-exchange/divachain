@@ -27,7 +27,7 @@ import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
 import { BlockStruct } from '../../src/chain/block';
 import { Blockchain } from '../../src/chain/blockchain';
-import { CommandAddAsset, CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
+import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import fs from 'fs';
 
@@ -49,7 +49,7 @@ class TestServer {
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
 
-    const cmds: Array<CommandAddPeer | CommandModifyStake | CommandAddAsset> = [];
+    const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
     let s = 1;
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
@@ -83,13 +83,6 @@ class TestServer {
         stake: 1000,
       } as CommandModifyStake);
       s++;
-      // cmds.push({
-      //   seq: s,
-      //   command: 'addAsset',
-      //   publicKey: publicKey,
-      //   identAssetPair: 'BTC-XMR',
-      // } as CommandAddAsset);
-      // s++;
     }
     genesis.tx = [
       {
@@ -160,110 +153,8 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
+      .send([{ seq: 1, command: 'data', base64url: 'abcABC' }]);
     expect(res).to.have.status(200);
-  }
-
-  @test
-  @slow(399000)
-  @timeout(400000)
-  async transactionAddAsset() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const publicKey = [...TestServer.mapConfigServer.keys()][0];
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'addAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
-    expect(res).to.have.status(200);
-    await TestServer.wait(9000);
-  }
-
-  @test
-  @slow(399000)
-  @timeout(400000)
-  async transactionAddOrder() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const publicKey = [...TestServer.mapConfigServer.keys()][0];
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 10, price: 1000 }]);
-    expect(res).to.have.status(200);
-    await TestServer.wait(19000);
-  }
-
-  @test
-  @slow(399000)
-  @timeout(400000)
-  async transactionDeleteOrder() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const publicKey = [...TestServer.mapConfigServer.keys()][0];
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 1, price: 1000 }]);
-    expect(res).to.have.status(200);
-    await TestServer.wait(9000);
-  }
-
-  @test
-  @slow(399000)
-  @timeout(400000)
-  async transactionAddOrder2() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const publicKey = [...TestServer.mapConfigServer.keys()][0];
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'addOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 5, price: 1000 }]);
-    expect(res).to.have.status(200);
-    await TestServer.wait(19000);
-  }
-
-  @test
-  @slow(399000)
-  @timeout(400000)
-  async transactionDeleteOrder2() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const publicKey = [...TestServer.mapConfigServer.keys()][0];
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'deleteOrder', publicKey: publicKey, identAssetPair: 'BTC-XMR', orderType: 'B', amount: 2, price: 1000 }]);
-    expect(res).to.have.status(200);
-    await TestServer.wait(9000);
-  }
-
-  @test
-  @slow(399000)
-  @timeout(400000)
-  async transactionDeleteAsset() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const publicKey = [...TestServer.mapConfigServer.keys()][0];
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'deleteAsset', publicKey: publicKey, identAssetPair: 'BTC-XMR' }]);
-    expect(res).to.have.status(200);
-    await TestServer.wait(2000);
   }
 
   @test
@@ -364,11 +255,11 @@ class TestServer {
   }
 
   @test
-  @slow(399000)
-  @timeout(400000)
+  @slow(10000000)
+  @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 25;
-    const _inner = 8;
+    const _outer = 5;
+    const _inner = 3;
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -381,7 +272,7 @@ class TestServer {
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
-        aT.push({ seq: seq++, command: 'testLoad', timestamp: Date.now() });
+        aT.push({ seq: seq++, command: 'data', base64url: Date.now().toString() });
       }
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
       const pathToken = path.join(
@@ -398,7 +289,7 @@ class TestServer {
         .set('diva-api-token', token)
         .send(aT);
       arrayIdents.push(res.body.ident);
-      await TestServer.wait(1 + Math.floor(Math.random() * 20000));
+      await TestServer.wait(1 + Math.floor(Math.random() * 3000));
     }
 
     let x = 0;

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/transaction/deleteAsset.json",
+  "$id": "/schema/block/transaction/data.json",
 
   "type": "object",
   "properties": {
@@ -10,22 +10,17 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^deleteAsset$"
+      "pattern": "^data$"
     },
-    "publicKey": {
+    "base64url": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{43}$"
-    },
-    "identAssetPair": {
-      "type": "string",
-      "pattern": "^[a-zA-Z0-9._-]{1,64}$"
+      "pattern": "^[A-Za-z0-9_-]{1,65536}$"
     }
   },
   "additionalProperties": false,
   "required": [
     "seq",
     "command",
-    "publicKey",
-    "identAssetPair"
+    "base64url"
   ]
 }
