@@ -34,12 +34,15 @@ COPY build/node14-linux-x64 /divachain/build/node14-linux-x64
 COPY package.json /divachain/package.json
 COPY tsconfig.json /divachain/tsconfig.json
 
-RUN cd divachain \
+RUN apt-get update \
+  && apt-get install -y curl \
+  && curl -fsSL https://get.pnpm.io/install.sh | sh - \
+  && cd divachain \
   && mkdir genesis \
   && mkdir keys \
   && mkdir dist \
-  && npm i -g pkg \
-  && npm i \
+  && /root/.local/share/pnpm/pnpm add -g --verbose pkg \
+  && /root/.local/share/pnpm/pnpm install --verbose \
   && bin/build.sh
 
 #############################################
@@ -56,6 +59,6 @@ COPY --from=build /divachain/build/prebuilds /prebuilds
 COPY --from=build /divachain/genesis /genesis
 COPY --from=build /divachain/keys /keys
 
-EXPOSE 17468
+EXPOSE 17468 17469
 
 CMD [ "/divachain" ]
