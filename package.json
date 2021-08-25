@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "keywords": [
     "blockchain",
@@ -55,7 +55,6 @@
     "@types/node": "^16.7.1",
     "@types/pino": "^6.3.11",
     "@types/sodium-native": "^2.3.5",
-    "@types/tunnel": "^0.0.3",
     "@types/ws": "^7.4.7",
     "@typescript-eslint/eslint-plugin": "^4.29.3",
     "@typescript-eslint/parser": "^4.29.3",
