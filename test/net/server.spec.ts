@@ -294,18 +294,12 @@ class TestServer {
         aT.push({ seq: seq++, command: 'data', base64url: Date.now().toString() });
       }
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
-      const pathToken = path.join(
-        arrayConfig[i].path_keys,
-        arrayConfig[i].address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token'
-      );
-      const token = fs.readFileSync(pathToken).toString();
       arrayRequests.push(arrayOrigin[i]);
       arrayTimestamp.push(new Date().getTime());
       console.log(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
       const res = await chai
         .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
         .put('/transaction')
-        .set('diva-api-token', token)
         .send(aT);
       arrayIdents.push(res.body.ident);
       await TestServer.wait(1 + Math.floor(Math.random() * 3000));
