@@ -120,8 +120,8 @@ export class Bootstrap {
       try {
         res = JSON.parse(await this.fetch('http://' + address + '/challenge/' + token));
         this.confirm(address, publicKey, res.token);
-      } catch (error) {
-        Logger.warn(error);
+      } catch (error: any) {
+        Logger.warn(error.toString());
 
         // retry
         this.mapToken.delete(ident);
@@ -167,8 +167,8 @@ export class Bootstrap {
     do {
       try {
         this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network'));
-      } catch (_e) {
-        Logger.warn(_e);
+      } catch (error: any) {
+        Logger.warn(error.toString());
         this.arrayNetwork = [];
       }
       r++;
@@ -186,8 +186,8 @@ export class Bootstrap {
       urlApi = 'http://' + aNetwork.pop().api + '/' + endpoint;
       try {
         return JSON.parse(await this.fetch(urlApi));
-      } catch (_e) {
-        Logger.warn(_e);
+      } catch (error: any) {
+        Logger.warn(error.toString());
       }
     } while (aNetwork.length);
 
