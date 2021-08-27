@@ -274,6 +274,18 @@ class TestServer {
   }
 
   @test
+  async injectObjectAsTransaction() {
+    const arrayConfig = [...TestServer.mapConfigServer.values()];
+    console.log(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`);
+    const res = await chai
+      .request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`)
+      .put('/transaction')
+      .send({seq: 1, command: 'data', base64url: 'bogus'});
+
+    expect(res.status).eq(403);
+  }
+
+  @test
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
