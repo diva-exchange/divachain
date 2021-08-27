@@ -137,7 +137,7 @@ export class Api {
       try {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
-      } catch (error) {
+      } catch (error: Error) {
         this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(500).end();
       }
@@ -147,7 +147,7 @@ export class Api {
       try {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getTransaction(req.params.origin, req.params.ident));
-      } catch (error) {
+      } catch (error: Error) {
         this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(404).end();
       }
@@ -157,21 +157,16 @@ export class Api {
       try {
         const blockchain = this.server.getBlockchain();
         return res.json(await blockchain.getPerformance(Number(req.params.height)));
-      } catch (error) {
+      } catch (error: Error) {
         this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(404).end();
       }
     });
 
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      if (req.headers[NAME_HEADER_API_TOKEN] === this.token) {
-        const wallet = this.server.getWallet();
-        const t: TransactionStruct = new Transaction(wallet, req.body as ArrayCommand, req.params.ident).get();
-        if (this.server.stackTransaction(t)) {
-          return res.json(t);
-        }
-      }
-      return res.status(403).end();
+      const wallet = this.server.getWallet();
+      const t: TransactionStruct = new Transaction(wallet, req.body as ArrayCommand, req.params.ident).get();
+      return this.server.stackTransaction(t) ? res.json(t) : res.status(403).end();
     });
   }
 }

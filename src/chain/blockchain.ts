@@ -23,12 +23,7 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import {
-  CommandAddPeer,
-  CommandRemovePeer,
-  CommandModifyStake,
-  TransactionStruct,
-} from './transaction';
+import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, TransactionStruct } from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';

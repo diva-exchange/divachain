@@ -64,12 +64,7 @@ export class Validation {
     }).compile(schemaMessage);
 
     Validation.tx = new Ajv({
-      schemas: [
-        schemaAddPeer,
-        schemaRemovePeer,
-        schemaModifyStake,
-        schemaData,
-      ],
+      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaData],
     }).compile(schemaTx);
 
     Validation.isInitialized = true;
