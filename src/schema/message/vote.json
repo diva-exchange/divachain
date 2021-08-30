@@ -4,11 +4,11 @@
 
   "type": "object",
   "properties": {
-    "orgn": {
+    "origin": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "blc": {
+    "block": {
       "$ref": "/schema/block/block.json"
     },
     "sig": {
@@ -17,8 +17,8 @@
     }
   },
   "required": [
-    "orgn",
-    "blc",
+    "origin",
+    "block",
     "sig"
   ],
   "additionalProperties": false

@@ -22,20 +22,20 @@ import { Message } from './message';
 export class Challenge extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.t = Message.TYPE_CHALLENGE;
-    this.message.bc = false;
+    this.message.type = Message.TYPE_CHALLENGE;
+    this.message.broadcast = false;
   }
 
   create(challenge: string): Challenge {
-    this.message.dta = challenge;
+    this.message.data = challenge;
     return this;
   }
 
   getChallenge(): string {
-    return this.message.dta;
+    return this.message.data;
   }
 
   isValid(): boolean {
-    return this.message.t === Message.TYPE_CHALLENGE;
+    return this.message.type === Message.TYPE_CHALLENGE;
   }
 }

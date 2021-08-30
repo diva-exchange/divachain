@@ -4,7 +4,7 @@
 
   "type": "object",
   "properties": {
-    "orgn": {
+    "origin": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
@@ -15,7 +15,7 @@
   },
   "additionalProperties": false,
   "required": [
-    "orgn",
+    "origin",
     "sig"
   ]
 }

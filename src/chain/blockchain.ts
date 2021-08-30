@@ -34,7 +34,7 @@ export class Blockchain {
   private readonly dbBlockchain: InstanceType<typeof LevelUp>;
   private readonly dbState: InstanceType<typeof LevelUp>;
 
-  private hght: number = 0;
+  private height: number = 0;
   private mapBlocks: Map<number, BlockStruct> = new Map();
   private latestBlock: BlockStruct = {} as BlockStruct;
 
@@ -70,7 +70,7 @@ export class Blockchain {
   }
 
   private async init(): Promise<void> {
-    this.hght = 0;
+    this.height = 0;
     this.mapBlocks = new Map();
     this.latestBlock = {} as BlockStruct;
 
@@ -96,7 +96,7 @@ export class Blockchain {
     await this.dbBlockchain.clear();
     await this.dbState.clear();
 
-    this.hght = 0;
+    this.height = 0;
     this.mapBlocks = new Map();
     this.latestBlock = {} as BlockStruct;
     this.mapPeer = new Map();
@@ -113,15 +113,15 @@ export class Blockchain {
 
   async add(block: BlockStruct): Promise<void> {
     if (
-      this.hght + 1 !== block.hght ||
-      block.ph !== this.latestBlock.h ||
-      block.h !== Blockchain.hashBlock(block)
+      this.height + 1 !== block.height ||
+      block.previousHash !== this.latestBlock.hash ||
+      block.hash !== Blockchain.hashBlock(block)
     ) {
       Logger.warn(
-        `Failed to verify block "${block.hght}", ` +
-          `Height check: ${this.hght + 1 !== block.hght ? 'failed' : 'ok'}, ` +
-          `Previous Hash check: ${block.ph !== this.latestBlock.h ? 'failed' : 'ok'}, ` +
-          `Hash check: ${block.h !== Blockchain.hashBlock(block) ? 'failed' : 'ok'}`
+        `Failed to verify block "${block.height}", ` +
+          `Height check: ${this.height + 1 !== block.height ? 'failed' : 'ok'}, ` +
+          `Previous Hash check: ${block.previousHash !== this.latestBlock.hash ? 'failed' : 'ok'}, ` +
+          `Hash check: ${block.hash !== Blockchain.hashBlock(block) ? 'failed' : 'ok'}`
       );
       return;
     }
@@ -132,18 +132,18 @@ export class Blockchain {
     this.server.getVotePool().clear();
     this.server.getTransactionPool().clear(block);
 
-    await this.dbBlockchain.put(String(this.hght).padStart(16, '0'), JSON.stringify(block));
+    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
     await this.processState(block);
   }
 
   private updateCache(block: BlockStruct) {
-    this.hght = block.hght;
+    this.height = block.height;
     this.latestBlock = block;
 
     // cache
-    this.mapBlocks.set(this.hght, block);
+    this.mapBlocks.set(this.height, block);
     if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
-      this.mapBlocks.delete(this.hght - this.server.config.blockchain_max_blocks_in_memory);
+      this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
     }
   }
 
@@ -155,8 +155,8 @@ export class Blockchain {
 
     // range
     if (gte >= 1 || lte >= 1) {
-      gte = gte < 1 ? 1 : gte <= this.hght ? gte : this.hght;
-      lte = lte < 1 ? 1 : lte <= this.hght ? lte : this.hght;
+      gte = gte < 1 ? 1 : gte <= this.height ? gte : this.height;
+      lte = lte < 1 ? 1 : lte <= this.height ? lte : this.height;
       gte = lte - gte > 0 ? gte : lte;
       gte =
         lte - gte >= this.server.config.blockchain_max_query_size
@@ -199,8 +199,8 @@ export class Blockchain {
       size < 1 || size > this.server.config.blockchain_max_blocks_in_memory
         ? this.server.config.blockchain_max_blocks_in_memory
         : Math.floor(size);
-    size = size > this.hght ? this.hght : size;
-    const lte = this.hght - (page - 1) * size < 1 ? size : this.hght - (page - 1) * size;
+    size = size > this.height ? this.height : size;
+    const lte = this.height - (page - 1) * size < 1 ? size : this.height - (page - 1) * size;
     const gte = lte - size + 1;
 
     return new Promise((resolve, reject) => {
@@ -223,8 +223,8 @@ export class Blockchain {
         .createValueStream()
         .on('data', (data) => {
           const b: BlockStruct = JSON.parse(data) as BlockStruct;
-          const t = b.tx.find((t: TransactionStruct) => t.orgn === origin && t.ident === ident);
-          t && resolve({ height: b.hght, transaction: t });
+          const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+          t && resolve({ height: b.height, transaction: t });
         })
         .on('end', () => {
           reject(new Error('Not found'));
@@ -261,7 +261,7 @@ export class Blockchain {
   }
 
   getHeight(): number {
-    return this.hght;
+    return this.height;
   }
 
   async getPerformance(height: number): Promise<{ timestamp: number }> {
@@ -284,23 +284,23 @@ export class Blockchain {
       throw new Error('Genesis Block not found at: ' + p);
     }
     const b: BlockStruct = JSON.parse(fs.readFileSync(p).toString());
-    b.h = Blockchain.hashBlock(b);
+    b.hash = Blockchain.hashBlock(b);
     return b;
   }
 
   private static hashBlock(block: BlockStruct): string {
-    const { v, ph, hght, tx } = block;
-    return Util.hash(ph + v + hght + JSON.stringify(tx));
+    const { version, previousHash, height, tx } = block;
+    return Util.hash(previousHash + version + height + JSON.stringify(tx));
   }
 
   private async processState(block: BlockStruct) {
     if (this.server.config.debug_performance) {
-      await this.dbState.put('debug-performance-' + this.hght, new Date().getTime());
+      await this.dbState.put('debug-performance-' + this.height, new Date().getTime());
     }
 
     for (const t of block.tx) {
-      for (const c of t.cmds) {
-        switch (c.cmd) {
+      for (const c of t.commands) {
+        switch (c.command) {
           case 'addPeer':
             await this.addPeer(c as CommandAddPeer);
             break;
@@ -316,34 +316,34 @@ export class Blockchain {
   }
 
   private async addPeer(command: CommandAddPeer) {
-    if (this.mapPeer.has(command.pk)) {
+    if (this.mapPeer.has(command.publicKey)) {
       return;
     }
 
     const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
-    this.mapPeer.set(command.pk, peer);
-    await this.dbState.put('peer:' + command.pk, peer.stake);
-    this.server.getNetwork().addPeer(command.pk, peer);
+    this.mapPeer.set(command.publicKey, peer);
+    await this.dbState.put('peer:' + command.publicKey, peer.stake);
+    this.server.getNetwork().addPeer(command.publicKey, peer);
   }
 
   private async removePeer(command: CommandRemovePeer) {
-    if (this.mapPeer.has(command.pk)) {
-      this.mapPeer.delete(command.pk);
-      await this.dbState.del('peer:' + command.pk);
-      this.server.getNetwork().removePeer(command.pk);
+    if (this.mapPeer.has(command.publicKey)) {
+      this.mapPeer.delete(command.publicKey);
+      await this.dbState.del('peer:' + command.publicKey);
+      this.server.getNetwork().removePeer(command.publicKey);
     }
   }
 
   private async modifyStake(command: CommandModifyStake) {
-    if (this.mapPeer.has(command.pk)) {
-      const peer: NetworkPeer = this.mapPeer.get(command.pk) as NetworkPeer;
-      peer.stake = peer.stake + command.stk;
+    if (this.mapPeer.has(command.publicKey)) {
+      const peer: NetworkPeer = this.mapPeer.get(command.publicKey) as NetworkPeer;
+      peer.stake = peer.stake + command.stake;
       if (peer.stake < 0) {
         peer.stake = 0;
       }
 
-      this.mapPeer.set(command.pk, peer);
-      await this.dbState.put('peer:' + command.pk, peer.stake);
+      this.mapPeer.set(command.publicKey, peer);
+      await this.dbState.put('peer:' + command.publicKey, peer.stake);
     }
   }
 }

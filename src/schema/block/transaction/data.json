@@ -8,15 +8,11 @@
       "type": "integer",
       "minimum": 1
     },
-    "cmd": {
+    "command": {
       "type": "string",
       "pattern": "^data$"
     },
-    "ns": {
-      "type": "string",
-      "pattern": "^[A-Za-z]{1,64}$"
-    },
-    "b64u": {
+    "base64url": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{1,65536}$"
     }
@@ -24,8 +20,7 @@
   "additionalProperties": false,
   "required": [
     "seq",
-    "cmd",
-    "ns",
-    "b64u"
+    "command",
+    "base64url"
   ]
 }

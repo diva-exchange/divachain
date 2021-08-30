@@ -22,10 +22,10 @@ import { nanoid } from 'nanoid';
 
 export type MessageStruct = {
   ident: string;
-  t: number;
-  dta: any;
-  bc: boolean;
-  trl: Array<string>;
+  type: number;
+  data: any;
+  broadcast: boolean;
+  trail: Array<string>;
 };
 
 export class Message {
@@ -61,32 +61,32 @@ export class Message {
   }
 
   type(): number {
-    return this.message.t;
+    return this.message.type;
   }
 
   isBroadcast(): boolean {
-    return this.message.bc;
+    return this.message.broadcast;
   }
 
   trail(): Array<string> {
-    return this.message.trl || [];
+    return this.message.trail || [];
   }
 
   origin(): string {
-    return this.message.dta.orgn || '';
+    return this.message.data.origin || '';
   }
 
   sig(): string {
-    return this.message.dta.sig || '';
+    return this.message.data.sig || '';
   }
 
   hash(): string {
-    return this.message.dta.blc ? this.message.dta.blc.h : '';
+    return this.message.data.block ? this.message.data.block.hash : '';
   }
 
   updateTrail(arrayTrail: Array<string>) {
-    this.message.trl || (this.message.trl = []);
-    this.message.trl = [...new Set(this.message.trl.concat(arrayTrail))].filter((_pk) => _pk);
+    this.message.trail || (this.message.trail = []);
+    this.message.trail = [...new Set(this.message.trail.concat(arrayTrail))].filter((_pk) => _pk);
   }
 
   /**
@@ -95,8 +95,8 @@ export class Message {
    * @throws {Error}
    */
   pack(version?: number): string {
-    this.message.ident = this.message.ident || this.message.t + nanoid(16);
-    this.message.bc = this.message.bc || false;
+    this.message.ident = this.message.ident || this.message.type + nanoid(16);
+    this.message.broadcast = this.message.broadcast || false;
     return this._pack(version);
   }
 

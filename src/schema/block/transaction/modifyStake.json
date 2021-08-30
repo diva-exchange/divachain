@@ -8,15 +8,15 @@
       "type": "integer",
       "minimum": 1
     },
-    "cmd": {
+    "command": {
       "type": "string",
       "pattern": "^modifyStake$"
     },
-    "pk": {
+    "publicKey": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "stk": {
+    "stake": {
       "type": "integer",
       "minimum": -1000,
       "maximum": 1000
@@ -25,8 +25,8 @@
   "additionalProperties": false,
   "required": [
     "seq",
-    "cmd",
-    "pk",
-    "stk"
+    "command",
+    "publicKey",
+    "stake"
   ]
 }

@@ -4,15 +4,15 @@
 
   "type": "object",
   "properties": {
-    "v": {
+    "version": {
       "type": "integer",
       "minimum": 1
     },
-    "ph": {
+    "previousHash": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "h": {
+    "hash": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
@@ -24,11 +24,11 @@
       "minItems": 1,
       "uniqueItems": true
     },
-    "hght": {
+    "height": {
       "type": "integer",
       "minimum": 1
     },
-    "vts": {
+    "votes": {
       "type": "array",
       "items": {
         "$ref": "votes.json"
@@ -37,12 +37,12 @@
     }
   },
   "required": [
-    "v",
-    "ph",
-    "h",
+    "version",
+    "previousHash",
+    "hash",
     "tx",
-    "hght",
-    "vts"
+    "height",
+    "votes"
   ],
   "additionalProperties": false
 }

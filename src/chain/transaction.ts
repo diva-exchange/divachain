@@ -24,35 +24,35 @@ const MAX_LENGTH_IDENT = 32;
 
 interface Command {
   seq: number;
-  cmd: string;
+  command: string;
 }
 
 interface CommandData extends Command {
-  b64u: string;
+  base64url: string;
 }
 
 export interface CommandAddPeer extends Command {
   host: string;
   port: number;
-  pk: string;
+  publicKey: string;
 }
 
 export interface CommandRemovePeer extends Command {
-  pk: string;
+  publicKey: string;
 }
 
 export interface CommandModifyStake extends Command {
-  pk: string;
-  stk: number;
+  publicKey: string;
+  stake: number;
 }
 
 export type ArrayCommand = Array<CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData>;
 
 export type TransactionStruct = {
   ident: string;
-  orgn: string;
-  ts: number; // Format: Milliseconds (1/1,000 second)
-  cmds: ArrayCommand;
+  origin: string;
+  timestamp: number; // Format: Milliseconds (1/1,000 second)
+  commands: ArrayCommand;
   sig: string;
 };
 
@@ -64,9 +64,9 @@ export class Transaction {
     const _ts = Date.now();
     this.structTransaction = {
       ident: _ident,
-      orgn: wallet.getPublicKey(),
-      ts: _ts,
-      cmds: commands,
+      origin: wallet.getPublicKey(),
+      timestamp: _ts,
+      commands: commands,
       sig: wallet.sign(_ident + _ts + JSON.stringify(commands)),
     };
   }
