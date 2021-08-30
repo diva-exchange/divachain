@@ -153,7 +153,7 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'data', base64url: 'abcABC' }]);
+      .send([{ seq: 1, command: 'data', ns: 'test', base64url: 'abcABC' }]);
     expect(res).to.have.status(200);
   }
 
@@ -280,7 +280,7 @@ class TestServer {
     const res = await chai
       .request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`)
       .put('/transaction')
-      .send({seq: 1, command: 'data', base64url: 'bogus'});
+      .send({seq: 1, command: 'data', ns: 'test', base64url: 'bogus'});
 
     expect(res.status).eq(403);
   }
@@ -303,7 +303,7 @@ class TestServer {
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
-        aT.push({ seq: seq++, command: 'data', base64url: Date.now().toString() });
+        aT.push({ seq: seq++, command: 'data', ns: 'test', base64url: Date.now().toString() });
       }
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
       arrayRequests.push(arrayOrigin[i]);
@@ -314,7 +314,7 @@ class TestServer {
         .put('/transaction')
         .send(aT);
       arrayIdents.push(res.body.ident);
-      await TestServer.wait(1 + Math.floor(Math.random() * 3000));
+      await TestServer.wait(1 + Math.floor(Math.random() * 2000));
     }
 
     let x = 0;
@@ -343,7 +343,7 @@ class TestServer {
 
     console.log('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(30000);
+    await TestServer.wait(10000);
 
     while (arrayRequests.length) {
       const origin = arrayRequests.shift();
