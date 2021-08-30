@@ -28,7 +28,7 @@ interface Command {
 }
 
 interface CommandData extends Command {
-  ns: string,
+  ns: string;
   base64url: string;
 }
 
