@@ -23,16 +23,16 @@ import { BlockStruct } from '../../chain/block';
 export class Sync extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_SYNC;
-    this.message.broadcast = false;
+    this.message.t = Message.TYPE_SYNC;
+    this.message.bc = false;
   }
 
   create(arrayBlocks: Array<BlockStruct>): Sync {
-    this.message.data = arrayBlocks;
+    this.message.dta = arrayBlocks;
     return this;
   }
 
   get(): Array<BlockStruct> {
-    return this.message.data as Array<BlockStruct>;
+    return this.message.dta as Array<BlockStruct>;
   }
 }

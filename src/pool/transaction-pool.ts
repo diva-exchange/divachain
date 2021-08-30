@@ -29,7 +29,7 @@ export const MAX_TRANSACTIONS = 10;
 
 export class TransactionPool {
   private readonly wallet: Wallet;
-  private readonly publicKey: string;
+  private readonly pk: string;
 
   private stackTransaction: Array<TransactionStruct> = [];
   private inTransit: TransactionStruct = {} as TransactionStruct;
@@ -38,11 +38,11 @@ export class TransactionPool {
 
   constructor(wallet: Wallet) {
     this.wallet = wallet;
-    this.publicKey = this.wallet.getPublicKey();
+    this.pk = this.wallet.getPublicKey();
   }
 
   stack(t: TransactionStruct): boolean {
-    return t.origin === this.publicKey && Validation.validateTx(t) && this.stackTransaction.push(t) > 0;
+    return t.orgn === this.pk && Validation.validateTx(t) && this.stackTransaction.push(t) > 0;
   }
 
   getStack() {
@@ -58,15 +58,15 @@ export class TransactionPool {
     }
 
     this.inTransit = this.stackTransaction.shift() as TransactionStruct;
-    this.current.set(this.publicKey, this.inTransit);
+    this.current.set(this.pk, this.inTransit);
     return true;
   }
 
   add(arrayTx: Array<TransactionStruct>): boolean {
     const _s = this.current.size;
     arrayTx.forEach((tx) => {
-      if (!this.current.has(tx.origin) && Validation.validateTx(tx)) {
-        this.current.set(tx.origin, tx);
+      if (!this.current.has(tx.orgn) && Validation.validateTx(tx)) {
+        this.current.set(tx.orgn, tx);
       }
     });
     return _s < this.current.size;

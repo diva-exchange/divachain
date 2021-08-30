@@ -8,11 +8,11 @@
       "type": "integer",
       "minimum": 1
     },
-    "command": {
+    "cmd": {
       "type": "string",
       "pattern": "^removePeer$"
     },
-    "publicKey": {
+    "pk": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     }
@@ -20,7 +20,7 @@
   "additionalProperties": false,
   "required": [
     "seq",
-    "command",
-    "publicKey"
+    "cmd",
+    "pk"
   ]
 }

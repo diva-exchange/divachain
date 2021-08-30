@@ -237,15 +237,15 @@ export class Server {
     this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
   }
 
-  private doVote(block: BlockStruct) {
+  private doVote(blc: BlockStruct) {
     // vote for the best available version
     setImmediate(() => {
       this.network.processMessage(
         new Vote()
           .create({
-            origin: this.wallet.getPublicKey(),
-            block: block,
-            sig: this.wallet.sign(block.hash),
+            orgn: this.wallet.getPublicKey(),
+            blc: blc,
+            sig: this.wallet.sign(blc.h),
           })
           .pack()
       );
@@ -256,7 +256,7 @@ export class Server {
     const v = vote.get();
 
     // not interested in any data beyond the current new block
-    if (this.blockchain.getHeight() + 1 !== v.block.height) {
+    if (this.blockchain.getHeight() + 1 !== v.blc.hght) {
       return this.network.stopGossip(vote.ident());
     }
 
@@ -265,25 +265,25 @@ export class Server {
     }
 
     // if there are locally unknown transactions within the block, create a new block and vote for it
-    if (this.transactionPool.add(v.block.tx)) {
+    if (this.transactionPool.add(v.blc.tx)) {
       // vote for the best available block
       this.network.stopGossip(vote.ident());
       return this.doVote(Block.make(this.blockchain.getLatestBlock(), this.transactionPool.get()));
     }
 
-    if (!this.votePool.add(v, this.network.getStake(v.origin), this.network.getQuorum())) {
+    if (!this.votePool.add(v, this.network.getStake(v.orgn), this.network.getQuorum())) {
       return this.network.stopGossip(vote.ident());
     }
 
     if (this.votePool.hasQuorum) {
-      v.block.votes = this.votePool.get();
+      v.blc.vts = this.votePool.get();
       setImmediate(() => {
         this.network.processMessage(
           new Commit()
             .create({
-              origin: this.wallet.getPublicKey(),
-              block: v.block,
-              sig: this.wallet.sign(Util.hash(v.block.hash + JSON.stringify(v.block.votes))),
+              orgn: this.wallet.getPublicKey(),
+              blc: v.blc,
+              sig: this.wallet.sign(Util.hash(v.blc.h + JSON.stringify(v.blc.vts))),
             })
             .pack()
         );
@@ -295,7 +295,7 @@ export class Server {
     const c: VoteStruct = commit.get();
 
     // not interested in any data beyond the current new block
-    if (this.commitPool.hasQuorum || this.blockchain.getHeight() + 1 !== c.block.height) {
+    if (this.commitPool.hasQuorum || this.blockchain.getHeight() + 1 !== c.blc.hght) {
       return this.network.stopGossip(commit.ident());
     }
 
@@ -303,17 +303,17 @@ export class Server {
       return this.network.stopGossip(commit.ident());
     }
 
-    if (!this.commitPool.add(c, this.network.getStake(c.origin), this.network.getQuorum())) {
+    if (!this.commitPool.add(c, this.network.getStake(c.orgn), this.network.getQuorum())) {
       return this.network.stopGossip(commit.ident());
     }
     if (this.commitPool.hasQuorum) {
-      await this.addBlock(c.block);
+      await this.addBlock(c.blc);
     }
   }
 
   private async processSync(sync: Sync) {
     const h = this.blockchain.getHeight();
-    for (const block of sync.get().filter((b) => h < b.height)) {
+    for (const block of sync.get().filter((b) => h < b.hght)) {
       await this.addBlock(block);
     }
   }

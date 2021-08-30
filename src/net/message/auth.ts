@@ -23,16 +23,16 @@ import { Util } from '../../chain/util';
 export class Auth extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_AUTH;
-    this.message.broadcast = false;
+    this.message.t = Message.TYPE_AUTH;
+    this.message.bc = false;
   }
 
   create(sig: string): Auth {
-    this.message.data = sig;
+    this.message.dta = sig;
     return this;
   }
 
   isValid(challenge: string, publicKey: string): boolean {
-    return this.message.type === Message.TYPE_AUTH && Util.verifySignature(publicKey, this.message.data, challenge);
+    return this.message.t === Message.TYPE_AUTH && Util.verifySignature(publicKey, this.message.dta, challenge);
   }
 }

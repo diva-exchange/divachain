@@ -8,15 +8,15 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$"
     },
-    "origin": {
+    "orgn": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "timestamp": {
+    "ts": {
       "type": "integer",
       "minimum": 0
     },
-    "commands": {
+    "cmds": {
       "type": "array",
       "items": {
         "anyOf": [
@@ -45,9 +45,9 @@
   },
   "required": [
     "ident",
-    "origin",
-    "timestamp",
-    "commands",
+    "orgn",
+    "ts",
+    "cmds",
     "sig"
   ],
   "additionalProperties": false

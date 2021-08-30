@@ -69,9 +69,9 @@ class TestValidation {
   validateVote() {
     const structBlock = Blockchain.genesis(TestValidation.config.path_genesis);
     const structVote = {
-      origin: TestValidation.wallet.getPublicKey(),
-      block: structBlock,
-      sig: TestValidation.wallet.sign(structBlock.hash),
+      orgn: TestValidation.wallet.getPublicKey(),
+      blc: structBlock,
+      sig: TestValidation.wallet.sign(structBlock.h),
     };
     const m = new Vote().create(structVote);
     expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
@@ -80,16 +80,16 @@ class TestValidation {
   @test
   validateCommit() {
     const structBlock: BlockStruct = Blockchain.genesis(TestValidation.config.path_genesis);
-    structBlock.votes = [
+    structBlock.vts = [
       {
-        origin: TestValidation.wallet.getPublicKey(),
-        sig: TestValidation.wallet.sign(structBlock.hash),
+        orgn: TestValidation.wallet.getPublicKey(),
+        sig: TestValidation.wallet.sign(structBlock.h),
       },
     ];
     const m = new Commit().create({
-      origin: TestValidation.wallet.getPublicKey(),
-      block: structBlock,
-      sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(structBlock.votes)),
+      orgn: TestValidation.wallet.getPublicKey(),
+      blc: structBlock,
+      sig: TestValidation.wallet.sign(structBlock.h + JSON.stringify(structBlock.vts)),
     });
     expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }

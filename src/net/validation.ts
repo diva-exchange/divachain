@@ -95,10 +95,10 @@ export class Validation {
 
     // Signature and Schema validation
     return (
-      Array.isArray(tx.commands) &&
-      Util.verifySignature(tx.origin, tx.sig, tx.ident + tx.timestamp + JSON.stringify(tx.commands)) &&
-      tx.commands.filter((c) => {
-        switch (c.command || '') {
+      Array.isArray(tx.cmds) &&
+      Util.verifySignature(tx.orgn, tx.sig, tx.ident + tx.ts + JSON.stringify(tx.cmds)) &&
+      tx.cmds.filter((c) => {
+        switch (c.cmd || '') {
           case 'addPeer':
           case 'removePeer':
           case 'modifyStake':
@@ -107,12 +107,12 @@ export class Validation {
           default:
             return false;
         }
-      }).length === tx.commands.length
+      }).length === tx.cmds.length
     );
   }
 
   static validateBlock(block: BlockStruct): boolean {
-    if (Util.hash(block.previousHash + block.version + block.height + JSON.stringify(block.tx)) !== block.hash) {
+    if (Util.hash(block.ph + block.v + block.hght + JSON.stringify(block.tx)) !== block.h) {
       //@FIXME logging
       Logger.warn('Invalid block hash');
       return false;
@@ -126,13 +126,13 @@ export class Validation {
 
     const _aOrigin: Array<string> = [];
     for (const tx of block.tx) {
-      if (_aOrigin.includes(tx.origin)) {
+      if (_aOrigin.includes(tx.orgn)) {
         //@FIXME logging
         Logger.trace(JSON.stringify(block.tx));
-        Logger.warn(`Multiple transactions from same origin: ${block.height}`);
+        Logger.warn(`Multiple transactions from same origin: ${block.hght}`);
         return false;
       }
-      _aOrigin.push(tx.origin);
+      _aOrigin.push(tx.orgn);
 
       if (!Validation.validateTx(tx)) {
         return false;

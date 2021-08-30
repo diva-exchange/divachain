@@ -26,15 +26,15 @@ export class CommitPool {
   public hasQuorum: boolean = false;
 
   add(structVote: VoteStruct, stake: number, quorum: number): boolean {
-    if (structVote.block.hash !== this.currentHash) {
+    if (structVote.blc.h !== this.currentHash) {
       this.clear();
-    } else if (this.arrayCommits.includes(structVote.origin)) {
+    } else if (this.arrayCommits.includes(structVote.orgn)) {
       // double commit
       return false;
     }
 
-    this.currentHash = structVote.block.hash;
-    this.arrayCommits.push(structVote.origin);
+    this.currentHash = structVote.blc.h;
+    this.arrayCommits.push(structVote.orgn);
     this.arrayStakes.push(stake);
     this.hasQuorum = this.arrayStakes.reduce((s, _s) => s + _s, 0) >= quorum;
     return true;

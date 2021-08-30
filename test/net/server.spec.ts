@@ -70,26 +70,26 @@ class TestServer {
 
       cmds.push({
         seq: s,
-        command: 'addPeer',
+        cmd: 'addPeer',
         host: IP,
         port: BASE_PORT + i,
-        publicKey: publicKey,
+        pk: publicKey,
       } as CommandAddPeer);
       s++;
       cmds.push({
         seq: s,
-        command: 'modifyStake',
-        publicKey: publicKey,
-        stake: 1000,
+        cmd: 'modifyStake',
+        pk: publicKey,
+        stk: 1000,
       } as CommandModifyStake);
       s++;
     }
     genesis.tx = [
       {
         ident: 'genesis',
-        origin: '0000000000000000000000000000000000000000000',
-        timestamp: 88355100000,
-        commands: cmds,
+        orgn: '0000000000000000000000000000000000000000000',
+        ts: 88355100000,
+        cmds: cmds,
         sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       },
     ];
@@ -153,7 +153,7 @@ class TestServer {
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
       .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'data', base64url: 'abcABC' }]);
+      .send([{ seq: 1, cmd: 'data', ns: 'test', b64u: 'abcABC' }]);
     expect(res).to.have.status(200);
   }
 
@@ -165,7 +165,7 @@ class TestServer {
     const res = await chai
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
-      .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
+      .send([{ seq: 1, cmd: 'testLoad', timestamp: Date.now() }]);
     expect(res).to.have.status(403);
   }
 
@@ -280,7 +280,7 @@ class TestServer {
     const res = await chai
       .request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`)
       .put('/transaction')
-      .send({seq: 1, command: 'data', base64url: 'bogus'});
+      .send({seq: 1, cmd: 'data', base64url: 'bogus'});
 
     expect(res.status).eq(403);
   }
@@ -303,7 +303,7 @@ class TestServer {
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
-        aT.push({ seq: seq++, command: 'data', base64url: Date.now().toString() });
+        aT.push({ seq: seq++, cmd: 'data', ns: 'test', b64u: Date.now().toString() });
       }
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
       arrayRequests.push(arrayOrigin[i]);
@@ -314,7 +314,7 @@ class TestServer {
         .put('/transaction')
         .send(aT);
       arrayIdents.push(res.body.ident);
-      await TestServer.wait(1 + Math.floor(Math.random() * 3000));
+      await TestServer.wait(1 + Math.floor(Math.random() * 2000));
     }
 
     let x = 0;
@@ -343,7 +343,7 @@ class TestServer {
 
     console.log('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(30000);
+    await TestServer.wait(10000);
 
     while (arrayRequests.length) {
       const origin = arrayRequests.shift();
@@ -353,7 +353,7 @@ class TestServer {
       const res = await chai.request(baseUrl).get(`/transaction/${origin}/${ident}`);
       expect(res.status).eq(200);
       expect(res.body.transaction.ident).eq(`${ident}`);
-      expect(res.body.transaction.commands.length).eq(_inner);
+      expect(res.body.transaction.cmds.length).eq(_inner);
 
       const perf = await chai.request(baseUrl).get(`/debug/performance/${res.body.height}`);
       expect(perf.status).eq(200);

@@ -22,20 +22,20 @@ import { TransactionStruct } from './transaction';
 import { Validation } from '../net/validation';
 
 export type BlockStruct = {
-  version: number;
-  previousHash: string;
-  hash: string;
+  v: number;
+  ph: string;
+  h: string;
   tx: Array<TransactionStruct>;
-  height: number;
-  votes: Array<{ origin: string; sig: string }>;
+  hght: number;
+  vts: Array<{ orgn: string; sig: string }>;
 };
 
 export class Block {
   readonly previousBlock: BlockStruct;
-  readonly version: number;
-  readonly height: number;
-  readonly previousHash: string;
-  readonly hash: string;
+  readonly v: number;
+  readonly hght: number;
+  readonly ph: string;
+  readonly h: string;
   readonly tx: Array<TransactionStruct>;
 
   static make(previousBlock: BlockStruct, tx: Array<TransactionStruct>): BlockStruct {
@@ -48,21 +48,21 @@ export class Block {
 
   private constructor(previousBlock: BlockStruct, tx: Array<TransactionStruct>) {
     this.previousBlock = previousBlock;
-    this.version = 1; //@FIXME
-    this.previousHash = previousBlock.hash;
-    this.height = previousBlock.height + 1;
+    this.v = 1; //@FIXME
+    this.ph = previousBlock.h;
+    this.hght = previousBlock.hght + 1;
     this.tx = tx;
-    this.hash = Util.hash(this.previousHash + this.version + this.height + JSON.stringify(this.tx));
+    this.h = Util.hash(this.ph + this.v + this.hght + JSON.stringify(this.tx));
   }
 
   get(): BlockStruct {
     return {
-      version: this.version,
-      previousHash: this.previousHash,
-      hash: this.hash,
+      v: this.v,
+      ph: this.ph,
+      h: this.h,
       tx: this.tx,
-      height: this.height,
-      votes: [],
+      hght: this.hght,
+      vts: [],
     } as BlockStruct;
   }
 }

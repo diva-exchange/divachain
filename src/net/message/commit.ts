@@ -25,18 +25,18 @@ import { Validation } from '../validation';
 export class Commit extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_COMMIT;
-    this.message.broadcast = true;
+    this.message.t = Message.TYPE_COMMIT;
+    this.message.bc = true;
   }
 
   create(structVote: VoteStruct): Commit {
-    this.message.ident = this.message.type + Util.md5hex(structVote.sig);
-    this.message.data = structVote;
+    this.message.ident = this.message.t + Util.md5hex(structVote.sig);
+    this.message.dta = structVote;
     return this;
   }
 
   get(): VoteStruct {
-    return this.message.data as VoteStruct;
+    return this.message.dta as VoteStruct;
   }
 
   /**
@@ -45,21 +45,21 @@ export class Commit extends Message {
    * @param {VoteStruct} structVote - Data structure to validate
    */
   static isValid(structVote: VoteStruct): boolean {
-    if (!structVote.block.votes.length) {
+    if (!structVote.blc.vts.length) {
       return false;
     }
 
-    let _a: Array<{ origin: string; sig: string }> = [];
+    let _a: Array<{ orgn: string; sig: string }> = [];
     if (
       Util.verifySignature(
-        structVote.origin,
+        structVote.orgn,
         structVote.sig,
-        Util.hash(structVote.block.hash + JSON.stringify(structVote.block.votes))
+        Util.hash(structVote.blc.h + JSON.stringify(structVote.blc.vts))
       )
     ) {
-      _a = structVote.block.votes.filter((v) => Util.verifySignature(v.origin, v.sig, structVote.block.hash));
+      _a = structVote.blc.vts.filter((v) => Util.verifySignature(v.orgn, v.sig, structVote.blc.h));
     }
 
-    return _a.length === structVote.block.votes.length && Validation.validateBlock(structVote.block);
+    return _a.length === structVote.blc.vts.length && Validation.validateBlock(structVote.blc);
   }
 }

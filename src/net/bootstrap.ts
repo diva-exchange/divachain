@@ -80,16 +80,16 @@ export class Bootstrap {
     const blockNetwork: BlockStruct = await this.fetchFromApi('block/latest');
     const blockLocal: BlockStruct = this.server.getBlockchain().getLatestBlock();
 
-    if (blockLocal.hash !== blockNetwork.hash) {
+    if (blockLocal.h !== blockNetwork.h) {
       const genesis: BlockStruct = await this.fetchFromApi('block/genesis');
       await this.server.getBlockchain().reset(genesis);
       let h = 1;
-      while (blockNetwork.height > h) {
+      while (blockNetwork.hght > h) {
         const arrayBlocks: Array<BlockStruct> = await this.fetchFromApi('sync/' + (h + 1));
         for (const b of arrayBlocks) {
           await this.server.getBlockchain().add(b);
         }
-        h = this.server.getBlockchain().getLatestBlock().height;
+        h = this.server.getBlockchain().getLatestBlock().hght;
       }
     }
   }
@@ -151,10 +151,10 @@ export class Bootstrap {
     const t: TransactionStruct = new Transaction(wallet, [
       {
         seq: 1,
-        command: 'addPeer',
+        cmd: 'addPeer',
         host: host,
         port: Number(port),
-        publicKey: publicKey,
+        pk: publicKey,
       } as CommandAddPeer,
     ]).get();
 

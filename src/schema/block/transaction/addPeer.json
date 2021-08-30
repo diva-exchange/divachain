@@ -8,7 +8,7 @@
       "type": "integer",
       "minimum": 1
     },
-    "command": {
+    "cmd": {
       "type": "string",
       "pattern": "^addPeer$"
     },
@@ -21,7 +21,7 @@
       "minimum": 1024,
       "maximum": 49151
     },
-    "publicKey": {
+    "pk": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     }
@@ -29,9 +29,9 @@
   "additionalProperties": false,
   "required": [
     "seq",
-    "command",
+    "cmd",
     "host",
     "port",
-    "publicKey"
+    "pk"
   ]
 }

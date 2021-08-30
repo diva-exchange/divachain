@@ -23,32 +23,32 @@ import { BlockStruct } from '../../chain/block';
 import { Validation } from '../validation';
 
 export type VoteStruct = {
-  origin: string;
-  block: BlockStruct;
+  orgn: string;
+  blc: BlockStruct;
   sig: string;
 };
 
 export class Vote extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_VOTE;
-    this.message.broadcast = true;
+    this.message.t = Message.TYPE_VOTE;
+    this.message.bc = true;
   }
 
   create(structVote: VoteStruct): Vote {
-    this.message.ident = this.message.type + Util.md5hex(structVote.sig);
-    this.message.data = structVote;
+    this.message.ident = this.message.t + Util.md5hex(structVote.sig);
+    this.message.dta = structVote;
     return this;
   }
 
   get(): VoteStruct {
-    return this.message.data as VoteStruct;
+    return this.message.dta as VoteStruct;
   }
 
   static isValid(structVote: VoteStruct): boolean {
     return (
-      Validation.validateBlock(structVote.block) &&
-      Util.verifySignature(structVote.origin, structVote.sig, structVote.block.hash)
+      Validation.validateBlock(structVote.blc) &&
+      Util.verifySignature(structVote.orgn, structVote.sig, structVote.blc.h)
     );
   }
 }

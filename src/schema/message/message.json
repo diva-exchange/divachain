@@ -8,12 +8,12 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]+$"
     },
-    "type": {
+    "t": {
       "type": "integer",
       "minimum": 1,
       "maximum": 9
     },
-    "data": {
+    "dta": {
       "oneOf": [
         {
           "$ref": "auth.json"
@@ -29,10 +29,10 @@
         }
       ]
     },
-    "broadcast": {
+    "bc": {
       "type": "boolean"
     },
-    "trail": {
+    "trl": {
       "type": "array",
       "items": {
         "type": "string",
@@ -44,9 +44,9 @@
   },
   "required": [
     "ident",
-    "type",
-    "data",
-    "broadcast"
+    "t",
+    "dta",
+    "bc"
   ],
   "additionalProperties": false
 }
