@@ -280,7 +280,7 @@ class TestServer {
     const res = await chai
       .request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`)
       .put('/transaction')
-      .send({seq: 1, command: 'data', ns: 'test', base64url: 'bogus'});
+      .send({ seq: 1, command: 'data', ns: 'test', base64url: 'bogus' });
 
     expect(res.status).eq(403);
   }
@@ -309,10 +309,7 @@ class TestServer {
       arrayRequests.push(arrayOrigin[i]);
       arrayTimestamp.push(new Date().getTime());
       console.log(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
-      const res = await chai
-        .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
-        .put('/transaction')
-        .send(aT);
+      const res = await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`).put('/transaction').send(aT);
       arrayIdents.push(res.body.ident);
       await TestServer.wait(1 + Math.floor(Math.random() * 2000));
     }

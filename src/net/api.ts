@@ -78,7 +78,11 @@ export class Api {
     });
 
     this.server.app.get('/about', (req: Request, res: Response) => {
-      return res.json({ version: this.package.version, license: this.package.license });
+      return res.json({
+        version: this.package.version,
+        license: this.package.license,
+        publicKey: this.server.getWallet().getPublicKey(),
+      });
     });
 
     this.server.app.get('/peers', (req: Request, res: Response) => {
