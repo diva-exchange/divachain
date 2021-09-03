@@ -27,7 +27,7 @@ interface Command {
   command: string;
 }
 
-interface CommandData extends Command {
+export interface CommandData extends Command {
   ns: string;
   base64url: string;
 }

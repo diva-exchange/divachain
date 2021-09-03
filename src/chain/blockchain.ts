@@ -23,7 +23,7 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, TransactionStruct } from './transaction';
+import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, CommandData, TransactionStruct } from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
@@ -241,6 +241,9 @@ export class Blockchain {
           .createReadStream()
           .on('data', (data) => {
             a.push({ key: data.key.toString(), value: data.value.toString() });
+            if (a.length === this.server.config.blockchain_max_query_size) {
+              resolve(a);
+            }
           })
           .on('end', () => {
             resolve(a);
@@ -310,6 +313,9 @@ export class Blockchain {
           case 'modifyStake':
             await this.modifyStake(c as CommandModifyStake);
             break;
+          case 'data':
+            await this.updateNamespaceData(t.origin, c as CommandData);
+            break;
         }
       }
     }
@@ -345,5 +351,9 @@ export class Blockchain {
       this.mapPeer.set(command.publicKey, peer);
       await this.dbState.put('peer:' + command.publicKey, peer.stake);
     }
+  }
+
+  private async updateNamespaceData(origin: string, command: CommandData) {
+    await this.dbState.put(origin + ':' + command.ns, command.base64url);
   }
 }
