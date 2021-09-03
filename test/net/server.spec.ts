@@ -53,6 +53,7 @@ class TestServer {
     let s = 1;
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
+        no_bootstrapping: true,
         ip: IP,
         port: BASE_PORT + i,
         port_block_feed: BASE_PORT_FEED + i,
@@ -65,7 +66,7 @@ class TestServer {
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
-      this.mapConfigServer.set(publicKey, config);
+      TestServer.mapConfigServer.set(publicKey, config);
 
       cmds.push({
         seq: s,
@@ -199,7 +200,12 @@ class TestServer {
   @test
   async state() {
     const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/state');
+    let res = await chai.request(`http://${config.ip}:${config.port}`).get('/state');
+    expect(res).to.have.status(200);
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/state/peer:invalid-key');
+    expect(res).to.have.status(404);
+    const _pk = [...TestServer.mapConfigServer.keys()][0];
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/state/peer:' + _pk);
     expect(res).to.have.status(200);
   }
 

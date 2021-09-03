@@ -21,6 +21,7 @@ import path from 'path';
 import fs from 'fs';
 
 export type Configuration = {
+  no_bootstrapping?: boolean;
   bootstrap?: string;
 
   path_app?: string;
@@ -113,7 +114,8 @@ export class Config {
       ''
     );
 
-    this.bootstrap = c.bootstrap || process.env.BOOTSTRAP || '';
+    this.bootstrap =
+      c.no_bootstrapping || process.env.NO_BOOTSTRAPPING ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
     this.path_app =
       c.path_app ||

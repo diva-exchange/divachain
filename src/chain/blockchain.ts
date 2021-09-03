@@ -233,7 +233,7 @@ export class Blockchain {
     });
   }
 
-  async getState(key: string = ''): Promise<Array<{ key: string; value: string }>> {
+  async getState(key: string = ''): Promise<Array<{ key: string; value: string }> | string> {
     return new Promise((resolve, reject) => {
       if (!key.length) {
         const a: Array<any> = [];
@@ -253,7 +253,7 @@ export class Blockchain {
           });
       } else {
         this.dbState.get(key, (error, value: Buffer) => {
-          error ? reject(error) : resolve([{ key: key, value: value.toString() }]);
+          error ? reject(error) : resolve(value.toString());
         });
       }
     });
