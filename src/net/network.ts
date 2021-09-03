@@ -57,6 +57,7 @@ export class Network {
 
   private peersIn: { [publicKey: string]: Peer } = {};
   private peersOut: { [publicKey: string]: Peer } = {};
+  private stackOut: { [publicKey: string]: NetworkPeer } = {};
 
   private readonly _onMessage: Function | false;
   private aGossip: Array<string> = [];
@@ -263,7 +264,11 @@ export class Network {
       }
 
       const aBroadcast = this.arrayBroadcast.filter(
-        (_pk) => !this.aGossip.includes(_pk + ident) && this.aGossip.push(_pk + ident)
+        (_pk) =>
+          ((this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) ||
+            (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1)) &&
+          !this.aGossip.includes(_pk + ident) &&
+          this.aGossip.push(_pk + ident)
       );
 
       if (aBroadcast.length) {
@@ -273,16 +278,12 @@ export class Network {
         // broadcast the message
         for (const _pk of aBroadcast) {
           try {
-            if (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1) {
-              Network.send(this.peersOut[_pk].ws, m.pack());
-            } else if (this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) {
-              Network.send(this.peersIn[_pk].ws, m.pack());
-            } else {
-              Logger.warn('processMessage() - broadcast: Websocket destination not available');
-            }
-          } catch (error) {
+            const ws: WebSocket =
+              this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1 ? this.peersIn[_pk].ws : this.peersOut[_pk].ws;
+            Network.send(ws, m.pack());
+          } catch (error: any) {
             Logger.warn('processMessage() - broadcast: Websocket Error');
-            Logger.trace(JSON.stringify(error));
+            Logger.trace(error);
           }
         }
       }
@@ -354,7 +355,9 @@ export class Network {
 
   private refresh() {
     for (const publicKey of this.arrayPeerNetwork) {
-      if (this.mapPeer.has(publicKey) && !this.peersOut[publicKey]) {
+      const peer = (this.mapPeer.get(publicKey) || {}) as NetworkPeer;
+      if (peer.host && !this.peersOut[publicKey] && !this.stackOut[publicKey]) {
+        this.stackOut[publicKey] = peer;
         this.connect(publicKey);
       }
     }
@@ -370,49 +373,8 @@ export class Network {
     this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
   }
 
-  private morphPeerNetwork() {
-    if (this.mapPeer.size < 1) {
-      this.arrayPeerNetwork = [];
-      return;
-    }
-
-    let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys()).filter((_pk) => _pk !== this.publicKey);
-    if (arrayPublicKey.length > this.server.config.network_size) {
-      const _a = Util.shuffleArray(arrayPublicKey);
-      arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(this.server.config.network_size / 2));
-      while (_a.length && arrayPublicKey.length < this.server.config.network_size) {
-        const _pk = _a.pop();
-        !arrayPublicKey.includes(_pk) && arrayPublicKey.push(_pk);
-      }
-    }
-    this.arrayPeerNetwork = arrayPublicKey.slice();
-
-    this.timeoutMorph = setTimeout(() => {
-      this.morphPeerNetwork();
-    }, this.server.config.network_morph_interval_ms);
-  }
-
-  private clean() {
-    const t = Date.now() - this.server.config.network_clean_interval_ms * 2; // timeout
-    Object.values(this.peersOut)
-      .concat(Object.values(this.peersIn))
-      .forEach((peer) => {
-        peer.alive < t && peer.ws.close(4002, 'Timeout');
-      });
-
-    if (this.aGossip.length > this.server.config.network_gossip_drop_entries_max) {
-      this.aGossip.splice(0, Math.floor(this.aGossip.length / 3));
-    }
-
-    this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
-  }
-
   private connect(publicKeyPeer: string) {
-    const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
-    if (!peer.host) {
-      return;
-    }
-    const address = 'ws://' + peer.host + ':' + peer.port;
+    const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
       perMessageDeflate: this.server.config.per_message_deflate,
@@ -424,7 +386,7 @@ export class Network {
     if (
       this.server.config.i2p_socks_proxy_host &&
       this.server.config.i2p_socks_proxy_port > 0 &&
-      /\.i2p$/.test(peer.host)
+      /\.i2p$/.test(this.stackOut[publicKeyPeer].host)
     ) {
       options.agent = new SocksProxyAgent(
         `socks://${this.server.config.i2p_socks_proxy_host}:${this.server.config.i2p_socks_proxy_port}`
@@ -432,15 +394,19 @@ export class Network {
     }
 
     const ws = new WebSocket(address, options);
-    this.peersOut[publicKeyPeer] = {
-      address: address,
-      alive: Date.now(),
-      stale: 0,
-      ws: ws,
-    };
-    this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
 
+    ws.on('open', () => {
+      delete this.stackOut[publicKeyPeer];
+      this.peersOut[publicKeyPeer] = {
+        address: address,
+        alive: Date.now(),
+        stale: 0,
+        ws: ws,
+      };
+      this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
+    });
     ws.on('close', () => {
+      delete this.stackOut[publicKeyPeer];
       delete this.peersOut[publicKeyPeer];
       this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
     });
@@ -479,6 +445,43 @@ export class Network {
         this.peersOut[publicKeyPeer] && (this.peersOut[publicKeyPeer].alive = Date.now());
       });
     });
+  }
+
+  private morphPeerNetwork() {
+    if (this.mapPeer.size < 1) {
+      this.arrayPeerNetwork = [];
+      return;
+    }
+
+    let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys()).filter((_pk) => _pk !== this.publicKey);
+    if (arrayPublicKey.length > this.server.config.network_size) {
+      const _a = Util.shuffleArray(arrayPublicKey);
+      arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(this.server.config.network_size / 2));
+      while (_a.length && arrayPublicKey.length < this.server.config.network_size) {
+        const _pk = _a.pop();
+        !arrayPublicKey.includes(_pk) && arrayPublicKey.push(_pk);
+      }
+    }
+    this.arrayPeerNetwork = arrayPublicKey.slice();
+
+    this.timeoutMorph = setTimeout(() => {
+      this.morphPeerNetwork();
+    }, this.server.config.network_morph_interval_ms);
+  }
+
+  private clean() {
+    const t = Date.now() - this.server.config.network_clean_interval_ms * 2; // timeout
+    Object.values(this.peersOut)
+      .concat(Object.values(this.peersIn))
+      .forEach((peer) => {
+        peer.alive < t && peer.ws.close(4002, 'Timeout');
+      });
+
+    if (this.aGossip.length > this.server.config.network_gossip_drop_entries_max) {
+      this.aGossip.splice(0, Math.floor(this.aGossip.length / 3));
+    }
+
+    this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
   private ping(): void {

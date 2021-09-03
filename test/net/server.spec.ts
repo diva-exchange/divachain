@@ -33,8 +33,8 @@ import fs from 'fs';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 7;
-const NETWORK_SIZE = 5;
+const SIZE_TESTNET = 13;
+const NETWORK_SIZE = 7;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -61,8 +61,7 @@ class TestServer {
         path_blockstore: path.join(__dirname, '../blockstore'),
         path_keys: path.join(__dirname, '../keys'),
         network_size: NETWORK_SIZE,
-        network_morph_interval_ms: 30000,
-        network_clean_interval_ms: 20000,
+        network_morph_interval_ms: 120000,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
@@ -80,7 +79,7 @@ class TestServer {
         seq: s,
         command: 'modifyStake',
         publicKey: publicKey,
-        stake: 1000,
+        stake: Math.floor((Math.random() * 1000) / Math.sqrt(i)),
       } as CommandModifyStake);
       s++;
     }
@@ -289,8 +288,8 @@ class TestServer {
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 5;
-    const _inner = 3;
+    const _outer = 500;
+    const _inner = 5;
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -300,18 +299,39 @@ class TestServer {
     const arrayIdents: Array<string> = [];
     const arrayTimestamp: Array<number> = [];
 
+    // kill the last 20% of the servers after 90 seconds
+    setTimeout(async () => {
+      const _arrayPK = [...TestServer.mapConfigServer.keys()];
+      for (let _i = 0; _i < Math.ceil(_arrayPK.length / 5); _i++) {
+        const _pk = _arrayPK.pop() || '';
+        console.log(`Killing Server: ${_pk}`);
+        const s = TestServer.mapServer.get(_pk);
+        s && (await s.shutdown());
+      }
+    }, 90000);
+
+    // wait, 60s to make sure the network gets into morphing while stress tested
+    console.log('waiting 60s to get network settled...');
+    await TestServer.wait(60000);
+
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
         aT.push({ seq: seq++, command: 'data', ns: 'test', base64url: Date.now().toString() });
       }
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
-      arrayRequests.push(arrayOrigin[i]);
-      arrayTimestamp.push(new Date().getTime());
-      console.log(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
-      const res = await chai.request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`).put('/transaction').send(aT);
-      arrayIdents.push(res.body.ident);
-      await TestServer.wait(1 + Math.floor(Math.random() * 2000));
+
+      try {
+        console.log(`${_i}: http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
+        const res = await chai
+          .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
+          .put('/transaction')
+          .send(aT);
+        arrayTimestamp.push(new Date().getTime());
+        arrayRequests.push(arrayOrigin[i]);
+        arrayIdents.push(res.body.ident);
+      } catch (error: any) {}
+      await TestServer.wait(1 + Math.floor(Math.random() * 500));
     }
 
     let x = 0;
@@ -322,7 +342,7 @@ class TestServer {
       for (const n in arrayRequests) {
         const origin = arrayRequests[n];
         const ident = arrayIdents[n];
-        const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+        const i = Math.floor(Math.random() * (Math.ceil(arrayConfig.length / 5) - 1));
         const baseUrl = `http://${arrayConfig[i].ip}:${arrayConfig[i].port}`;
         let res;
         try {
@@ -340,12 +360,13 @@ class TestServer {
 
     console.log('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(10000);
+    await TestServer.wait(30000);
 
+    x = 0;
     while (arrayRequests.length) {
       const origin = arrayRequests.shift();
       const ident = arrayIdents.shift();
-      const i = Math.floor(Math.random() * (arrayConfig.length - 1));
+      const i = Math.floor(Math.random() * (Math.ceil(arrayConfig.length / 5) - 1));
       const baseUrl = `http://${arrayConfig[i].ip}:${arrayConfig[i].port}`;
       const res = await chai.request(baseUrl).get(`/transaction/${origin}/${ident}`);
       expect(res.status).eq(200);
@@ -357,8 +378,11 @@ class TestServer {
 
       const ts = arrayTimestamp.shift() || 0;
       console.log(
-        perf.body.timestamp ? perf.body.timestamp - ts + ' ms' : `No performance data for block ${res.body.height}`
+        perf.body.timestamp
+          ? `${x}: ${perf.body.timestamp - ts}  ms`
+          : `No performance data for block ${res.body.height}`
       );
+      x++;
     }
 
     // all blockchains have to be equal
