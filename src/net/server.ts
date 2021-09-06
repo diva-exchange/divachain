@@ -105,8 +105,7 @@ export class Server {
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
-        //@FIXME logging
-        Logger.trace(error);
+        Logger.warn(error);
         ws.terminate();
       });
     });
@@ -121,8 +120,7 @@ export class Server {
     });
     this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
-        //@FIXME logging
-        Logger.trace(error);
+        Logger.warn(error);
         ws.terminate();
       });
     });

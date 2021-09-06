@@ -105,10 +105,9 @@ export class Blockchain {
   async reset(genesis: BlockStruct) {
     await this.clear();
     this.server.getNetwork().resetNetwork();
-
-    await this.dbBlockchain.put(String(1).padStart(16, '0'), JSON.stringify(genesis));
-
-    await this.init();
+    if (await this.updateBlockData(String(1).padStart(16, '0'), JSON.stringify(genesis))) {
+      await this.init();
+    }
   }
 
   async add(block: BlockStruct): Promise<void> {
@@ -132,8 +131,9 @@ export class Blockchain {
     this.server.getVotePool().clear();
     this.server.getTransactionPool().clear(block);
 
-    await this.dbBlockchain.put(String(this.height).padStart(16, '0'), JSON.stringify(block));
-    await this.processState(block);
+    if (await this.updateBlockData(String(this.height).padStart(16, '0'), JSON.stringify(block))) {
+      await this.processState(block);
+    }
   }
 
   private updateCache(block: BlockStruct) {
@@ -298,7 +298,7 @@ export class Blockchain {
 
   private async processState(block: BlockStruct) {
     if (this.server.config.debug_performance) {
-      await this.dbState.put('debug-performance-' + this.height, new Date().getTime());
+      await this.updateStateData('debug-performance-' + this.height, new Date().getTime());
     }
 
     for (const t of block.tx) {
@@ -314,7 +314,7 @@ export class Blockchain {
             await this.modifyStake(c as CommandModifyStake);
             break;
           case 'data':
-            await this.updateNamespaceData(t.origin, c as CommandData);
+            await this.updateStateData(t.origin + ':' + (c as CommandData).ns, (c as CommandData).base64url);
             break;
         }
       }
@@ -328,7 +328,7 @@ export class Blockchain {
 
     const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
     this.mapPeer.set(command.publicKey, peer);
-    await this.dbState.put('peer:' + command.publicKey, peer.stake);
+    await this.updateStateData('peer:' + command.publicKey, peer.stake);
     this.server.getNetwork().addPeer(command.publicKey, peer);
   }
 
@@ -349,11 +349,25 @@ export class Blockchain {
       }
 
       this.mapPeer.set(command.publicKey, peer);
-      await this.dbState.put('peer:' + command.publicKey, peer.stake);
+      await this.updateStateData('peer:' + command.publicKey, peer.stake);
     }
   }
 
-  private async updateNamespaceData(origin: string, command: CommandData) {
-    await this.dbState.put(origin + ':' + command.ns, command.base64url);
+  private async updateBlockData(key: string, value: string | number): Promise<boolean> {
+    try {
+      await this.dbBlockchain.put(key, value);
+      return true;
+    } catch (error: any) {
+      Logger.warn(error);
+    }
+    return false;
+  }
+
+  private async updateStateData(key: string, value: string | number) {
+    try {
+      await this.dbState.put(key, value);
+    } catch (error: any) {
+      Logger.warn(error);
+    }
   }
 }

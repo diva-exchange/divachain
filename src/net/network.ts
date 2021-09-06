@@ -169,8 +169,9 @@ export class Network {
   }
 
   peers() {
-    const peers: { net: Array<string>; in: Array<object>; out: Array<object> } = {
+    const peers: { net: Array<string>; broadcast: Array<string>; in: Array<object>; out: Array<object> } = {
       net: this.arrayPeerNetwork,
+      broadcast: this.arrayBroadcast,
       in: [],
       out: [],
     };
@@ -355,20 +356,15 @@ export class Network {
 
   private refresh() {
     for (const publicKey of this.arrayPeerNetwork) {
+      if (Object.keys(this.peersOut).length + Object.keys(this.stackOut).length >= this.server.config.network_size) {
+        break;
+      }
       const peer = (this.mapPeer.get(publicKey) || {}) as NetworkPeer;
-      if (peer.host && !this.peersOut[publicKey] && !this.stackOut[publicKey]) {
+      if (peer.host && !this.peersIn[publicKey] && !this.peersOut[publicKey] && !this.stackOut[publicKey]) {
         this.stackOut[publicKey] = peer;
         this.connect(publicKey);
       }
     }
-
-    Object.keys(this.peersOut)
-      .filter((_pk) => {
-        return !this.arrayPeerNetwork.includes(_pk);
-      })
-      .forEach((_pk) => {
-        this.peersOut[_pk].ws.close(1000, 'Bye');
-      });
 
     this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
   }
@@ -406,7 +402,11 @@ export class Network {
       this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
     });
     ws.on('close', () => {
-      delete this.stackOut[publicKeyPeer];
+      if (this.stackOut[publicKeyPeer]) {
+        delete this.stackOut[publicKeyPeer];
+        const i = this.arrayPeerNetwork.indexOf(publicKeyPeer);
+        i > -1 && this.arrayPeerNetwork.splice(i, 1);
+      }
       delete this.peersOut[publicKeyPeer];
       this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
     });
@@ -448,21 +448,22 @@ export class Network {
   }
 
   private morphPeerNetwork() {
-    if (this.mapPeer.size < 1) {
-      this.arrayPeerNetwork = [];
-      return;
-    }
+    this.arrayPeerNetwork =
+      this.mapPeer.size < 1
+        ? []
+        : Util.shuffleArray(Array.from(this.mapPeer.keys()).filter((_pk) => _pk !== this.publicKey));
 
-    let arrayPublicKey: Array<string> = Array.from(this.mapPeer.keys()).filter((_pk) => _pk !== this.publicKey);
-    if (arrayPublicKey.length > this.server.config.network_size) {
-      const _a = Util.shuffleArray(arrayPublicKey);
-      arrayPublicKey = this.arrayPeerNetwork.slice(-1 * Math.ceil(this.server.config.network_size / 2));
-      while (_a.length && arrayPublicKey.length < this.server.config.network_size) {
-        const _pk = _a.pop();
-        !arrayPublicKey.includes(_pk) && arrayPublicKey.push(_pk);
+    if (Object.keys(this.peersOut).length > Math.floor(this.server.config.network_size / 2)) {
+      let x = 0;
+      for (const pk of Object.keys(this.peersOut)) {
+        if (this.peersIn[pk]) {
+          this.peersOut[pk].ws.close(1000, 'Bye');
+          if (x++ >= this.server.config.network_size / 3) {
+            break;
+          }
+        }
       }
     }
-    this.arrayPeerNetwork = arrayPublicKey.slice();
 
     this.timeoutMorph = setTimeout(() => {
       this.morphPeerNetwork();

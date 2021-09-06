@@ -113,22 +113,18 @@ export class Validation {
 
   static validateBlock(block: BlockStruct): boolean {
     if (Util.hash(block.previousHash + block.version + block.height + JSON.stringify(block.tx)) !== block.hash) {
-      //@FIXME logging
-      Logger.warn('Invalid block hash');
+      Logger.warn('Validation.validateBlock(): invalid block hash');
       return false;
     }
 
     if (block.tx.length > MAX_TRANSACTIONS) {
-      //@FIXME logging
-      Logger.warn('Invalid block tx length');
+      Logger.warn('Validation.validateBlock(): invalid block tx length');
       return false;
     }
 
     const _aOrigin: Array<string> = [];
     for (const tx of block.tx) {
       if (_aOrigin.includes(tx.origin)) {
-        //@FIXME logging
-        Logger.trace(JSON.stringify(block.tx));
         Logger.warn(`Multiple transactions from same origin: ${block.height}`);
         return false;
       }
