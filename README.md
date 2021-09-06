@@ -26,6 +26,10 @@ To create a docker based local environment use the project https://codeberg.org/
 ## Configuration
 The configuration can be controlled using environment variables.
 
+### NO_BOOTSTRAPPING
+Set to 1 to skip bootstrapping.
+Default: 0
+
 ### BOOTSTRAP
 URL to a entrypoint in the network, like http://diva.i2p.
 Default: (empty)

@@ -53,7 +53,7 @@ class TestServer {
     let s = 1;
     for (let i = 1; i <= SIZE_TESTNET; i++) {
       const config = new Config({
-        no_bootstrapping: true,
+        no_bootstrapping: 1,
         ip: IP,
         port: BASE_PORT + i,
         port_block_feed: BASE_PORT_FEED + i,

@@ -53,6 +53,7 @@ export class Bootstrap {
 
   private async init(): Promise<Bootstrap> {
     if (this.server.config.bootstrap) {
+      Logger.info(`Bootstrapping network, using ${this.server.config.bootstrap}`);
       await this.populateNetwork();
     }
 

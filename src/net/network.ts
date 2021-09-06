@@ -87,8 +87,7 @@ export class Network {
       if (publicKey && publicKey !== this.publicKey && this.mapPeer.has(publicKey)) {
         this.auth(ws, publicKey);
       } else {
-        Logger.warn('Connection credentials missing (diva-identity)');
-        ws.close(4003, 'Auth Credentials missing');
+        ws.close(4003, 'Auth Failed');
       }
     });
 
@@ -321,8 +320,9 @@ export class Network {
       };
       this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
 
-      ws.on('error', () => {
+      ws.on('error', (error: Error) => {
         ws.close();
+        Logger.trace(error);
       });
       ws.on('close', () => {
         delete this.peersIn[publicKeyPeer];
@@ -373,7 +373,7 @@ export class Network {
     const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: this.server.config.per_message_deflate,
+      perMessageDeflate: true,
       headers: {
         'diva-identity': this.publicKey,
       },
@@ -410,8 +410,9 @@ export class Network {
       delete this.peersOut[publicKeyPeer];
       this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
     });
-    ws.on('error', () => {
+    ws.on('error', (error: Error) => {
       ws.close();
+      Logger.trace(error);
     });
     ws.once('message', (message: Buffer) => {
       const mC = new Challenge(message);

@@ -21,7 +21,7 @@ import path from 'path';
 import fs from 'fs';
 
 export type Configuration = {
-  no_bootstrapping?: boolean;
+  no_bootstrapping?: number;
   bootstrap?: string;
 
   path_app?: string;
@@ -29,7 +29,6 @@ export type Configuration = {
   port?: number;
   port_block_feed?: number;
   address?: string;
-  per_message_deflate?: boolean;
   path_genesis?: string;
   path_blockstore?: string;
   path_state?: string;
@@ -66,7 +65,7 @@ const MAX_NETWORK_MORPH_INTERVAL_MS = 600000; // 10 minutes
 const DEFAULT_NETWORK_REFRESH_INTERVAL_MS = 3000;
 const DEFAULT_NETWORK_PING_INTERVAL_MS = 5000;
 const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
-const DEFAULT_NETWORK_SYNC_SIZE = 10;
+const DEFAULT_NETWORK_SYNC_SIZE = 50;
 const DEFAULT_NETWORK_GOSSIP_DROP_ENTRIES_MAX = 5000; // multiplied by network size
 
 const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
@@ -84,7 +83,6 @@ export class Config {
   public readonly port: number;
   public readonly port_block_feed: number;
   public address: string;
-  public readonly per_message_deflate: boolean;
   public readonly path_genesis: string;
   public readonly path_blockstore: string;
   public readonly path_state: string;
@@ -115,7 +113,7 @@ export class Config {
     );
 
     this.bootstrap =
-      c.no_bootstrapping || process.env.NO_BOOTSTRAPPING ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
+      (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
     this.path_app =
       c.path_app ||
@@ -126,7 +124,6 @@ export class Config {
     this.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
     this.port_block_feed = Config.port(c.port_block_feed || process.env.PORT_BLOCK_FEED || DEFAULT_PORT_BLOCK_FEED);
     this.address = c.address || process.env.ADDRESS || this.ip + ':' + this.port;
-    this.per_message_deflate = c.per_message_deflate || true;
 
     this.path_genesis = c.path_genesis || path.join(this.path_app, `genesis/${nameBlockGenesis}.json`);
 

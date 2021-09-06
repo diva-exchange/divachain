@@ -101,7 +101,7 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: this.config.per_message_deflate,
+      perMessageDeflate: true,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
@@ -131,7 +131,7 @@ export class Server {
 
   async start(): Promise<Server> {
     this.bootstrap = await Bootstrap.make(this);
-    Logger.info(`Bootstrapped, address ${this.config.address}`);
+    Logger.info(`Address ${this.config.address}`);
 
     Logger.trace(this.config);
 
