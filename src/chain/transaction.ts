@@ -52,7 +52,6 @@ export type ArrayCommand = Array<CommandAddPeer | CommandRemovePeer | CommandMod
 export type TransactionStruct = {
   ident: string;
   origin: string;
-  timestamp: number; // Format: Milliseconds (1/1,000 second)
   commands: ArrayCommand;
   sig: string;
 };
@@ -62,13 +61,11 @@ export class Transaction {
 
   constructor(wallet: Wallet, commands: ArrayCommand, ident: string = '') {
     const _ident = ident.length > 0 && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(8);
-    const _ts = Date.now();
     this.structTransaction = {
       ident: _ident,
       origin: wallet.getPublicKey(),
-      timestamp: _ts,
       commands: commands,
-      sig: wallet.sign(_ident + _ts + JSON.stringify(commands)),
+      sig: wallet.sign(_ident + JSON.stringify(commands)),
     };
   }
 

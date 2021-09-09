@@ -96,7 +96,7 @@ export class Validation {
     // Signature and Schema validation
     return (
       Array.isArray(tx.commands) &&
-      Util.verifySignature(tx.origin, tx.sig, tx.ident + tx.timestamp + JSON.stringify(tx.commands)) &&
+      Util.verifySignature(tx.origin, tx.sig, tx.ident + JSON.stringify(tx.commands)) &&
       tx.commands.filter((c) => {
         switch (c.command || '') {
           case 'addPeer':

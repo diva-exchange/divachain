@@ -12,10 +12,6 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "timestamp": {
-      "type": "integer",
-      "minimum": 0
-    },
     "commands": {
       "type": "array",
       "items": {
@@ -46,7 +42,6 @@
   "required": [
     "ident",
     "origin",
-    "timestamp",
     "commands",
     "sig"
   ],
