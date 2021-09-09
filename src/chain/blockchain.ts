@@ -116,13 +116,14 @@ export class Blockchain {
       block.previousHash !== this.latestBlock.hash ||
       block.hash !== Blockchain.hashBlock(block)
     ) {
-      Logger.warn(
-        `Failed to verify block "${block.height}", ` +
-          `Height check: ${this.height + 1 !== block.height ? 'failed' : 'ok'}, ` +
-          `Previous Hash check: ${block.previousHash !== this.latestBlock.hash ? 'failed' : 'ok'}, ` +
-          `Hash check: ${block.hash !== Blockchain.hashBlock(block) ? 'failed' : 'ok'}`
-      );
-      return;
+      const l: string = `Failed to verify block ${block.height}: `;
+      if (this.height + 1 !== block.height) {
+        return Logger.warn(l + '"Height" check failed');
+      } else if (block.previousHash !== this.latestBlock.hash) {
+        return Logger.warn(l + '"Previous Hash" check failed');
+      } else {
+        return Logger.warn(l + '"Hash" check failed');
+      }
     }
 
     this.updateCache(block);
