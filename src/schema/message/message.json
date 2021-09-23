@@ -22,6 +22,12 @@
           "$ref": "challenge.json"
         },
         {
+          "$ref": "tx-proposal.json"
+        },
+        {
+          "$ref": "lock.json"
+        },
+        {
           "$ref": "vote.json"
         },
         {

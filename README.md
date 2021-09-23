@@ -12,10 +12,10 @@ The peers in the network communicate via websockets. The peers build the tunnels
 
 The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
-1. New block proposal: each peer in the network may anytime propose a bundle of transactions, by transmitting 1-n own signed transactions to the network.
-2. Each peer receiving such a proposal may transmit its vote to the network. If a peer also has own transactions it adds his own transactions to the proposal first and re-transmits the proposal to the network. Per round, each peer can only add one stack of own transactions.
-3. As soon as a peer in the network detects that 2/3 of the whole network have voted for a specific proposal, it issues a commit message and broadcasts it to the network.
-4. As soon as 2/3 of the network have issued commit messages, the new block gets written to the chain.
+1. New transaction proposal: each peer in the network may anytime propose a transaction, by transmitting a signed transaction to the network.
+2. Each peer receiving such a proposal may transmit its vote, containing the complete new block, to the network. If a peer also has an own transaction it adds his own transactions to the new block first and transmits the new vote to the network. Per round, each peer can only add one own transaction.
+3. Several rounds of voting might be necessary to reach consensus (2/3 of the network).
+4. As soon as a peer in the network detects that 2/3 of the whole network have voted for a specific block, it writes the block to the chain.
 5. A new round starts. 
 
 
@@ -71,7 +71,7 @@ Default: 120000ms
 Between 2 minutes and 10 minutes (120'000ms and 600'000ms).
 
 ### NETWORK_REFRESH_INTERVAL_MS
-Default: 3000ms
+Default: 5000ms
 
 Interval, in milliseconds, to refresh the network (connect to peers, if needed). 
 
@@ -81,7 +81,7 @@ Default: 5 * NETWORK_REFRESH_INTERVAL_MS
 Timeout, in milliseconds, after authorisation fails.
 
 ### NETWORK_PING_INTERVAL_MS
-Default: 5000ms
+Default: 10000ms
 
 Interval, in milliseconds, to ping the peers in the network.
 
@@ -96,8 +96,8 @@ Default: 2
 Number of pings from a stale peer until synchronization gets triggered.
 
 ### NETWORK_SYNC_SIZE
-Default: 10
-Maximum number of blocks of synchronization message might contain. Must not exceed BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY.
+Default: 50
+Maximum number of blocks of synchronization message might contain. Must not exceed API_MAX_QUERY_SIZE.
 
 ### NETWORK_VERBOSE_LOGGING
 Default: 0
@@ -108,9 +108,7 @@ Whether to log all network traffic (very verbose). Set to 1 to enable verbose lo
 Default: 1000
 
 ### API_MAX_QUERY_SIZE
-Default: 50
-
-Interval, in milliseconds, to check whether the block pool is stale.
+Default: 500
 
 ## API Endpoints
 
@@ -130,36 +128,35 @@ Interval, in milliseconds, to check whether the block pool is stale.
 
 #### GET /pool/votes
 
-#### GET /pool/commits
-
 #### GET /block/genesis
+Get the genesis block.
 
 #### GET /block/latest
+Get the latest block.
 
-#### GET /blocks
+#### GET /block/{height}
+Get a specific block on the given height. 
 
-Optional query parameters:
+_Example:_ `http://url-divachain-api/block/10` will return the block on height 10.
 
-* _limit_, integer, > 0
+_Error handling:_ If a block is not yet available, 404 (Not Found) will be returned.
 
-OR
+#### GET /blocks/{from?}/{to?}
+Get all blocks between height "from" (inclusive) and height "to" (inclusive). If "to" is not yet available, the blocks until the current height will be returned.
 
-* _gte_, integer, > 0
-* _lte_, integer, > 0
+_Example:_ `http://url-divachain-api/blocks/10/19` will return 10 blocks (block 10 until 19, if all blocks are already).
+ 
+_Example:_ `http://url-divachain-api/blocks` will return the latest API_MAX_QUERY_SIZE blocks (at most).
 
-Examples:
+_Error handling:_ If "from" less than one, 404 (Not Found) will be returned.
 
-* `/blocks?lte=1` will return the genesis block
-* `/blocks?limit=1` will return the latest block
-* `/blocks?limit=5` will return the latest 5 blocks
-* `/blocks?gte=42&lte=42` will return block on height 42
-* `/blocks?gte=42&lte=43` will return blocks 42 and 43
+_Remark:_ Not more than API_MAX_QUERY_SIZE can be requested at once.
 
-#### GET /blocks/page/{page?}
+#### GET /blocks/page/{page}/{size?}
+Get a specific page of the blockchain, starting at the current height (reverse order).
+If size is not given, it will return API_MAX_QUERY_SIZE blocks or less. 
 
-Optional query parameters:
-
-* _size_, integer, > 0
+_Example:_ `http://url-divachain-api/blocks/page/1/5` will return the **last** 5 or less blocks of the chain.
 
 #### GET /transaction/{origin}/{ident}
 

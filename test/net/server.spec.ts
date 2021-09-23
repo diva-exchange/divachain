@@ -22,7 +22,6 @@ import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
 import path from 'path';
 
-import { NAME_HEADER_API_TOKEN } from '../../src/net/api';
 import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
 import { BlockStruct } from '../../src/chain/block';
@@ -30,11 +29,12 @@ import { Blockchain } from '../../src/chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
 import { Wallet } from '../../src/chain/wallet';
 import fs from 'fs';
+import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 13;
-const NETWORK_SIZE = 5;
+const SIZE_TESTNET = 47;
+const NETWORK_SIZE = 27;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -44,7 +44,7 @@ class TestServer {
   static mapConfigServer: Map<string, Config> = new Map();
   static mapServer: Map<string, Server> = new Map();
 
-  @timeout(20000)
+  @timeout(60000)
   static before(): Promise<void> {
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
@@ -62,7 +62,8 @@ class TestServer {
         path_blockstore: path.join(__dirname, '../blockstore'),
         path_keys: path.join(__dirname, '../keys'),
         network_size: NETWORK_SIZE,
-        network_morph_interval_ms: 30000,
+        network_morph_interval_ms: 120000,
+        network_verbose_logging: false,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
@@ -95,7 +96,7 @@ class TestServer {
     fs.writeFileSync(path.join(__dirname, '../genesis/block.json'), JSON.stringify(genesis));
 
     return new Promise((resolve) => {
-      setTimeout(resolve, 9000);
+      setTimeout(resolve, SIZE_TESTNET * 500);
 
       for (const pk of TestServer.mapConfigServer.keys()) {
         (async () => {
@@ -144,16 +145,23 @@ class TestServer {
   }
 
   @test
+  @slow(150000)
+  @timeout(150000)
   async transactionTestLoad() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
-    const token = fs.readFileSync(pathToken).toString();
-    const res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction')
-      .set(NAME_HEADER_API_TOKEN, token)
-      .send([{ seq: 1, command: 'data', ns: 'test', base64url: 'abcABC' }]);
-    expect(res).to.have.status(200);
+    for (let t = 0; t < 3; t++) {
+      const config = [...TestServer.mapConfigServer.values()][t];
+      const res = await chai
+        .request(`http://${config.ip}:${config.port}`)
+        .put('/transaction/test')
+        .send([{ seq: 1, command: 'data', ns: 'test', base64url: 'abcABC' + t }]);
+      expect(res).to.have.status(200);
+      expect(res.body.ident).to.be.eq('test');
+      await TestServer.wait(200);
+    }
+
+    console.log('waiting for sync...');
+    // wait for a possible sync
+    await TestServer.wait(60000);
   }
 
   @test
@@ -164,7 +172,7 @@ class TestServer {
     const res = await chai
       .request(`http://${config.ip}:${config.port}`)
       .put('/transaction')
-      .send([{ seq: 1, command: 'testLoad', timestamp: Date.now() }]);
+      .send([{ seq: 1, command: 'commandHasToFail' }]);
     expect(res).to.have.status(403);
   }
 
@@ -186,13 +194,6 @@ class TestServer {
   async network() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const res = await chai.request(`http://${config.ip}:${config.port}`).get('/network');
-    expect(res).to.have.status(200);
-  }
-
-  @test
-  async gossip() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/gossip');
     expect(res).to.have.status(200);
   }
 
@@ -223,24 +224,10 @@ class TestServer {
   }
 
   @test
-  async poolVotes() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/votes');
-    expect(res).to.have.status(200);
-  }
-
-  @test
-  async poolCommits() {
-    const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/commits');
-    expect(res).to.have.status(200);
-  }
-
-  @test
   async blocks() {
     const config = [...TestServer.mapConfigServer.values()][0];
     let res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks');
-    expect(res).to.have.status(200);
+    expect(res).to.have.status(404);
 
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/genesis');
     expect(res).to.have.status(200);
@@ -248,22 +235,19 @@ class TestServer {
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/latest');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?limit=1');
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?gte=1');
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks/1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?lte=1');
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks/-1/1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?gte=-1&lte=1');
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks/1/-1');
     expect(res).to.have.status(200);
 
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?gte=1&lte=-1');
-    expect(res).to.have.status(200);
-
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?gte=1&lte=2');
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks/1/2');
     expect(res).to.have.status(200);
   }
 
@@ -286,15 +270,15 @@ class TestServer {
       .put('/transaction')
       .send({ seq: 1, command: 'data', ns: 'test', base64url: 'bogus' });
 
-    expect(res.status).eq(403);
+    expect(res).to.have.status(403);
   }
 
   @test
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 500;
-    const _inner = 5;
+    const _outer = 50; // transactions
+    const _inner = 4; // commands
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -304,7 +288,8 @@ class TestServer {
     const arrayIdents: Array<string> = [];
     const arrayTimestamp: Array<number> = [];
 
-    // kill the last 20% of the servers after 60 seconds
+    /*
+    // kill the last 20% of the servers after 40 seconds
     setTimeout(async () => {
       const _arrayPK = [...TestServer.mapConfigServer.keys()];
       for (let _i = 0; _i < Math.ceil(_arrayPK.length / 5); _i++) {
@@ -315,11 +300,12 @@ class TestServer {
         const s = TestServer.mapServer.get(_pk);
         s && (await s.shutdown());
       }
-    }, 60000);
+    }, 40000);
 
     // wait, 20s to make sure the network gets into morphing while stress tested
     console.log('waiting 20s to get network settled...');
     await TestServer.wait(20000);
+    */
 
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
@@ -329,7 +315,7 @@ class TestServer {
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
 
       try {
-        console.log(`${_i}: http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
+        Logger.trace(`${_i}: http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
         const res = await chai
           .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
           .put('/transaction')
@@ -337,13 +323,28 @@ class TestServer {
         arrayTimestamp.push(new Date().getTime());
         arrayRequests.push(arrayOrigin[i]);
         arrayIdents.push(res.body.ident);
-      } catch (error: any) {}
-      await TestServer.wait(1 + Math.floor(Math.random() * 500));
+      } catch (error: any) {
+        console.error(error);
+      }
+      await TestServer.wait(1 + Math.floor(Math.random() * 100));
     }
 
-    console.log('waiting for sync');
+    Logger.trace('waiting for sync');
     // wait for a possible sync
     await TestServer.wait(60000);
+
+    // all blockchains have to be equal
+    const arrayBlocks: Array<any> = [];
+    for (const config of arrayConfig) {
+      const res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/latest');
+      arrayBlocks.push(res.body);
+    }
+    const _h = arrayBlocks[0].hash;
+    console.log('Equality check');
+    arrayBlocks.forEach((_b, i) => {
+      console.log(`${i}: ${_b.hash} (${_b.height})`);
+      expect(_h).eq(_b.hash);
+    });
 
     let x = 0;
     while (arrayRequests.length) {
@@ -365,17 +366,6 @@ class TestServer {
       }
       x++;
     }
-
-    // all blockchains have to be equal
-    const arrayBlocks: Array<any> = [];
-    for (const config of arrayConfig) {
-      const res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?limit=1');
-      arrayBlocks.push(res.body);
-    }
-    const _h = arrayBlocks[0][0].hash;
-    arrayBlocks.forEach((_a) => {
-      expect(_h).eq(_a[0].hash);
-    });
   }
 
   private static async wait(s: number) {

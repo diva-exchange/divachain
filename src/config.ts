@@ -44,9 +44,9 @@ export type Configuration = {
   network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
   network_ping_interval_ms?: number;
+  network_rate_limit_ms?: number;
   network_stale_threshold?: number;
   network_sync_size?: number;
-  network_gossip_drop_entries_max?: number;
   network_verbose_logging?: boolean;
 
   blockchain_max_blocks_in_memory?: number;
@@ -60,16 +60,16 @@ const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
 const MIN_NETWORK_SIZE = 5;
 const MAX_NETWORK_SIZE = 64;
-const MIN_NETWORK_MORPH_INTERVAL_MS = 30000; // 30 secs
+const MIN_NETWORK_MORPH_INTERVAL_MS = 120000; // 2 minutes
 const MAX_NETWORK_MORPH_INTERVAL_MS = 600000; // 10 minutes
 const DEFAULT_NETWORK_REFRESH_INTERVAL_MS = 3000;
 const DEFAULT_NETWORK_PING_INTERVAL_MS = 5000;
 const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
 const DEFAULT_NETWORK_SYNC_SIZE = 50;
-const DEFAULT_NETWORK_GOSSIP_DROP_ENTRIES_MAX = 5000; // multiplied by network size
+const DEFAULT_NETWORK_RATE_LIMIT_MS = 100;
 
 const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
-const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 50;
+const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 500;
 
 export class Config {
   public readonly debug_performance: boolean;
@@ -96,9 +96,9 @@ export class Config {
   public readonly network_auth_timeout_ms: number;
   public readonly network_clean_interval_ms: number;
   public readonly network_ping_interval_ms: number;
+  public readonly network_rate_limit_ms: number;
   public readonly network_stale_threshold: number;
   public readonly network_sync_size: number;
-  public readonly network_gossip_drop_entries_max: number;
   public readonly network_verbose_logging: boolean;
 
   public readonly blockchain_max_blocks_in_memory: number;
@@ -172,6 +172,11 @@ export class Config {
       this.network_ping_interval_ms * 5
     );
 
+    this.network_rate_limit_ms = Config.gte1(
+      c.network_rate_limit_ms || process.env.NETWORK_RATE_LIMIT_MS,
+      DEFAULT_NETWORK_RATE_LIMIT_MS
+    );
+
     this.network_stale_threshold = Config.gte1(
       c.network_stale_threshold || process.env.NETWORK_STALE_THRESHOLD,
       DEFAULT_NETWORK_STALE_THRESHOLD
@@ -179,11 +184,6 @@ export class Config {
     this.network_sync_size = Config.gte1(
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
       DEFAULT_NETWORK_SYNC_SIZE
-    );
-
-    this.network_gossip_drop_entries_max = Config.gte1(
-      c.network_gossip_drop_entries_max || process.env.NETWORK_GOSSIP_DROP_ENTRIES_MAX,
-      this.network_size * DEFAULT_NETWORK_GOSSIP_DROP_ENTRIES_MAX
     );
 
     this.network_verbose_logging = Config.tf(c.network_verbose_logging || process.env.NETWORK_VERBOSE_LOGGING);

@@ -27,11 +27,14 @@
           },
           {
             "$ref": "data.json"
+          },
+          {
+            "$ref": "decision.json"
           }
         ]
       },
       "minItems": 1,
-      "maxItems": 64,
+      "maxItems": 4,
       "uniqueItems": true
     },
     "sig": {

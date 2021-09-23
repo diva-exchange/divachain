@@ -19,8 +19,6 @@
 
 import { Server } from './server';
 import { Request, Response } from 'express';
-import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
-import { Logger } from '../logger';
 import { nanoid } from 'nanoid';
 import fs from 'fs';
 import path from 'path';
@@ -69,12 +67,12 @@ export class Api {
     });
 
     this.server.app.get('/sync/:height', async (req: Request, res: Response) => {
-      const h = Number(req.params.height) || 0;
-      if (h <= 0 || h > this.server.getBlockchain().getHeight()) {
+      const h = Math.floor(Number(req.params.height) || 0);
+      try {
+        return res.json(await this.server.getBlockchain().getRange(h, h + this.server.config.network_sync_size));
+      } catch (error: any) {
         return res.status(404).end();
       }
-
-      return res.json(await this.server.getBlockchain().get(0, h, h + this.server.config.network_sync_size));
     });
 
     this.server.app.get('/about', (req: Request, res: Response) => {
@@ -93,89 +91,84 @@ export class Api {
       return res.json(this.server.getNetwork().network());
     });
 
-    this.server.app.get('/gossip', (req: Request, res: Response) => {
-      return res.json(this.server.getNetwork().gossip());
-    });
-
     this.server.app.get('/state/:key?', async (req: Request, res: Response) => {
+      const key = req.params.key || '';
       try {
-        return res.json(await this.server.getBlockchain().getState(req.params.key || ''));
+        return res.json(await this.server.getBlockchain().getState(key));
       } catch (error: any) {
-        this.server.config.network_verbose_logging && Logger.trace(error);
         return res.status(404).end();
       }
     });
 
     this.server.app.get('/stack/transactions', (req: Request, res: Response) => {
-      return res.json(this.server.getTransactionPool().getStack());
+      return res.json(this.server.getPool().getStack());
     });
 
     this.server.app.get('/pool/transactions', (req: Request, res: Response) => {
-      return res.json(this.server.getTransactionPool().get());
-    });
-
-    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
-      return res.json(this.server.getVotePool().getAll());
-    });
-
-    this.server.app.get('/pool/commits', (req: Request, res: Response) => {
-      return res.json(this.server.getCommitPool().getAll());
+      return res.json(this.server.getPool().get());
     });
 
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {
-      return res.json((await this.server.getBlockchain().get(0, 0, 1))[0]);
+      return res.json((await this.server.getBlockchain().getRange(1, 1))[0]);
     });
 
     this.server.app.get('/block/latest', async (req: Request, res: Response) => {
       return res.json(this.server.getBlockchain().getLatestBlock());
     });
 
-    this.server.app.get('/blocks', async (req: Request, res: Response) => {
-      try {
-        const blockchain = this.server.getBlockchain();
-        return res.json(
-          await blockchain.get(Number(req.query.limit || 0), Number(req.query.gte || 0), Number(req.query.lte || 0))
-        );
-      } catch (error: any) {
-        this.server.config.network_verbose_logging && Logger.trace(error);
-        return res.status(500).end();
+    this.server.app.get('/block/:height', async (req: Request, res: Response) => {
+      const h = Math.floor(Number(req.params.height || 0));
+      if (h < 1 || h > this.server.getBlockchain().getHeight()) {
+        return res.status(404).end();
       }
+      return res.json((await this.server.getBlockchain().getRange(h, h))[0]);
     });
 
-    this.server.app.get('/blocks/page/:page?', async (req: Request, res: Response) => {
+    this.server.app.get('/blocks/:gte?/:lte?', async (req: Request, res: Response) => {
+      const gte = Number(typeof req.params.gte === 'undefined' ? 1 : req.params.gte);
+      const lte = Number(req.params.lte || 0);
+      if (gte < 1) {
+        return res.status(404).end();
+      }
+      return res.json(await this.server.getBlockchain().getRange(gte, lte));
+    });
+
+    this.server.app.get('/blocks/page/:page/:size?', async (req: Request, res: Response) => {
+      const page = Number(req.params.page || 1);
+      const size = Number(req.params.size || 0);
       try {
-        const blockchain = this.server.getBlockchain();
-        return res.json(await blockchain.getPage(Number(req.params.page || 0), Number(req.query.size || 0)));
+        return res.json(await this.server.getBlockchain().getPage(page, size));
       } catch (error: any) {
-        this.server.config.network_verbose_logging && Logger.trace(error);
-        return res.status(500).end();
+        return res.status(404).end();
       }
     });
 
     this.server.app.get('/transaction/:origin/:ident', async (req: Request, res: Response) => {
-      try {
-        const blockchain = this.server.getBlockchain();
-        return res.json(await blockchain.getTransaction(req.params.origin, req.params.ident));
-      } catch (error: any) {
-        this.server.config.network_verbose_logging && Logger.trace(error);
+      const origin = req.params.origin || '';
+      const ident = req.params.ident || '';
+      if (!origin || !ident) {
         return res.status(404).end();
       }
+      try {
+        return res.json(await this.server.getBlockchain().getTransaction(origin, ident));
+      } catch (error: any) {
+        return res.status(404).end();
+      }
+    });
+
+    //@FIXME API KEY!
+    this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
+      const ident = this.server.stackTxProposal(req.body, req.params.ident);
+      if (ident) {
+        this.server.releaseTxProposal();
+        return res.json({ ident: ident });
+      }
+      res.status(403).end();
     });
 
     this.server.app.get('/debug/performance/:height', async (req: Request, res: Response) => {
-      try {
-        const blockchain = this.server.getBlockchain();
-        return res.json(await blockchain.getPerformance(Number(req.params.height)));
-      } catch (error: any) {
-        this.server.config.network_verbose_logging && Logger.trace(error);
-        return res.status(404).end();
-      }
-    });
-
-    this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      const wallet = this.server.getWallet();
-      const t: TransactionStruct = new Transaction(wallet, req.body as ArrayCommand, req.params.ident).get();
-      return this.server.stackTransaction(t) ? res.json(t) : res.status(403).end();
+      const height = Number(req.params.height || 0);
+      return res.json(await this.server.getBlockchain().getPerformance(height));
     });
   }
 }

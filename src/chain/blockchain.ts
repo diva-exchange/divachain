@@ -110,31 +110,30 @@ export class Blockchain {
     }
   }
 
-  async add(block: BlockStruct): Promise<void> {
+  add(block: BlockStruct): boolean {
     if (
       this.height + 1 !== block.height ||
       block.previousHash !== this.latestBlock.hash ||
       block.hash !== Blockchain.hashBlock(block)
     ) {
-      const l: string = `Failed to verify block ${block.height}: `;
-      if (this.height + 1 !== block.height) {
-        return Logger.warn(l + '"Height" check failed');
-      } else if (block.previousHash !== this.latestBlock.hash) {
-        return Logger.warn(l + '"Previous Hash" check failed');
+      const l: string = `${this.publicKey} - failed to verify block ${block.height}: `;
+      if (block.previousHash !== this.latestBlock.hash) {
+        Logger.warn(l + '"Previous Hash" check failed');
       } else {
-        return Logger.warn(l + '"Hash" check failed');
+        Logger.warn(l + '"Hash" check failed');
       }
+      return false;
     }
 
     this.updateCache(block);
-    this.server.getNetwork().resetGossip();
-    this.server.getCommitPool().clear();
-    this.server.getVotePool().clear();
-    this.server.getTransactionPool().clear(block);
 
-    if (await this.updateBlockData(String(this.height).padStart(16, '0'), JSON.stringify(block))) {
-      await this.processState(block);
-    }
+    (async (b) => {
+      if (await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b))) {
+        await this.processState(b);
+      }
+    })(block);
+
+    return true;
   }
 
   private updateCache(block: BlockStruct) {
@@ -148,74 +147,56 @@ export class Blockchain {
     }
   }
 
-  //@FIXME the behaviour (either gte and lte OR limit) is crap
-  async get(limit: number = 0, gte: number = 0, lte: number = 0): Promise<Array<BlockStruct>> {
-    limit = Math.floor(limit);
-    gte = Math.floor(gte);
-    lte = Math.floor(lte);
-
-    // range
-    if (gte >= 1 || lte >= 1) {
-      gte = gte < 1 ? 1 : gte <= this.height ? gte : this.height;
-      lte = lte < 1 ? 1 : lte <= this.height ? lte : this.height;
-      gte = lte - gte > 0 ? gte : lte;
-      gte =
-        lte - gte >= this.server.config.blockchain_max_query_size
-          ? lte - this.server.config.blockchain_max_query_size + 1
-          : gte;
-
-      const a: Array<BlockStruct> = [];
-      return new Promise((resolve, reject) => {
-        this.dbBlockchain
-          .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
-          .on('data', (data) => {
-            a.push(JSON.parse(data));
-          })
-          .on('end', () => {
-            resolve(a);
-          })
-          .on('error', reject);
-      });
+  /**
+   * @param {number} gte - Greater than or equal than block height
+   * @param {number} lte - Less than or equal than block height
+   */
+  async getRange(gte: number, lte: number): Promise<Array<BlockStruct>> {
+    if (gte < 1) {
+      throw new Error('Blockchain.getRange(): invalid range');
     }
 
-    // limit
-    return new Promise((resolve) => {
-      limit =
-        limit >= 1
-          ? limit > this.server.config.blockchain_max_blocks_in_memory
-            ? this.server.config.blockchain_max_blocks_in_memory
-            : limit
-          : this.server.config.blockchain_max_blocks_in_memory;
+    lte = Math.floor(lte < 1 ? this.height : lte);
+    gte = gte <= this.height ? Math.floor(gte) : this.height;
+    lte = lte <= this.height ? lte : this.height;
+    gte = lte - gte > 0 ? gte : lte;
+    gte =
+      lte - gte >= this.server.config.blockchain_max_query_size
+        ? lte - this.server.config.blockchain_max_query_size + 1
+        : gte;
 
-      resolve(Array.from(this.mapBlocks.values()).slice(limit * -1));
-    });
-  }
+    // cache available?
+    if (this.mapBlocks.has(gte) && this.mapBlocks.has(lte)) {
+      const start = this.mapBlocks.size - this.height + gte - 1;
+      const end = start + lte - gte + 1;
+      return [...this.mapBlocks.values()].slice(start, end);
+    }
 
-  async getPage(
-    page: number = 1,
-    size: number = this.server.config.blockchain_max_blocks_in_memory
-  ): Promise<Array<BlockStruct>> {
-    page = page < 1 ? 1 : Math.floor(page);
-    size =
-      size < 1 || size > this.server.config.blockchain_max_blocks_in_memory
-        ? this.server.config.blockchain_max_blocks_in_memory
-        : Math.floor(size);
-    size = size > this.height ? this.height : size;
-    const lte = this.height - (page - 1) * size < 1 ? size : this.height - (page - 1) * size;
-    const gte = lte - size + 1;
-
+    const a: Array<BlockStruct> = [];
     return new Promise((resolve, reject) => {
-      const a: Array<BlockStruct> = [];
       this.dbBlockchain
         .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
         .on('data', (data) => {
-          a.unshift(JSON.parse(data));
+          a.push(JSON.parse(data));
         })
         .on('end', () => {
           resolve(a);
         })
         .on('error', reject);
     });
+  }
+
+  async getPage(page: number = 1, size: number = 0): Promise<Array<BlockStruct>> {
+    page = page < 1 ? 1 : Math.floor(page);
+    size =
+      size < 1 || size > this.server.config.blockchain_max_query_size
+        ? this.server.config.blockchain_max_query_size
+        : Math.floor(size);
+    size = size > this.height ? this.height : size;
+    const lte = this.height - (page - 1) * size < 1 ? size : this.height - (page - 1) * size;
+    const gte = lte - size + 1;
+
+    return this.getRange(gte, lte);
   }
 
   async getTransaction(origin: string, ident: string): Promise<{ height: number; transaction: TransactionStruct }> {
@@ -234,7 +215,7 @@ export class Blockchain {
     });
   }
 
-  async getState(key: string = ''): Promise<Array<{ key: string; value: string }> | string> {
+  async getState(key: string): Promise<Array<{ key: string; value: string }> | string> {
     return new Promise((resolve, reject) => {
       if (!key.length) {
         const a: Array<any> = [];

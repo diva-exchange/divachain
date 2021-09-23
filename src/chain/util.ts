@@ -18,21 +18,10 @@
  */
 
 import base64url from 'base64-url';
-import crypto from 'crypto';
 import sodium from 'sodium-native';
 import { Logger } from '../logger';
 
 export class Util {
-  /**
-   * MD5 hash on a string
-   *
-   * @param {string} s - String to hash
-   * @returns {string} Base64url encoded hash
-   */
-  static md5hex(s: string): string {
-    return crypto.createHash('md5').update(s).digest('hex');
-  }
-
   /**
    * @param s {string}
    * @returns {string} - hash, base64url encoded
@@ -57,9 +46,9 @@ export class Util {
         Buffer.from(base64url.unescape(publicKey), 'base64')
       );
     } catch (error: any) {
-      Logger.trace(error.toString());
-      return false;
+      Logger.warn(JSON.stringify(error));
     }
+    return false;
   }
 
   /**

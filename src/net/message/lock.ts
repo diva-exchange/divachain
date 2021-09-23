@@ -19,32 +19,31 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { BlockStruct } from '../../chain/block';
 
-export type VoteStruct = {
+export type LockStruct = {
   origin: string;
-  block: BlockStruct;
+  hash: string;
   sig: string;
 };
 
-export class Vote extends Message {
+export class Lock extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_VOTE;
+    this.message.type = Message.TYPE_LOCK;
     this.message.broadcast = true;
   }
 
-  create(structVote: VoteStruct): Vote {
-    this.message.ident = this.message.type.toString() + structVote.sig;
-    this.message.data = structVote;
+  create(structLock: LockStruct): Lock {
+    this.message.ident = this.message.type.toString() + structLock.sig;
+    this.message.data = structLock;
     return this;
   }
 
-  get(): VoteStruct {
-    return this.message.data as VoteStruct;
+  get(): LockStruct {
+    return this.message.data as LockStruct;
   }
 
-  static isValid(structVote: VoteStruct): boolean {
-    return Util.verifySignature(structVote.origin, structVote.sig, structVote.block.hash);
+  static isValid(structLock: LockStruct): boolean {
+    return Util.verifySignature(structLock.origin, structLock.sig, structLock.hash);
   }
 }

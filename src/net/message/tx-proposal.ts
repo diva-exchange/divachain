@@ -18,33 +18,32 @@
  */
 
 import { Message } from './message';
-import { Util } from '../../chain/util';
-import { BlockStruct } from '../../chain/block';
+import { TransactionStruct } from '../../chain/transaction';
+import { Validation } from '../validation';
 
-export type VoteStruct = {
-  origin: string;
-  block: BlockStruct;
-  sig: string;
+export type TxProposalStruct = {
+  height: number;
+  tx: TransactionStruct;
 };
 
-export class Vote extends Message {
+export class TxProposal extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_VOTE;
+    this.message.type = Message.TYPE_TX_PROPOSAL;
     this.message.broadcast = true;
   }
 
-  create(structVote: VoteStruct): Vote {
-    this.message.ident = this.message.type.toString() + structVote.sig;
-    this.message.data = structVote;
+  create(structTxProposal: TxProposalStruct): TxProposal {
+    this.message.ident = this.message.type.toString() + structTxProposal.height.toString() + structTxProposal.tx.sig;
+    this.message.data = structTxProposal;
     return this;
   }
 
-  get(): VoteStruct {
-    return this.message.data as VoteStruct;
+  get(): TxProposalStruct {
+    return this.message.data as TxProposalStruct;
   }
 
-  static isValid(structVote: VoteStruct): boolean {
-    return Util.verifySignature(structVote.origin, structVote.sig, structVote.block.hash);
+  static isValid(structTxProposal: TxProposalStruct): boolean {
+    return Validation.validateTx(structTxProposal.height, structTxProposal.tx);
   }
 }

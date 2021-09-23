@@ -60,7 +60,6 @@ export class Network {
   private stackOut: { [publicKey: string]: NetworkPeer } = {};
 
   private readonly _onMessage: Function | false;
-  private aGossip: Array<string> = [];
 
   private timeoutMorph: Timeout = {} as Timeout;
   private timeoutRefresh: Timeout = {} as Timeout;
@@ -150,6 +149,7 @@ export class Network {
     });
   }
 
+  //@TODO use cached calculation
   getQuorum(): number {
     let stake = 0;
     this.mapPeer.forEach((p: NetworkPeer) => {
@@ -193,6 +193,10 @@ export class Network {
     return peers;
   }
 
+  getSizeNetwork(): number {
+    return this.arrayPeerNetwork.length;
+  }
+
   network(): Array<{ publicKey: string; api: string; stake: number }> {
     return [...this.mapPeer].map((v) => {
       return { publicKey: v[0], api: v[1].host + ':' + v[1].port, stake: v[1].stake };
@@ -214,28 +218,6 @@ export class Network {
     return false;
   }
 
-  gossip(): Array<string> {
-    return this.aGossip;
-  }
-
-  /**
-   * Prevent any further gossiping of a specific message
-   *
-   * @param {string} ident - Message identifier
-   */
-  stopGossip(ident: string) {
-    for (const _pk of this.arrayBroadcast) {
-      this.aGossip.push(_pk + ident);
-    }
-  }
-
-  /**
-   * Reset the gossiping map
-   */
-  resetGossip() {
-    this.aGossip = [];
-  }
-
   /**
    * Process an incoming message
    *
@@ -244,31 +226,24 @@ export class Network {
    */
   processMessage(message: Buffer | string, publicKeyPeer: string = '') {
     const m = new Message(message);
-    const ident = m.ident();
-    this.server.config.network_verbose_logging &&
-      Logger.trace(`Network.processMessage from ${publicKeyPeer}: ${JSON.stringify(m.getMessage())}`);
+    if (this.server.config.network_verbose_logging) {
+      const _l = `Network.processMessage${publicKeyPeer ? ' from ' + publicKeyPeer : ''}: `;
+      Logger.trace(`${_l} Type: ${m.getMessage().type} Ident: ${m.getMessage().ident}`);
+    }
 
     // stateless validation
     if (!Validation.validateMessage(m)) {
-      return this.stopGossip(ident);
+      return;
     }
 
-    // process message handler callback
-    this._onMessage && this._onMessage(m.type(), message);
-
-    // broadcasting / gossip
-    if (m.isBroadcast()) {
-      // populate Gossiping map
-      for (const _pk of m.trail()) {
-        this.aGossip.includes(_pk + ident) || this.aGossip.push(_pk + ident);
-      }
-
+    // process message handler callback and continue, if successful, with broadcasting
+    if (this._onMessage && this._onMessage(m.type(), message) && m.isBroadcast()) {
+      const trail = m.trail();
       const aBroadcast = this.arrayBroadcast.filter(
         (_pk) =>
+          !trail.includes(_pk) &&
           ((this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) ||
-            (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1)) &&
-          !this.aGossip.includes(_pk + ident) &&
-          this.aGossip.push(_pk + ident)
+            (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1))
       );
 
       if (aBroadcast.length) {
@@ -278,9 +253,10 @@ export class Network {
         // broadcast the message
         for (const _pk of aBroadcast) {
           try {
-            const ws: WebSocket =
-              this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1 ? this.peersIn[_pk].ws : this.peersOut[_pk].ws;
-            Network.send(ws, m.pack());
+            Network.send(
+              this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1 ? this.peersIn[_pk].ws : this.peersOut[_pk].ws,
+              m.pack()
+            );
           } catch (error: any) {
             Logger.warn('processMessage() - broadcast: Websocket Error');
             Logger.trace(error);
@@ -340,8 +316,7 @@ export class Network {
             this.peersIn[publicKeyPeer].stale++;
             if (this.peersIn[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
               this.peersIn[publicKeyPeer].stale = 0;
-              const sync = await this.getSync(Number(data.toString()));
-              Network.send(ws, sync.pack());
+              await this.doSync(Number(data.toString()), ws);
             }
           } else {
             this.peersIn[publicKeyPeer].stale = 0;
@@ -434,8 +409,7 @@ export class Network {
             this.peersOut[publicKeyPeer].stale++;
             if (this.peersOut[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
               this.peersOut[publicKeyPeer].stale = 0;
-              const sync = await this.getSync(Number(data.toString()));
-              Network.send(ws, sync.pack());
+              await this.doSync(Number(data.toString()), ws);
             }
           } else {
             this.peersOut[publicKeyPeer].stale = 0;
@@ -449,18 +423,22 @@ export class Network {
   }
 
   private morphPeerNetwork() {
-    this.arrayPeerNetwork =
-      this.mapPeer.size < 1
-        ? []
-        : Util.shuffleArray(Array.from(this.mapPeer.keys()).filter((_pk) => _pk !== this.publicKey));
+    if ([...this.mapPeer.keys()].length <= this.server.config.network_size) {
+      this.arrayPeerNetwork = [...this.mapPeer.keys()].filter((_pk) => _pk !== this.publicKey);
+    } else {
+      this.arrayPeerNetwork =
+        this.mapPeer.size < 1
+          ? []
+          : Util.shuffleArray([...this.mapPeer.keys()].filter((_pk) => _pk !== this.publicKey));
 
-    if (Object.keys(this.peersOut).length > Math.floor(this.server.config.network_size / 2)) {
-      let x = 0;
-      for (const pk of Object.keys(this.peersOut)) {
-        if (this.peersIn[pk]) {
-          this.peersOut[pk].ws.close(1000, 'Bye');
-          if (x++ >= this.server.config.network_size / 3) {
-            break;
+      if (Object.keys(this.peersOut).length > Math.floor(this.server.config.network_size / 2)) {
+        let x = 0;
+        for (const pk of Object.keys(this.peersOut)) {
+          if (this.peersIn[pk]) {
+            this.peersOut[pk].ws.close(1000, 'Bye');
+            if (x++ >= this.server.config.network_size / 3) {
+              break;
+            }
           }
         }
       }
@@ -479,10 +457,6 @@ export class Network {
         peer.alive < t && peer.ws.close(4002, 'Timeout');
       });
 
-    if (this.aGossip.length > this.server.config.network_gossip_drop_entries_max) {
-      this.aGossip.splice(0, Math.floor(this.aGossip.length / 3));
-    }
-
     this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
@@ -492,20 +466,28 @@ export class Network {
       setTimeout(() => {
         peer.ws.readyState === 1 && peer.ws.ping(this.server.getBlockchain().getHeight());
       }, t);
-      t = t + 10;
+      t = t + 5;
     });
 
     this.timeoutPing = setTimeout(() => this.ping(), t);
   }
 
-  private async getSync(height: number): Promise<Sync> {
-    const arrayBlocks = await this.server
-      .getBlockchain()
-      .get(0, height + 1, height + this.server.config.network_sync_size);
-    return new Sync().create(arrayBlocks);
+  private async doSync(height: number, ws: WebSocket) {
+    try {
+      Network.send(
+        ws,
+        new Sync()
+          .create(await this.server.getBlockchain().getRange(height + 1, height + this.server.config.network_sync_size))
+          .pack()
+      );
+    } catch (error: any) {
+      Logger.trace(error);
+    }
   }
 
   private static send(ws: WebSocket, data: string) {
-    ws.send(data, WS_CLIENT_OPTIONS);
+    setImmediate(() => {
+      ws.send(data, WS_CLIENT_OPTIONS);
+    });
   }
 }

@@ -23,7 +23,7 @@ import { Logger } from '../logger';
 import { Server } from './server';
 import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
-import { CommandAddPeer, Transaction, TransactionStruct } from '../chain/transaction';
+import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 
 const MAX_RETRY = 10;
@@ -88,7 +88,7 @@ export class Bootstrap {
       while (blockNetwork.height > h) {
         const arrayBlocks: Array<BlockStruct> = await this.fetchFromApi('sync/' + (h + 1));
         for (const b of arrayBlocks) {
-          await this.server.getBlockchain().add(b);
+          this.server.getBlockchain().add(b);
         }
         h = this.server.getBlockchain().getLatestBlock().height;
       }
@@ -144,22 +144,25 @@ export class Bootstrap {
     const token = this.mapToken.get(ident) || '';
 
     if (!Util.verifySignature(publicKey, signedToken, token)) {
-      throw new Error('Confirm (verifySignature) failed: ' + signedToken + ' / ' + token);
+      throw new Error('Bootstrap.confirm() - Util.verifySignature() failed: ' + signedToken + ' / ' + token);
     }
 
-    const wallet = this.server.getWallet();
     const [host, port] = address.split(':');
-    const t: TransactionStruct = new Transaction(wallet, [
-      {
-        seq: 1,
-        command: 'addPeer',
-        host: host,
-        port: Number(port),
-        publicKey: publicKey,
-      } as CommandAddPeer,
-    ]).get();
 
-    this.server.stackTransaction(t);
+    if (
+      !this.server.stackTxProposal([
+        {
+          seq: 1,
+          command: 'addPeer',
+          host: host,
+          port: Number(port),
+          publicKey: publicKey,
+        } as CommandAddPeer,
+      ])
+    ) {
+      throw new Error('Bootstrap.confirm() - stackTransaction()/addPeer failed');
+    }
+    this.server.releaseTxProposal();
     this.mapToken.delete(ident);
   }
 

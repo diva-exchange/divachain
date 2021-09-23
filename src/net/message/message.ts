@@ -36,9 +36,10 @@ export class Message {
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;
-  static readonly TYPE_VOTE = 3;
-  static readonly TYPE_COMMIT = 4;
-  static readonly TYPE_SYNC = 5;
+  static readonly TYPE_TX_PROPOSAL = 3;
+  static readonly TYPE_LOCK = 4;
+  static readonly TYPE_VOTE = 5;
+  static readonly TYPE_SYNC = 6;
 
   protected message: MessageStruct = {} as MessageStruct;
 
@@ -85,8 +86,7 @@ export class Message {
   }
 
   updateTrail(arrayTrail: Array<string>) {
-    this.message.trail || (this.message.trail = []);
-    this.message.trail = [...new Set(this.message.trail.concat(arrayTrail))].filter((_pk) => _pk);
+    this.message.trail = [...new Set((this.message.trail || []).concat(arrayTrail))].filter((_pk) => _pk);
   }
 
   /**

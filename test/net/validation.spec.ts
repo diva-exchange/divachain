@@ -25,10 +25,6 @@ import { Message } from '../../src/net/message/message';
 import { nanoid } from 'nanoid';
 import { Auth } from '../../src/net/message/auth';
 import { Wallet } from '../../src/chain/wallet';
-import { Blockchain } from '../../src/chain/blockchain';
-import { Commit } from '../../src/net/message/commit';
-import { Vote } from '../../src/net/message/vote';
-import { BlockStruct } from '../../src/chain/block';
 import { Config } from '../../src/config';
 import path from 'path';
 
@@ -62,35 +58,6 @@ class TestValidation {
   @test
   validateChallenge() {
     const m = new Challenge().create(nanoid(26));
-    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
-  }
-
-  @test
-  validateVote() {
-    const structBlock = Blockchain.genesis(TestValidation.config.path_genesis);
-    const structVote = {
-      origin: TestValidation.wallet.getPublicKey(),
-      block: structBlock,
-      sig: TestValidation.wallet.sign(structBlock.hash),
-    };
-    const m = new Vote().create(structVote);
-    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
-  }
-
-  @test
-  validateCommit() {
-    const structBlock: BlockStruct = Blockchain.genesis(TestValidation.config.path_genesis);
-    structBlock.votes = [
-      {
-        origin: TestValidation.wallet.getPublicKey(),
-        sig: TestValidation.wallet.sign(structBlock.hash),
-      },
-    ];
-    const m = new Commit().create({
-      origin: TestValidation.wallet.getPublicKey(),
-      block: structBlock,
-      sig: TestValidation.wallet.sign(structBlock.hash + JSON.stringify(structBlock.votes)),
-    });
     expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 }

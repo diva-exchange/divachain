@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "keywords": [
     "blockchain",
@@ -25,39 +25,39 @@
     "test": "test/bin/clean-testenv.sh ; cp genesis/block.json test/genesis/block.json ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace DEBUG_PERFORMANCE=1 nyc mocha"
   },
   "dependencies": {
-    "ajv": "^8.6.2",
+    "ajv": "^8.6.3",
     "base64-url": "^2.3.3",
     "compression": "^1.7.4",
     "express": "^4.17.1",
     "http-errors": "^1.8.0",
-    "leveldown": "^6.0.1",
+    "leveldown": "^6.0.2",
     "levelup": "^5.0.1",
     "nanoid": "^3.1.25",
-    "pino": "^6.13.1",
+    "pino": "^6.13.2",
     "simple-get": "^4.0.0",
-    "socks-proxy-agent": "^6.0.0",
+    "socks-proxy-agent": "^6.1.0",
     "sodium-native": "^3.2.1",
-    "ws": "^8.2.1"
+    "ws": "^8.2.2"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
     "@testdeck/mocha": "^0.1.2",
     "@tsconfig/node14": "^1.0.1",
     "@types/base64-url": "^2.2.0",
-    "@types/chai": "^4.2.21",
-    "@types/compression": "^1.7.1",
+    "@types/chai": "^4.2.22",
+    "@types/compression": "^1.7.2",
     "@types/express": "^4.17.13",
     "@types/express-serve-static-core": "^4.17.24",
     "@types/http-errors": "^1.8.1",
     "@types/leveldown": "^4.0.3",
     "@types/levelup": "^4.3.3",
     "@types/mocha": "^9.0.0",
-    "@types/node": "^16.7.10",
+    "@types/node": "^16.9.4",
     "@types/pino": "^6.3.11",
     "@types/sodium-native": "^2.3.5",
     "@types/ws": "^7.4.7",
-    "@typescript-eslint/eslint-plugin": "^4.30.0",
-    "@typescript-eslint/parser": "^4.30.0",
+    "@typescript-eslint/eslint-plugin": "^4.31.2",
+    "@typescript-eslint/parser": "^4.31.2",
     "ajv-cli": "^5.0.0",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
@@ -66,11 +66,11 @@
     "eslint-plugin-prettier": "^4.0.0",
     "mocha": "^9.1.1",
     "nyc": "^15.1.0",
-    "pino-pretty": "^6.0.0",
-    "prettier": "^2.3.2",
+    "pino-pretty": "^7.0.1",
+    "prettier": "^2.4.1",
     "source-map": "^0.7.3",
-    "source-map-support": "^0.5.19",
+    "source-map-support": "^0.5.20",
     "ts-node": "^10.2.1",
-    "typescript": "^4.4.2"
+    "typescript": "^4.4.3"
   }
 }

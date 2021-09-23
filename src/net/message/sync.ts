@@ -19,6 +19,7 @@
 
 import { Message } from './message';
 import { BlockStruct } from '../../chain/block';
+import { Util } from '../../chain/util';
 
 export class Sync extends Message {
   constructor(message?: Buffer | string) {
@@ -28,6 +29,7 @@ export class Sync extends Message {
   }
 
   create(arrayBlocks: Array<BlockStruct>): Sync {
+    this.message.ident = this.message.type.toString() + Util.hash(JSON.stringify(arrayBlocks));
     this.message.data = arrayBlocks;
     return this;
   }

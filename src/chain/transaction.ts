@@ -18,9 +18,6 @@
  */
 
 import { Wallet } from './wallet';
-import { nanoid } from 'nanoid';
-
-const MAX_LENGTH_IDENT = 32;
 
 interface Command {
   seq: number;
@@ -59,13 +56,12 @@ export type TransactionStruct = {
 export class Transaction {
   private readonly structTransaction: TransactionStruct;
 
-  constructor(wallet: Wallet, commands: ArrayCommand, ident: string = '') {
-    const _ident = ident.length > 0 && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(8);
+  constructor(wallet: Wallet, height: number, ident: string, commands: ArrayCommand) {
     this.structTransaction = {
-      ident: _ident,
+      ident: ident,
       origin: wallet.getPublicKey(),
       commands: commands,
-      sig: wallet.sign(_ident + JSON.stringify(commands)),
+      sig: wallet.sign(height + JSON.stringify(commands)),
     };
   }
 
