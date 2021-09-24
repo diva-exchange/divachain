@@ -197,6 +197,10 @@ export class Network {
     return this.arrayPeerNetwork.length;
   }
 
+  getPeers(): number {
+    return this.peers().in.length + this.peers().out.length;
+  }
+
   network(): Array<{ publicKey: string; api: string; stake: number }> {
     return [...this.mapPeer].map((v) => {
       return { publicKey: v[0], api: v[1].host + ':' + v[1].port, stake: v[1].stake };

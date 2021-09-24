@@ -266,7 +266,7 @@ export class Server {
             .pack()
         );
       }
-    }, this.network.getSizeNetwork() * 16);
+    }, (Math.pow(this.network.getSizeNetwork() / this.network.getPeers(), 2)) * 270);
   }
 
   private processLock(lock: Lock): boolean {
