@@ -40,6 +40,8 @@ export class Blockchain {
 
   private mapPeer: Map<string, NetworkPeer> = new Map();
 
+  private quorum: number = 0;
+
   static async make(server: Server): Promise<Blockchain> {
     const b = new Blockchain(server);
     if (server.config.bootstrap) {
@@ -249,6 +251,14 @@ export class Blockchain {
     return this.height;
   }
 
+  getQuorum(): number {
+    if (this.quorum <= 0) {
+      throw new Error('Invalid network quorum');
+    }
+
+    return this.quorum;
+  }
+
   async getPerformance(height: number): Promise<{ timestamp: number }> {
     let ts: number;
     try {
@@ -316,6 +326,9 @@ export class Blockchain {
 
   private async removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
+      const peer: NetworkPeer = this.mapPeer.get(command.publicKey) as NetworkPeer;
+      this.quorum = this.quorum - peer.stake;
+
       this.mapPeer.delete(command.publicKey);
       await this.dbState.del('peer:' + command.publicKey);
       this.server.getNetwork().removePeer(command.publicKey);
@@ -325,10 +338,11 @@ export class Blockchain {
   private async modifyStake(command: CommandModifyStake) {
     if (this.mapPeer.has(command.publicKey)) {
       const peer: NetworkPeer = this.mapPeer.get(command.publicKey) as NetworkPeer;
-      peer.stake = peer.stake + command.stake;
-      if (peer.stake < 0) {
-        peer.stake = 0;
+      if (peer.stake + command.stake < 0) {
+        command.stake = -1 * peer.stake;
       }
+      this.quorum = this.quorum + command.stake;
+      peer.stake = peer.stake + command.stake;
 
       this.mapPeer.set(command.publicKey, peer);
       await this.updateStateData('peer:' + command.publicKey, peer.stake);

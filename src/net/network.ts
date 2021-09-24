@@ -137,7 +137,6 @@ export class Network {
     if (this.mapPeer.has(publicKey)) {
       this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
       this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
-
       this.mapPeer.delete(publicKey);
     }
     return this;
@@ -149,18 +148,8 @@ export class Network {
     });
   }
 
-  //@TODO use cached calculation
   getQuorum(): number {
-    let stake = 0;
-    this.mapPeer.forEach((p: NetworkPeer) => {
-      stake = stake + p.stake;
-    });
-
-    if (stake <= 0) {
-      throw new Error('Invalid network quorum');
-    }
-
-    return (2 * stake) / 3; // PBFT, PoS
+    return (2 * this.server.getBlockchain().getQuorum()) / 3; // PBFT, PoS
   }
 
   getStake(publicKey: string): number {
@@ -195,6 +184,10 @@ export class Network {
 
   getSizeNetwork(): number {
     return this.arrayPeerNetwork.length;
+  }
+
+  getPeers(): number {
+    return this.arrayBroadcast.length;
   }
 
   network(): Array<{ publicKey: string; api: string; stake: number }> {

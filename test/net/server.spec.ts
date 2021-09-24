@@ -34,7 +34,7 @@ import { Logger } from '../../src/logger';
 chai.use(chaiHttp);
 
 const SIZE_TESTNET = 47;
-const NETWORK_SIZE = 27;
+const NETWORK_SIZE = 47;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -96,7 +96,7 @@ class TestServer {
     fs.writeFileSync(path.join(__dirname, '../genesis/block.json'), JSON.stringify(genesis));
 
     return new Promise((resolve) => {
-      setTimeout(resolve, SIZE_TESTNET * 500);
+      setTimeout(resolve, SIZE_TESTNET * 1000);
 
       for (const pk of TestServer.mapConfigServer.keys()) {
         (async () => {
