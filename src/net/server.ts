@@ -48,6 +48,7 @@ export class Server {
 
   private pool: Pool = {} as Pool;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
@@ -104,7 +105,7 @@ export class Server {
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
-        Logger.warn(error);
+        Logger.warn(JSON.stringify(error));
         ws.terminate();
       });
     });
@@ -119,7 +120,7 @@ export class Server {
     });
     this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
-        Logger.warn(error);
+        Logger.warn(JSON.stringify(error));
         ws.terminate();
       });
     });
@@ -244,29 +245,41 @@ export class Server {
   }
 
   private lockTransactionPool() {
-    clearTimeout(this.timeoutLock);
-    let t = Math.pow(this.network.getSizeNetwork() / this.network.peers().broadcast.length, 2) * 270;
+    let t = Math.pow(this.network.getSizeNetwork() / this.network.peers().broadcast.length, 2) * 100;
     //@FIXME hard coded boundaries
-    t = t < 270 ? 270 : t > 10000 ? 10000 : t;
-    this.timeoutLock = setTimeout(() => {
-      if (this.pool.hasLock()) {
-        return this.doVote();
-      }
+    t = t < 100 ? 100 : t > 5000 ? 5000 : t;
 
-      const hash = this.pool.getHash();
-      if (hash) {
-        // send out the lock
-        this.network.processMessage(
-          new Lock()
-            .create({
-              origin: this.wallet.getPublicKey(),
-              hash: hash,
-              sig: this.wallet.sign(hash),
-            })
-            .pack()
-        );
-      }
+    clearTimeout(this.timeoutLock);
+    this.timeoutLock = setTimeout(() => {
+      this.doLock(t);
     }, t);
+  }
+
+  private doLock(t: number) {
+    if (this.pool.hasLock()) {
+      return this.createVote();
+    }
+
+    const hash = this.pool.getHash();
+    if (hash) {
+      // send out the lock
+      this.network.processMessage(
+        new Lock()
+          .create({
+            origin: this.wallet.getPublicKey(),
+            hash: hash,
+            sig: this.wallet.sign(hash),
+          })
+          .pack()
+      );
+
+      //@FIXME hard coded factor
+      t = Math.floor(t * 1.5);
+      this.timeoutLock = setTimeout(() => {
+        //@FIXME hard coded boundaries
+        this.doLock(t > 5000 ? 5000 : t);
+      }, t);
+    }
   }
 
   private processLock(lock: Lock): boolean {
@@ -281,27 +294,43 @@ export class Server {
       return false;
     }
 
-    this.pool.hasLock() && this.doVote();
+    this.pool.hasLock() && this.createVote();
 
     return true;
   }
 
-  private doVote() {
-    setImmediate(() => {
-      const block = this.pool.getBlock();
-      if (block) {
-        // send out the vote
-        this.network.processMessage(
-          new Vote()
-            .create({
-              origin: this.wallet.getPublicKey(),
-              block: block,
-              sig: this.wallet.sign(block.hash),
-            })
-            .pack()
-        );
-      }
-    });
+  private createVote() {
+    let t = Math.pow(this.network.getSizeNetwork() / this.network.peers().broadcast.length, 2) * 100;
+    //@FIXME hard coded boundaries
+    t = t < 100 ? 100 : t > 5000 ? 5000 : t;
+
+    clearTimeout(this.timeoutVote);
+    this.timeoutVote = setTimeout(() => {
+      this.doVote(t);
+    }, t);
+  }
+
+  private doVote(t: number) {
+    const block = this.pool.getBlock();
+    if (block) {
+      // send out the vote
+      this.network.processMessage(
+        new Vote()
+          .create({
+            origin: this.wallet.getPublicKey(),
+            block: block,
+            sig: this.wallet.sign(block.hash),
+          })
+          .pack()
+      );
+
+      //@FIXME hard coded factor
+      t = Math.floor(t * 1.5);
+      this.timeoutVote = setTimeout(() => {
+        //@FIXME hard coded boundaries
+        this.doVote(t > 5000 ? 5000 : t);
+      }, t);
+    }
   }
 
   private processVote(vote: Vote): boolean {
@@ -351,6 +380,9 @@ export class Server {
   }
 
   private addBlock(block: BlockStruct) {
+    clearTimeout(this.timeoutLock);
+    clearTimeout(this.timeoutVote);
+
     if (this.blockchain.add(block)) {
       this.pool.clear(block);
       this.releaseTxProposal();

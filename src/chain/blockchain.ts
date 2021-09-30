@@ -354,7 +354,7 @@ export class Blockchain {
       await this.dbBlockchain.put(key, value);
       return true;
     } catch (error: any) {
-      Logger.warn(error);
+      Logger.warn(JSON.stringify(error));
     }
     return false;
   }
@@ -363,7 +363,7 @@ export class Blockchain {
     try {
       await this.dbState.put(key, value);
     } catch (error: any) {
-      Logger.warn(error);
+      Logger.warn(JSON.stringify(error));
     }
   }
 }

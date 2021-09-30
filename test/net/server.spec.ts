@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 47;
-const NETWORK_SIZE = 47;
+const SIZE_TESTNET = 7;
+const NETWORK_SIZE = 32;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -81,7 +81,7 @@ class TestServer {
         seq: s,
         command: 'modifyStake',
         publicKey: publicKey,
-        stake: Math.floor((Math.random() * 1000) / Math.sqrt(i)),
+        stake: 1000, // Math.floor((Math.random() * 1000) / Math.sqrt(i)),
       } as CommandModifyStake);
       s++;
     }

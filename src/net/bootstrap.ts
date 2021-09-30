@@ -122,7 +122,7 @@ export class Bootstrap {
         res = JSON.parse(await this.fetch('http://' + address + '/challenge/' + token));
         this.confirm(address, publicKey, res.token);
       } catch (error: any) {
-        Logger.warn(error.toString());
+        Logger.warn(JSON.stringify(error));
 
         // retry
         this.mapToken.delete(ident);
@@ -172,7 +172,7 @@ export class Bootstrap {
       try {
         this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network'));
       } catch (error: any) {
-        Logger.warn(error.toString());
+        Logger.warn(JSON.stringify(error));
         this.arrayNetwork = [];
       }
       r++;
@@ -191,7 +191,7 @@ export class Bootstrap {
       try {
         return JSON.parse(await this.fetch(urlApi));
       } catch (error: any) {
-        Logger.warn(error.toString());
+        Logger.warn(JSON.stringify(error));
       }
     } while (aNetwork.length);
 

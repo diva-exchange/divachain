@@ -153,7 +153,7 @@ export class Network {
   }
 
   getStake(publicKey: string): number {
-    return (this.mapPeer.get(publicKey) as NetworkPeer).stake || 0;
+    return this.mapPeer.has(publicKey) ? (this.mapPeer.get(publicKey) as NetworkPeer).stake : 0;
   }
 
   peers() {
@@ -225,7 +225,7 @@ export class Network {
       return;
     }
 
-    // process message handler callback and continue, if successful, with broadcasting
+    // process message handler callback and - if successful - continue with broadcasting
     if (this._onMessage && this._onMessage(m.type(), message) && m.isBroadcast()) {
       const trail = m.trail();
       const aBroadcast = this.arrayBroadcast.filter(
