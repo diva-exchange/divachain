@@ -245,16 +245,16 @@ export class Server {
 
   private lockTransactionPool() {
     clearTimeout(this.timeoutLock);
+    let t = Math.pow(this.network.getSizeNetwork() / this.network.peers().broadcast.length, 2) * 270;
+    //@FIXME hard coded boundaries
+    t = t < 270 ? 270 : t > 10000 ? 10000 : t;
     this.timeoutLock = setTimeout(() => {
       if (this.pool.hasLock()) {
-        return;
+        return this.doVote();
       }
 
       const hash = this.pool.getHash();
       if (hash) {
-        //@FIXME logging
-        Logger.trace(`Sending Lock ${hash}`);
-
         // send out the lock
         this.network.processMessage(
           new Lock()
@@ -266,7 +266,7 @@ export class Server {
             .pack()
         );
       }
-    }, Math.pow(this.network.getSizeNetwork() / this.network.getPeers(), 2) * 270);
+    }, t);
   }
 
   private processLock(lock: Lock): boolean {
@@ -290,9 +290,6 @@ export class Server {
     setImmediate(() => {
       const block = this.pool.getBlock();
       if (block) {
-        //@FIXME logging
-        Logger.trace(`${this.wallet.getPublicKey()}: voting for Block ${block.hash}`);
-
         // send out the vote
         this.network.processMessage(
           new Vote()

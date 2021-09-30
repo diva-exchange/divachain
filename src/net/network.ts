@@ -186,10 +186,6 @@ export class Network {
     return this.arrayPeerNetwork.length;
   }
 
-  getPeers(): number {
-    return this.arrayBroadcast.length;
-  }
-
   network(): Array<{ publicKey: string; api: string; stake: number }> {
     return [...this.mapPeer].map((v) => {
       return { publicKey: v[0], api: v[1].host + ':' + v[1].port, stake: v[1].stake };
@@ -304,17 +300,7 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (this.peersIn[publicKeyPeer]) {
-          if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
-            this.peersIn[publicKeyPeer].stale++;
-            if (this.peersIn[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
-              this.peersIn[publicKeyPeer].stale = 0;
-              await this.doSync(Number(data.toString()), ws);
-            }
-          } else {
-            this.peersIn[publicKeyPeer].stale = 0;
-          }
-        }
+        this.peersIn[publicKeyPeer] && (await this.processPing(data, this.peersIn[publicKeyPeer], ws));
       });
       ws.on('pong', () => {
         this.peersIn[publicKeyPeer] && (this.peersIn[publicKeyPeer].alive = Date.now());
@@ -397,17 +383,7 @@ export class Network {
         }
       });
       ws.on('ping', async (data) => {
-        if (this.peersOut[publicKeyPeer]) {
-          if (Number(data.toString()) < this.server.getBlockchain().getHeight()) {
-            this.peersOut[publicKeyPeer].stale++;
-            if (this.peersOut[publicKeyPeer].stale > this.server.config.network_stale_threshold) {
-              this.peersOut[publicKeyPeer].stale = 0;
-              await this.doSync(Number(data.toString()), ws);
-            }
-          } else {
-            this.peersOut[publicKeyPeer].stale = 0;
-          }
-        }
+        this.peersOut[publicKeyPeer] && (await this.processPing(data, this.peersOut[publicKeyPeer], ws));
       });
       ws.on('pong', () => {
         this.peersOut[publicKeyPeer] && (this.peersOut[publicKeyPeer].alive = Date.now());
@@ -416,21 +392,23 @@ export class Network {
   }
 
   private morphPeerNetwork() {
-    if ([...this.mapPeer.keys()].length <= this.server.config.network_size) {
-      this.arrayPeerNetwork = [...this.mapPeer.keys()].filter((_pk) => _pk !== this.publicKey);
-    } else {
-      this.arrayPeerNetwork =
-        this.mapPeer.size < 1
-          ? []
-          : Util.shuffleArray([...this.mapPeer.keys()].filter((_pk) => _pk !== this.publicKey));
+    const net: Array<string> = [...this.mapPeer.keys()];
+    if (net.length && net.indexOf(this.publicKey) > -1) {
+      net.splice(net.indexOf(this.publicKey), 1);
 
-      if (Object.keys(this.peersOut).length > Math.floor(this.server.config.network_size / 2)) {
-        let x = 0;
-        for (const pk of Object.keys(this.peersOut)) {
-          if (this.peersIn[pk]) {
-            this.peersOut[pk].ws.close(1000, 'Bye');
-            if (x++ >= this.server.config.network_size / 3) {
-              break;
+      if (net.length <= this.server.config.network_size) {
+        this.arrayPeerNetwork = net;
+      } else {
+        this.arrayPeerNetwork = this.mapPeer.size < 1 ? [] : Util.shuffleArray(net);
+
+        if (Object.keys(this.peersOut).length > Math.floor(this.server.config.network_size / 2)) {
+          let x = 0;
+          for (const pk of Object.keys(this.peersOut)) {
+            if (this.peersIn[pk]) {
+              this.peersOut[pk].ws.close(1000, 'Bye');
+              if (x++ >= this.server.config.network_size / 3) {
+                break;
+              }
             }
           }
         }
@@ -478,9 +456,24 @@ export class Network {
     }
   }
 
+  private async processPing(data: Buffer, peer: Peer, ws: WebSocket): Promise<void> {
+    const height = Number(data);
+    if (height) {
+      if (height < this.server.getBlockchain().getHeight()) {
+        peer.stale++;
+        if (peer.stale > this.server.config.network_stale_threshold) {
+          peer.stale = 0;
+          await this.doSync(height, ws);
+        }
+      } else {
+        peer.stale = 0;
+      }
+    }
+  }
+
   private static send(ws: WebSocket, data: string) {
     setImmediate(() => {
-      ws.send(data, WS_CLIENT_OPTIONS);
+      ws.readyState === 1 && ws.send(data, WS_CLIENT_OPTIONS);
     });
   }
 }
