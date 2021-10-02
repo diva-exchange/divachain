@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 7;
-const NETWORK_SIZE = 32;
+const SIZE_TESTNET = 11;
+const NETWORK_SIZE = 7;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -44,7 +44,7 @@ class TestServer {
   static mapConfigServer: Map<string, Config> = new Map();
   static mapServer: Map<string, Server> = new Map();
 
-  @timeout(60000)
+  @timeout(120000)
   static before(): Promise<void> {
     // create a genesis block
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
@@ -81,7 +81,7 @@ class TestServer {
         seq: s,
         command: 'modifyStake',
         publicKey: publicKey,
-        stake: 1000, // Math.floor((Math.random() * 1000) / Math.sqrt(i)),
+        stake: Math.floor((Math.random() * 1000) / Math.sqrt(i)),
       } as CommandModifyStake);
       s++;
     }

@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.7.2",
+  "version": "0.8.0-alpha",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "keywords": [
     "blockchain",
@@ -31,7 +31,7 @@
     "express": "^4.17.1",
     "http-errors": "^1.8.0",
     "leveldown": "^6.1.0",
-    "levelup": "^5.0.1",
+    "levelup": "^5.1.0",
     "nanoid": "^3.1.28",
     "pino": "^6.13.3",
     "simple-get": "^4.0.0",

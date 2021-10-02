@@ -25,7 +25,12 @@ export class Sync extends Message {
   constructor(message?: Buffer | string) {
     super(message);
     this.message.type = Message.TYPE_SYNC;
+    this.message.broadcast = true;
+  }
+
+  disableBroadcast(): Sync {
     this.message.broadcast = false;
+    return this;
   }
 
   create(arrayBlocks: Array<BlockStruct>): Sync {

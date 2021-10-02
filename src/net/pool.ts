@@ -62,7 +62,6 @@ export class Pool {
 
   private arrayLock: Array<recordLock> = [];
   private block: BlockStruct = {} as BlockStruct;
-  private isLocked: boolean = false;
 
   private arrayVotes: Array<recordVote> = [];
 
@@ -84,7 +83,7 @@ export class Pool {
 
   release(height: number): TransactionStruct | false {
     if (this.inTransit.ident || !this.stackTransaction.length) {
-      return false;
+      return this.inTransit.ident ? this.inTransit : false;
     }
     const r: recordStack = this.stackTransaction.shift() as recordStack;
     this.inTransit = new Transaction(this.wallet, height, r.ident, r.commands).get();
@@ -96,13 +95,16 @@ export class Pool {
   }
 
   add(tx: TransactionStruct): boolean {
-    if (this.isLocked || this.current.has(tx.origin)) {
+    if (this.current.has(tx.origin)) {
       return false;
     }
 
     this.current.set(tx.origin, tx);
     this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
     this.hashCurrent = Util.hash(this.cacheCurrent.reduce((s, tx) => s + tx.sig, ''));
+    this.block = {} as BlockStruct;
+    this.arrayLock = [];
+    this.arrayVotes = [];
     return true;
   }
 
@@ -114,31 +116,28 @@ export class Pool {
     return this.hashCurrent;
   }
 
-  getBlock(): BlockStruct | false {
-    return this.block.hash ? this.block : false;
+  getBlock(): BlockStruct {
+    return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
   lock(lock: LockStruct, stake: number, quorum: number): boolean {
-    if (this.isLocked || lock.hash !== this.hashCurrent) {
+    if (lock.hash !== this.hashCurrent || this.hasLock() || this.arrayLock.some((r) => r.origin === lock.origin)) {
       return false;
     }
 
-    if (!this.arrayLock.some((r) => r.origin === lock.origin)) {
-      this.arrayLock.push({ origin: lock.origin, stake: stake });
-    }
+    this.arrayLock.push({ origin: lock.origin, stake: stake });
     if (this.arrayLock.reduce((p, r) => p + r.stake, 0) >= quorum) {
       this.block = Block.make(this.blockchain.getLatestBlock(), this.cacheCurrent);
-      this.isLocked = true;
     }
     return true;
   }
 
   hasLock() {
-    return this.isLocked;
+    return !!this.block.hash;
   }
 
   addVote(vote: VoteStruct, stake: number): boolean {
-    if (!this.isLocked || this.block.hash !== vote.block.hash) {
+    if (this.block.hash !== vote.block.hash) {
       return false;
     }
 
@@ -151,13 +150,15 @@ export class Pool {
   }
 
   hasQuorum(quorum: number): boolean {
-    if (this.arrayVotes.reduce((p, v) => p + v.stake, 0) >= quorum) {
-      this.block.votes = this.arrayVotes
-        .map((_r) => {
-          return { origin: _r.origin, sig: _r.sig };
-        })
-        .sort((a, b) => (a.origin > b.origin ? 1 : -1));
-      return true;
+    if (!this.block.votes.length) {
+      if (this.arrayVotes.reduce((p, v) => p + v.stake, 0) >= quorum) {
+        this.block.votes = this.arrayVotes
+          .map((_r) => {
+            return { origin: _r.origin, sig: _r.sig };
+          })
+          .sort((a, b) => (a.origin > b.origin ? 1 : -1));
+        return true;
+      }
     }
     return false;
   }
@@ -174,7 +175,6 @@ export class Pool {
     this.inTransit = {} as TransactionStruct;
     this.current = new Map();
     this.arrayLock = [];
-    this.isLocked = false;
     this.block = {} as BlockStruct;
     this.arrayVotes = [];
     this.cacheCurrent = [];

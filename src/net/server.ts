@@ -47,8 +47,10 @@ export class Server {
   private readonly webSocketServerBlockFeed: WebSocket.Server;
 
   private pool: Pool = {} as Pool;
+  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutSync: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
@@ -211,20 +213,35 @@ export class Server {
   }
 
   releaseTxProposal() {
-    setImmediate(() => {
-      const h = this.blockchain.getHeight() + 1;
-      const tx = this.pool.release(h);
-      if (tx) {
-        this.network.processMessage(
-          new TxProposal()
-            .create({
-              height: h,
-              tx: tx,
-            })
-            .pack()
-        );
-      }
-    });
+    clearTimeout(this.timeoutRelease);
+
+    let t = Math.ceil(Math.pow(this.network.peers().net.length / this.network.peers().broadcast.length, 2) * 270);
+    t = t < 270 ? 270 : t > 1000 ? 1000 : t;
+    this.timeoutRelease = setTimeout(() => {
+      this.doRelease(t);
+    }, t);
+  }
+
+  private doRelease(t: number) {
+    const h = this.blockchain.getHeight() + 1;
+    const tx = this.pool.release(h);
+    if (tx) {
+      this.network.processMessage(
+        new TxProposal()
+          .create({
+            height: h,
+            tx: tx,
+          })
+          .pack()
+      );
+
+      //@FIXME hard coded factor
+      t = Math.floor(t * 1.5);
+      this.timeoutRelease = setTimeout(() => {
+        //@FIXME hard coded boundary
+        this.doRelease(t > 10000 ? 10000 : t);
+      }, t);
+    }
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
@@ -232,12 +249,13 @@ export class Server {
     const h: number = this.blockchain.getHeight() + 1;
 
     // accept only valid transaction proposals
-    if (!TxProposal.isValid(p)) {
+    // process only data matching the next block height
+    if (!TxProposal.isValid(p) || h !== p.height) {
       return false;
     }
 
-    // process only data matching the next block height
-    if (h === p.height && this.pool.add(p.tx)) {
+    // try to add the proposal to the pool
+    if (this.pool.add(p.tx)) {
       this.lockTransactionPool();
     }
 
@@ -245,21 +263,16 @@ export class Server {
   }
 
   private lockTransactionPool() {
-    let t = Math.pow(this.network.getSizeNetwork() / this.network.peers().broadcast.length, 2) * 100;
-    //@FIXME hard coded boundaries
-    t = t < 100 ? 100 : t > 5000 ? 5000 : t;
-
     clearTimeout(this.timeoutLock);
+
+    let t = Math.ceil(Math.pow(this.network.peers().net.length / this.network.peers().broadcast.length, 2) * 270);
+    t = t < 270 ? 270 : t > 1000 ? 1000 : t;
     this.timeoutLock = setTimeout(() => {
       this.doLock(t);
     }, t);
   }
 
   private doLock(t: number) {
-    if (this.pool.hasLock()) {
-      return this.createVote();
-    }
-
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock
@@ -277,7 +290,7 @@ export class Server {
       t = Math.floor(t * 1.5);
       this.timeoutLock = setTimeout(() => {
         //@FIXME hard coded boundaries
-        this.doLock(t > 5000 ? 5000 : t);
+        this.doLock(t > 10000 ? 10000 : t);
       }, t);
     }
   }
@@ -290,29 +303,26 @@ export class Server {
     }
 
     if (!this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum())) {
-      this.lockTransactionPool();
       return false;
     }
-
-    this.pool.hasLock() && this.createVote();
+    if (this.pool.hasLock()) {
+      this.createVote();
+    }
 
     return true;
   }
 
   private createVote() {
-    let t = Math.pow(this.network.getSizeNetwork() / this.network.peers().broadcast.length, 2) * 100;
-    //@FIXME hard coded boundaries
-    t = t < 100 ? 100 : t > 5000 ? 5000 : t;
-
     clearTimeout(this.timeoutVote);
+
     this.timeoutVote = setTimeout(() => {
-      this.doVote(t);
-    }, t);
+      this.doVote();
+    }, 1);
   }
 
-  private doVote(t: number) {
+  private doVote(t: number = 100) {
     const block = this.pool.getBlock();
-    if (block) {
+    if (block.hash) {
       // send out the vote
       this.network.processMessage(
         new Vote()
@@ -327,8 +337,8 @@ export class Server {
       //@FIXME hard coded factor
       t = Math.floor(t * 1.5);
       this.timeoutVote = setTimeout(() => {
-        //@FIXME hard coded boundaries
-        this.doVote(t > 5000 ? 5000 : t);
+        //@FIXME hard coded boundary
+        this.doVote(t > 10000 ? 10000 : t);
       }, t);
     }
   }
@@ -348,16 +358,22 @@ export class Server {
     // check the quorum
     if (this.pool.hasQuorum(this.network.getQuorum())) {
       const block = this.pool.getBlock();
-      block && this.addBlock(block);
+      if (block.hash) {
+        clearTimeout(this.timeoutRelease);
+        clearTimeout(this.timeoutLock);
+        clearTimeout(this.timeoutVote);
+        this.network.processMessage(new Sync().create([block]).pack());
+      }
     }
 
     return true;
   }
 
   private processSync(sync: Sync) {
+    clearTimeout(this.timeoutSync);
     this.stackSync = this.stackSync.concat(sync.get());
 
-    setImmediate(() => {
+    this.timeoutSync = setTimeout(() => {
       const max = this.stackSync.length * 2;
       if (!max) {
         return;
@@ -376,13 +392,10 @@ export class Server {
         b = (this.stackSync.shift() || {}) as BlockStruct;
         c++;
       }
-    });
+    }, 1);
   }
 
   private addBlock(block: BlockStruct) {
-    clearTimeout(this.timeoutLock);
-    clearTimeout(this.timeoutVote);
-
     if (this.blockchain.add(block)) {
       this.pool.clear(block);
       this.releaseTxProposal();

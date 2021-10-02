@@ -182,10 +182,6 @@ export class Network {
     return peers;
   }
 
-  getSizeNetwork(): number {
-    return this.arrayPeerNetwork.length;
-  }
-
   network(): Array<{ publicKey: string; api: string; stake: number }> {
     return [...this.mapPeer].map((v) => {
       return { publicKey: v[0], api: v[1].host + ':' + v[1].port, stake: v[1].stake };
@@ -448,6 +444,7 @@ export class Network {
       Network.send(
         ws,
         new Sync()
+          .disableBroadcast()
           .create(await this.server.getBlockchain().getRange(height + 1, height + this.server.config.network_sync_size))
           .pack()
       );

@@ -44,7 +44,6 @@ export type Configuration = {
   network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
   network_ping_interval_ms?: number;
-  network_rate_limit_ms?: number;
   network_stale_threshold?: number;
   network_sync_size?: number;
   network_verbose_logging?: boolean;
@@ -58,15 +57,16 @@ const DEFAULT_PORT = 17468;
 const DEFAULT_PORT_BLOCK_FEED = 17469;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
-const MIN_NETWORK_SIZE = 32;
+const MIN_NETWORK_SIZE = 7;
 const MAX_NETWORK_SIZE = 64;
-const MIN_NETWORK_MORPH_INTERVAL_MS = 120000; // 2 minutes
+//@FIXME test constant
+const MIN_NETWORK_MORPH_INTERVAL_MS = 20000; // 20 seconds
+//const MIN_NETWORK_MORPH_INTERVAL_MS = 120000; // 2 minutes
 const MAX_NETWORK_MORPH_INTERVAL_MS = 600000; // 10 minutes
 const DEFAULT_NETWORK_REFRESH_INTERVAL_MS = 3000;
-const DEFAULT_NETWORK_PING_INTERVAL_MS = 5000;
+const DEFAULT_NETWORK_PING_INTERVAL_MS = 10000;
 const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
 const DEFAULT_NETWORK_SYNC_SIZE = 50;
-const DEFAULT_NETWORK_RATE_LIMIT_MS = 100;
 
 const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
 const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 500;
@@ -96,7 +96,6 @@ export class Config {
   public readonly network_auth_timeout_ms: number;
   public readonly network_clean_interval_ms: number;
   public readonly network_ping_interval_ms: number;
-  public readonly network_rate_limit_ms: number;
   public readonly network_stale_threshold: number;
   public readonly network_sync_size: number;
   public readonly network_verbose_logging: boolean;
@@ -170,11 +169,6 @@ export class Config {
     this.network_clean_interval_ms = Config.gte1(
       c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS,
       this.network_ping_interval_ms * 5
-    );
-
-    this.network_rate_limit_ms = Config.gte1(
-      c.network_rate_limit_ms || process.env.NETWORK_RATE_LIMIT_MS,
-      DEFAULT_NETWORK_RATE_LIMIT_MS
     );
 
     this.network_stale_threshold = Config.gte1(

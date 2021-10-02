@@ -129,11 +129,11 @@ export class Blockchain {
 
     this.updateCache(block);
 
-    (async (b) => {
-      if (await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b))) {
-        await this.processState(b);
+    (async () => {
+      if (await this.updateBlockData(String(block.height).padStart(16, '0'), JSON.stringify(block))) {
+        await this.processState(block);
       }
-    })(block);
+    })();
 
     return true;
   }
