@@ -34,15 +34,12 @@ COPY build/node14-linux-x64 /divachain/build/node14-linux-x64
 COPY package.json /divachain/package.json
 COPY tsconfig.json /divachain/tsconfig.json
 
-RUN apt-get update \
-  && apt-get install -y curl \
-  && curl -fsSL https://get.pnpm.io/install.sh | sh - \
-  && cd divachain \
+RUN cd divachain \
   && mkdir genesis \
   && mkdir keys \
   && mkdir dist \
-  && /root/.local/share/pnpm/pnpm add -g --verbose pkg \
-  && /root/.local/share/pnpm/pnpm install --verbose \
+  && npm i -g pkg@5.3.1 \
+  && npm i \
   && bin/build.sh
 
 #############################################
