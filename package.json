@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.8.0-alpha",
+  "version": "0.8.1-alpha",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "keywords": [
     "blockchain",
@@ -31,13 +31,13 @@
     "express": "^4.17.1",
     "http-errors": "^1.8.0",
     "leveldown": "^6.1.0",
-    "levelup": "^5.1.0",
+    "levelup": "^5.1.1",
     "nanoid": "^3.1.28",
     "pino": "^6.13.3",
     "simple-get": "^4.0.0",
     "socks-proxy-agent": "^6.1.0",
     "sodium-native": "^3.2.1",
-    "ws": "^8.2.2"
+    "ws": "^8.2.3"
   },
   "devDependencies": {
     "@istanbuljs/nyc-config-typescript": "^1.0.1",
