@@ -232,14 +232,12 @@ export class Server {
           })
           .pack()
       );
-    }
 
-    //@FIXME hard coded factor
-    t = Math.floor(t * 1.5);
-    this.timeoutRelease = setTimeout(() => {
-      //@FIXME hard coded boundary
-      this.doRelease(t > 5000 ? 5000 : t);
-    }, t);
+      //@FIXME hard coded boundary and factor
+      this.timeoutRelease = setTimeout(() => {
+        this.doRelease(t > 5000 ? 5000 : t);
+      }, Math.floor(t * 1.5));
+    }
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
@@ -281,13 +279,12 @@ export class Server {
           })
           .pack()
       );
+
+      //@FIXME hard coded boundary and factor
+      this.timeoutLock = setTimeout(() => {
+        this.doLock(t > 5000 ? 5000 : t);
+      }, Math.floor(t * 1.5));
     }
-    //@FIXME hard coded factor
-    t = Math.floor(t * 1.5);
-    this.timeoutLock = setTimeout(() => {
-      //@FIXME hard coded boundaries
-      this.doLock(t > 5000 ? 5000 : t);
-    }, t);
   }
 
   private processLock(lock: Lock): boolean {
@@ -328,13 +325,12 @@ export class Server {
           })
           .pack()
       );
+
+      //@FIXME hard coded boundary and factor
+      this.timeoutVote = setTimeout(() => {
+        this.doVote(t > 5000 ? 5000 : t);
+      }, Math.floor(t * 1.5));
     }
-    //@FIXME hard coded factor
-    t = Math.floor(t * 1.5);
-    this.timeoutVote = setTimeout(() => {
-      //@FIXME hard coded boundary
-      this.doVote(t > 5000 ? 5000 : t);
-    }, t);
   }
 
   private processVote(vote: Vote): boolean {

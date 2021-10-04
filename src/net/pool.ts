@@ -121,7 +121,7 @@ export class Pool {
   }
 
   lock(lock: LockStruct, stake: number, quorum: number): boolean {
-    if (lock.hash !== this.hashCurrent || this.hasLock() || this.arrayLock.some((r) => r.origin === lock.origin)) {
+    if (lock.hash !== this.hashCurrent || this.arrayLock.some((r) => r.origin === lock.origin)) {
       return false;
     }
 

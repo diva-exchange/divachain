@@ -277,7 +277,7 @@ class TestServer {
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 50; // transactions
+    const _outer = 200; // transactions
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions
@@ -326,7 +326,7 @@ class TestServer {
       } catch (error: any) {
         console.error(error);
       }
-      // await TestServer.wait(1 + Math.floor(Math.random() * 500));
+      // await TestServer.wait(1 + Math.floor(Math.random() * 200));
     }
 
     Logger.trace('waiting for sync');

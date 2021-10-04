@@ -402,7 +402,7 @@ export class Network {
           for (const pk of Object.keys(this.peersOut)) {
             if (this.peersIn[pk]) {
               this.peersOut[pk].ws.close(1000, 'Bye');
-              if (x++ >= this.server.config.network_size / 3) {
+              if (x++ >= this.server.config.network_size / 10) {
                 break;
               }
             }
