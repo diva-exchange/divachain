@@ -215,14 +215,12 @@ export class Server {
   releaseTxProposal() {
     clearTimeout(this.timeoutRelease);
 
-    let t = Math.ceil(Math.pow(this.network.peers().net.length / this.network.peers().broadcast.length, 2) * 270);
-    t = t < 270 ? 270 : t > 1000 ? 1000 : t;
     this.timeoutRelease = setTimeout(() => {
-      this.doRelease(t);
-    }, t);
+      this.doRelease();
+    }, 1);
   }
 
-  private doRelease(t: number) {
+  private doRelease(t: number = 100) {
     const h = this.blockchain.getHeight() + 1;
     const tx = this.pool.release(h);
     if (tx) {
@@ -234,14 +232,14 @@ export class Server {
           })
           .pack()
       );
-
-      //@FIXME hard coded factor
-      t = Math.floor(t * 1.5);
-      this.timeoutRelease = setTimeout(() => {
-        //@FIXME hard coded boundary
-        this.doRelease(t > 10000 ? 10000 : t);
-      }, t);
     }
+
+    //@FIXME hard coded factor
+    t = Math.floor(t * 1.5);
+    this.timeoutRelease = setTimeout(() => {
+      //@FIXME hard coded boundary
+      this.doRelease(t > 5000 ? 5000 : t);
+    }, t);
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
@@ -265,14 +263,12 @@ export class Server {
   private lockTransactionPool() {
     clearTimeout(this.timeoutLock);
 
-    let t = Math.ceil(Math.pow(this.network.peers().net.length / this.network.peers().broadcast.length, 2) * 270);
-    t = t < 270 ? 270 : t > 1000 ? 1000 : t;
     this.timeoutLock = setTimeout(() => {
-      this.doLock(t);
-    }, t);
+      this.doLock();
+    }, 1);
   }
 
-  private doLock(t: number) {
+  private doLock(t: number = 100) {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock
@@ -285,14 +281,13 @@ export class Server {
           })
           .pack()
       );
-
-      //@FIXME hard coded factor
-      t = Math.floor(t * 1.5);
-      this.timeoutLock = setTimeout(() => {
-        //@FIXME hard coded boundaries
-        this.doLock(t > 10000 ? 10000 : t);
-      }, t);
     }
+    //@FIXME hard coded factor
+    t = Math.floor(t * 1.5);
+    this.timeoutLock = setTimeout(() => {
+      //@FIXME hard coded boundaries
+      this.doLock(t > 5000 ? 5000 : t);
+    }, t);
   }
 
   private processLock(lock: Lock): boolean {
@@ -333,14 +328,13 @@ export class Server {
           })
           .pack()
       );
-
-      //@FIXME hard coded factor
-      t = Math.floor(t * 1.5);
-      this.timeoutVote = setTimeout(() => {
-        //@FIXME hard coded boundary
-        this.doVote(t > 10000 ? 10000 : t);
-      }, t);
     }
+    //@FIXME hard coded factor
+    t = Math.floor(t * 1.5);
+    this.timeoutVote = setTimeout(() => {
+      //@FIXME hard coded boundary
+      this.doVote(t > 5000 ? 5000 : t);
+    }, t);
   }
 
   private processVote(vote: Vote): boolean {
@@ -359,9 +353,6 @@ export class Server {
     if (this.pool.hasQuorum(this.network.getQuorum())) {
       const block = this.pool.getBlock();
       if (block.hash) {
-        clearTimeout(this.timeoutRelease);
-        clearTimeout(this.timeoutLock);
-        clearTimeout(this.timeoutVote);
         this.network.processMessage(new Sync().create([block]).pack());
       }
     }
@@ -397,6 +388,10 @@ export class Server {
 
   private addBlock(block: BlockStruct) {
     if (this.blockchain.add(block)) {
+      clearTimeout(this.timeoutRelease);
+      clearTimeout(this.timeoutLock);
+      clearTimeout(this.timeoutVote);
+
       this.pool.clear(block);
       this.releaseTxProposal();
 

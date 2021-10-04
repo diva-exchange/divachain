@@ -33,7 +33,7 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 11;
+const SIZE_TESTNET = 9;
 const NETWORK_SIZE = 7;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
@@ -81,7 +81,7 @@ class TestServer {
         seq: s,
         command: 'modifyStake',
         publicKey: publicKey,
-        stake: Math.floor((Math.random() * 1000) / Math.sqrt(i)),
+        stake: i > 7 ? 0 : 1000, // Math.floor((Math.random() * 1000) / Math.sqrt(i)),
       } as CommandModifyStake);
       s++;
     }
@@ -326,12 +326,12 @@ class TestServer {
       } catch (error: any) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 100));
+      // await TestServer.wait(1 + Math.floor(Math.random() * 500));
     }
 
     Logger.trace('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(60000);
+    await TestServer.wait(20000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];
