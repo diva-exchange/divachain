@@ -245,8 +245,9 @@ export class Server {
     const h: number = this.blockchain.getHeight() + 1;
 
     // accept only valid transaction proposals
-    // process only data matching the next block height
-    if (!TxProposal.isValid(p) || h !== p.height) {
+    // process only proposals matching the next block height
+    // process only proposals if the pool is not locked yet
+    if (!TxProposal.isValid(p) || h !== p.height || this.pool.hasLock()) {
       return false;
     }
 
@@ -341,7 +342,8 @@ export class Server {
       return false;
     }
 
-    if (!this.pool.addVote(v, this.network.getStake(v.origin))) {
+    // process only votes if pool is locked
+    if (!this.pool.hasLock() || !this.pool.addVote(v, this.network.getStake(v.origin))) {
       return false;
     }
 

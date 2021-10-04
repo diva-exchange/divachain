@@ -326,7 +326,7 @@ class TestServer {
       } catch (error: any) {
         console.error(error);
       }
-      // await TestServer.wait(1 + Math.floor(Math.random() * 200));
+      await TestServer.wait(1 + Math.floor(Math.random() * 500));
     }
 
     Logger.trace('waiting for sync');
