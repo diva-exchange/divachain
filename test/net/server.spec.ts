@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 9;
-const NETWORK_SIZE = 7;
+const SIZE_TESTNET = 17;
+const NETWORK_SIZE = 11;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -326,12 +326,12 @@ class TestServer {
       } catch (error: any) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 300));
+      await TestServer.wait(1 + Math.floor(Math.random() * 200));
     }
 
     Logger.trace('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(20000);
+    await TestServer.wait(30000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];

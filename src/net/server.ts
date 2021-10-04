@@ -50,7 +50,6 @@ export class Server {
   private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutSync: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
@@ -214,13 +213,10 @@ export class Server {
 
   releaseTxProposal() {
     clearTimeout(this.timeoutRelease);
-
-    this.timeoutRelease = setTimeout(() => {
-      this.doRelease();
-    }, 1);
+    this.doRelease();
   }
 
-  private doRelease(t: number = 100) {
+  private doRelease(t: number = 500) {
     const h = this.blockchain.getHeight() + 1;
     const tx = this.pool.release(h);
     if (tx) {
@@ -250,9 +246,8 @@ export class Server {
       return false;
     }
 
-    // process only proposals if the pool is not locked yet
     // try to add the proposal to the pool
-    if (!this.pool.hasLock() && this.pool.add(p.tx)) {
+    if (this.pool.add(p.tx)) {
       this.lockTransactionPool();
     }
 
@@ -261,13 +256,10 @@ export class Server {
 
   private lockTransactionPool() {
     clearTimeout(this.timeoutLock);
-
-    this.timeoutLock = setTimeout(() => {
-      this.doLock();
-    }, 1);
+    this.doLock();
   }
 
-  private doLock(t: number = 100) {
+  private doLock(t: number = 500) {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock
@@ -307,10 +299,7 @@ export class Server {
 
   private createVote() {
     clearTimeout(this.timeoutVote);
-
-    this.timeoutVote = setTimeout(() => {
-      this.doVote();
-    }, 1);
+    this.doVote();
   }
 
   private doVote(t: number = 100) {
@@ -359,37 +348,26 @@ export class Server {
   }
 
   private processSync(sync: Sync) {
-    clearTimeout(this.timeoutSync);
     this.stackSync = this.stackSync.concat(sync.get());
 
-    this.timeoutSync = setTimeout(() => {
-      const max = this.stackSync.length * 2;
-      if (!max) {
-        return;
-      }
+    let h = this.blockchain.getHeight();
+    let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
+    let c = this.stackSync.length - 1;
 
-      let h = this.blockchain.getHeight();
-      let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
-      let c = 0;
-      while (b.height && c < max) {
-        if (b.height === h + 1) {
-          this.addBlock(b);
-          h = this.blockchain.getHeight();
-        } else if (b.height > h + 1) {
-          this.stackSync.push(b);
-        }
-        b = (this.stackSync.shift() || {}) as BlockStruct;
-        c++;
+    while (b.height && c < this.stackSync.length) {
+      if (b.height === h + 1) {
+        this.addBlock(b);
+        h = this.blockchain.getHeight();
+      } else if (b.height > h + 1) {
+        this.stackSync.push(b);
       }
-    }, 1);
+      b = (this.stackSync.shift() || {}) as BlockStruct;
+      c++;
+    }
   }
 
   private addBlock(block: BlockStruct) {
     if (this.blockchain.add(block)) {
-      clearTimeout(this.timeoutRelease);
-      clearTimeout(this.timeoutLock);
-      clearTimeout(this.timeoutVote);
-
       this.pool.clear(block);
       this.releaseTxProposal();
 
