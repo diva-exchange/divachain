@@ -246,13 +246,13 @@ export class Server {
 
     // accept only valid transaction proposals
     // process only proposals matching the next block height
-    // process only proposals if the pool is not locked yet
-    if (!TxProposal.isValid(p) || h !== p.height || this.pool.hasLock()) {
+    if (!TxProposal.isValid(p) || h !== p.height) {
       return false;
     }
 
+    // process only proposals if the pool is not locked yet
     // try to add the proposal to the pool
-    if (this.pool.add(p.tx)) {
+    if (!this.pool.hasLock() && this.pool.add(p.tx)) {
       this.lockTransactionPool();
     }
 
