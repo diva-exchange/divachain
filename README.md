@@ -12,11 +12,13 @@ The peers in the network communicate via websockets. The peers build the tunnels
 
 The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
-1. New transaction proposal: each peer in the network may anytime propose a transaction, by transmitting a signed transaction to the network.
-2. Each peer receiving such a proposal may transmit its vote, containing the complete new block, to the network. If a peer also has an own transaction it adds his own transactions to the new block first and transmits the new vote to the network. Per round, each peer can only add one own transaction.
-3. Several rounds of voting might be necessary to reach consensus (2/3 of the network).
-4. As soon as a peer in the network detects that 2/3 of the whole network have voted for a specific block, it writes the block to the chain.
-5. A new round starts. 
+1. New proposal: each peer in the network may anytime propose a transaction, by sending it to the network.
+2. Locking: each peer receiving such a new proposal may send a lock to the network. Such a lock represents an agreement of a peer with a specific proposal. If a peer also has an own transaction, it adds his own transaction to the new proposal first and sends the new proposal to the network. Per round, each peer can only add one own transaction to a proposal.
+3. Multiple rounds of locking might be necessary to reach consensus (2/3 of the network) on a lock and its related proposal. A peer might send multiple locks to the network.
+4. Creation of a new block to be voted for: as soon as consensus is reached on a lock, peers will create a new block based on the lock and vote for the new block. 
+5. Voting: each peer receiving a vote, checks it for validity and - if the peer agrees - votes for the block too.
+6. Commit: as soon as a peer in the network detects that consensus has been reached (2/3 of the network have voted for a specific block), it writes the block to the chain and sends a synchronization message to the network.
+ 
 
 
 ## Create Your Local Environment
