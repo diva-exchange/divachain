@@ -283,9 +283,7 @@ export class Server {
       return false;
     }
 
-    if (!this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum())) {
-      return false;
-    }
+    this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum());
     if (this.pool.hasLock()) {
       clearTimeout(this.timeoutVote);
       this.doVote();
@@ -311,7 +309,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutVote = setTimeout(() => {
         this.doVote(t > 5000 ? 5000 : t);
-      }, Math.floor(t));
+      }, Math.floor(t * 1.2));
     }
   }
 
@@ -340,21 +338,20 @@ export class Server {
   }
 
   private processSync(sync: Sync) {
-    this.stackSync = this.stackSync.concat(sync.get());
+    this.stackSync = this.stackSync.concat(sync.get()).sort((a, b) => (a.height > b.height ? 1 : -1));
 
     let h = this.blockchain.getHeight();
     let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
-    let c = this.stackSync.length - 1;
 
-    while (b.height && c < this.stackSync.length) {
+    while (b.height) {
       if (b.height === h + 1) {
         this.addBlock(b);
-        h = this.blockchain.getHeight();
       } else if (b.height > h + 1) {
-        this.stackSync.push(b);
+        break;
       }
+
+      h = this.blockchain.getHeight();
       b = (this.stackSync.shift() || {}) as BlockStruct;
-      c++;
     }
   }
 

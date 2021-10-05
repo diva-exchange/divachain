@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 9;
-const NETWORK_SIZE = 7;
+const SIZE_TESTNET = 17;
+const NETWORK_SIZE = 13;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';

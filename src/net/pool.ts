@@ -128,16 +128,15 @@ export class Pool {
     return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
-  lock(lock: LockStruct, stake: number, quorum: number): boolean {
+  lock(lock: LockStruct, stake: number, quorum: number) {
     if (lock.hash !== this.hashCurrent || this.arrayLocks.some((r) => r.origin === lock.origin)) {
-      return false;
+      return;
     }
 
     this.arrayLocks.push({ origin: lock.origin, stake: stake });
     if (this.arrayLocks.reduce((p, r) => p + r.stake, 0) >= quorum) {
       this.block = Block.make(this.blockchain.getLatestBlock(), this.cacheCurrent);
     }
-    return true;
   }
 
   hasLock() {
