@@ -360,10 +360,10 @@ export class Server {
       this.pool.clear(block);
       this.releaseTxProposal();
 
-      setImmediate(() => {
+      (async () => {
         const feed = JSON.stringify(block);
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(feed));
-      });
+      })();
     }
   }
 
