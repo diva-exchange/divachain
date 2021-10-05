@@ -60,7 +60,7 @@ export class Pool {
   private cacheCurrent: Array<TransactionStruct> = [];
   private hashCurrent: string = '';
 
-  private arrayLock: Array<recordLock> = [];
+  private arrayLocks: Array<recordLock> = [];
   private block: BlockStruct = {} as BlockStruct;
 
   private arrayVotes: Array<recordVote> = [];
@@ -103,13 +103,21 @@ export class Pool {
     this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
     this.hashCurrent = Util.hash(this.cacheCurrent.reduce((s, tx) => s + tx.sig, ''));
     this.block = {} as BlockStruct;
-    this.arrayLock = [];
+    this.arrayLocks = [];
     this.arrayVotes = [];
     return true;
   }
 
   get(): Array<TransactionStruct> {
     return this.cacheCurrent;
+  }
+
+  getArrayLocks(): Array<recordLock> {
+    return this.arrayLocks;
+  }
+
+  getArrayVotes(): Array<recordVote> {
+    return this.arrayVotes;
   }
 
   getHash(): string {
@@ -121,12 +129,12 @@ export class Pool {
   }
 
   lock(lock: LockStruct, stake: number, quorum: number): boolean {
-    if (lock.hash !== this.hashCurrent || this.arrayLock.some((r) => r.origin === lock.origin)) {
+    if (lock.hash !== this.hashCurrent || this.arrayLocks.some((r) => r.origin === lock.origin)) {
       return false;
     }
 
-    this.arrayLock.push({ origin: lock.origin, stake: stake });
-    if (this.arrayLock.reduce((p, r) => p + r.stake, 0) >= quorum) {
+    this.arrayLocks.push({ origin: lock.origin, stake: stake });
+    if (this.arrayLocks.reduce((p, r) => p + r.stake, 0) >= quorum) {
       this.block = Block.make(this.blockchain.getLatestBlock(), this.cacheCurrent);
     }
     return true;
@@ -174,7 +182,7 @@ export class Pool {
     }
     this.inTransit = {} as TransactionStruct;
     this.current = new Map();
-    this.arrayLock = [];
+    this.arrayLocks = [];
     this.block = {} as BlockStruct;
     this.arrayVotes = [];
     this.cacheCurrent = [];

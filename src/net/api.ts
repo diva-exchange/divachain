@@ -108,6 +108,14 @@ export class Api {
       return res.json(this.server.getPool().get());
     });
 
+    this.server.app.get('/pool/locks', (req: Request, res: Response) => {
+      return res.json(this.server.getPool().getArrayLocks());
+    });
+
+    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
+      return res.json(this.server.getPool().getArrayVotes());
+    });
+
     this.server.app.get('/pool/block', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getBlock());
     });

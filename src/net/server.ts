@@ -232,7 +232,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutRelease = setTimeout(() => {
         this.doRelease(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 1.5));
+      }, Math.floor(t * 1.2));
     }
   }
 
@@ -248,15 +248,11 @@ export class Server {
 
     // try to add the proposal to the pool
     if (this.pool.add(p.tx)) {
-      this.lockTransactionPool();
+      clearTimeout(this.timeoutLock);
+      this.doLock();
     }
 
     return true;
-  }
-
-  private lockTransactionPool() {
-    clearTimeout(this.timeoutLock);
-    this.doLock();
   }
 
   private doLock(t: number = 500) {
@@ -276,7 +272,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutLock = setTimeout(() => {
         this.doLock(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 1.5));
+      }, Math.floor(t * 1.2));
     }
   }
 
@@ -291,15 +287,11 @@ export class Server {
       return false;
     }
     if (this.pool.hasLock()) {
-      this.createVote();
+      clearTimeout(this.timeoutVote);
+      this.doVote();
     }
 
     return true;
-  }
-
-  private createVote() {
-    clearTimeout(this.timeoutVote);
-    this.doVote();
   }
 
   private doVote(t: number = 100) {
@@ -319,7 +311,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutVote = setTimeout(() => {
         this.doVote(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 1.5));
+      }, Math.floor(t));
     }
   }
 
