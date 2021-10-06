@@ -19,12 +19,7 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-
-export type LockStruct = {
-  origin: string;
-  hash: string;
-  sig: string;
-};
+import { VoteStruct } from './vote';
 
 export class Lock extends Message {
   constructor(message?: Buffer | string) {
@@ -33,17 +28,17 @@ export class Lock extends Message {
     this.message.broadcast = true;
   }
 
-  create(structLock: LockStruct): Lock {
+  create(structLock: VoteStruct): Lock {
     this.message.ident = this.message.type.toString() + structLock.sig;
     this.message.data = structLock;
     return this;
   }
 
-  get(): LockStruct {
-    return this.message.data as LockStruct;
+  get(): VoteStruct {
+    return this.message.data as VoteStruct;
   }
 
-  static isValid(structLock: LockStruct): boolean {
+  static isValid(structLock: VoteStruct): boolean {
     return Util.verifySignature(structLock.origin, structLock.sig, structLock.hash);
   }
 }

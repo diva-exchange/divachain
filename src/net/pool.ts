@@ -24,7 +24,6 @@ import { Wallet } from '../chain/wallet';
 import { Block, BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
 import { Validation } from './validation';
-import { LockStruct } from './message/lock';
 import { Util } from '../chain/util';
 import { Blockchain } from '../chain/blockchain';
 import { VoteStruct } from './message/vote';
@@ -128,16 +127,15 @@ export class Pool {
     return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
-  lock(lock: LockStruct, stake: number, quorum: number): boolean {
+  lock(lock: VoteStruct, stake: number, quorum: number) {
     if (lock.hash !== this.hashCurrent || this.arrayLocks.some((r) => r.origin === lock.origin)) {
-      return false;
+      return;
     }
 
     this.arrayLocks.push({ origin: lock.origin, stake: stake });
     if (this.arrayLocks.reduce((p, r) => p + r.stake, 0) >= quorum) {
       this.block = Block.make(this.blockchain.getLatestBlock(), this.cacheCurrent);
     }
-    return true;
   }
 
   hasLock(): boolean {
@@ -147,7 +145,7 @@ export class Pool {
   addVote(vote: VoteStruct, stake: number): boolean {
     if (
       stake <= 0 ||
-      this.block.hash !== vote.block.hash ||
+      this.block.hash !== vote.hash ||
       this.arrayVotes.some((r) => r.origin === vote.origin) ||
       !this.arrayLocks.some((r) => r.origin === vote.origin)
     ) {

@@ -37,7 +37,6 @@ export class Validation {
     const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/challenge.json');
     const schemaTxProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/tx-proposal.json');
-    const schemaLock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/lock.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
     const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
     const schemaBlock: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/block.json');
@@ -54,7 +53,6 @@ export class Validation {
         schemaAuth,
         schemaChallenge,
         schemaTxProposal,
-        schemaLock,
         schemaVote,
         schemaSync,
         schemaBlock,

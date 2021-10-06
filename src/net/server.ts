@@ -36,7 +36,7 @@ import { ArrayCommand } from '../chain/transaction';
 import { Sync } from './message/sync';
 import { TxProposalStruct, TxProposal } from './message/tx-proposal';
 import { Vote, VoteStruct } from './message/vote';
-import { Lock, LockStruct } from './message/lock';
+import { Lock } from './message/lock';
 
 export class Server {
   public readonly config: Config;
@@ -216,7 +216,7 @@ export class Server {
     this.doRelease();
   }
 
-  private doRelease(t: number = 100) {
+  private doRelease(t: number = 250) {
     const h = this.blockchain.getHeight() + 1;
     const tx = this.pool.release(h);
     if (tx) {
@@ -248,17 +248,21 @@ export class Server {
 
     // try to add the proposal to the pool
     if (this.pool.add(p.tx)) {
+      clearTimeout(this.timeoutVote);
       clearTimeout(this.timeoutLock);
-      this.doLock();
+      //@FIXME hard coded timeout value
+      this.timeoutLock = setTimeout(() => {
+        this.doLock();
+      }, 1);
     }
 
     return true;
   }
 
-  private doLock(t: number = 100) {
+  private doLock(t: number = 250) {
     const hash = this.pool.getHash();
     if (hash) {
-      // send out the lock
+      // send out the lock (which is a VoteStruct)
       this.network.processMessage(
         new Lock()
           .create({
@@ -277,29 +281,32 @@ export class Server {
   }
 
   private processLock(lock: Lock): boolean {
-    const l: LockStruct = lock.get();
+    const l: VoteStruct = lock.get();
 
-    if (!Lock.isValid(l)) {
+    if (!Lock.isValid(l) || this.pool.hasLock()) {
       return false;
     }
 
-    if (!this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum())) {
-      if (!this.pool.getArrayLocks().some((r) => r.origin === this.wallet.getPublicKey())) {
-        clearTimeout(this.timeoutLock);
-        this.doLock();
-      }
-      return false;
-    }
+    this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum());
 
     if (this.pool.hasLock()) {
       clearTimeout(this.timeoutVote);
-      this.doVote();
+      //@FIXME hard coded timeout value
+      this.timeoutVote = setTimeout(() => {
+        this.doVote();
+      }, 1);
+    } else if (!this.pool.getArrayLocks().some((r) => r.origin === this.wallet.getPublicKey())) {
+      clearTimeout(this.timeoutLock);
+      //@FIXME hard coded timeout value
+      this.timeoutLock = setTimeout(() => {
+        this.doLock();
+      }, 1);
     }
 
     return true;
   }
 
-  private doVote(t: number = 100) {
+  private doVote(t: number = 250) {
     if (this.network.getStake(this.wallet.getPublicKey()) <= 0) {
       return;
     }
@@ -311,7 +318,7 @@ export class Server {
         new Vote()
           .create({
             origin: this.wallet.getPublicKey(),
-            block: block,
+            hash: block.hash,
             sig: this.wallet.sign(block.hash),
           })
           .pack()
@@ -328,9 +335,13 @@ export class Server {
     const v: VoteStruct = vote.get();
 
     // invalid vote - abort messaging
+    if (!Vote.isValid(v)) {
+      return false;
+    }
+
     // process only votes if pool is locked
     // process only votes with a stake > 0
-    if (!Vote.isValid(v) || !this.pool.hasLock() || this.network.getStake(v.origin) <= 0) {
+    if (!this.pool.hasLock() || this.network.getStake(v.origin) <= 0) {
       return false;
     }
 

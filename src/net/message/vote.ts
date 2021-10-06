@@ -19,11 +19,10 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { BlockStruct } from '../../chain/block';
 
 export type VoteStruct = {
   origin: string;
-  block: BlockStruct;
+  hash: string;
   sig: string;
 };
 
@@ -45,6 +44,6 @@ export class Vote extends Message {
   }
 
   static isValid(structVote: VoteStruct): boolean {
-    return Util.verifySignature(structVote.origin, structVote.sig, structVote.block.hash);
+    return Util.verifySignature(structVote.origin, structVote.sig, structVote.hash);
   }
 }
