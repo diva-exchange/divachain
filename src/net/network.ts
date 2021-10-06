@@ -444,7 +444,6 @@ export class Network {
       Network.send(
         ws,
         new Sync()
-          .disableBroadcast()
           .create(await this.server.getBlockchain().getRange(height + 1, height + this.server.config.network_sync_size))
           .pack()
       );

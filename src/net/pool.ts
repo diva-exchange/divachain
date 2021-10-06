@@ -128,27 +128,29 @@ export class Pool {
     return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
-  lock(lock: LockStruct, stake: number, quorum: number) {
+  lock(lock: LockStruct, stake: number, quorum: number): boolean {
     if (lock.hash !== this.hashCurrent || this.arrayLocks.some((r) => r.origin === lock.origin)) {
-      return;
+      return false;
     }
 
     this.arrayLocks.push({ origin: lock.origin, stake: stake });
     if (this.arrayLocks.reduce((p, r) => p + r.stake, 0) >= quorum) {
       this.block = Block.make(this.blockchain.getLatestBlock(), this.cacheCurrent);
     }
+    return true;
   }
 
-  hasLock() {
+  hasLock(): boolean {
     return !!this.block.hash;
   }
 
   addVote(vote: VoteStruct, stake: number): boolean {
-    if (this.block.hash !== vote.block.hash) {
-      return false;
-    }
-
-    if (this.arrayVotes.some((r) => r.origin === vote.origin)) {
+    if (
+      stake <= 0 ||
+      this.block.hash !== vote.block.hash ||
+      this.arrayVotes.some((r) => r.origin === vote.origin) ||
+      !this.arrayLocks.some((r) => r.origin === vote.origin)
+    ) {
       return false;
     }
 
@@ -157,7 +159,7 @@ export class Pool {
   }
 
   hasQuorum(quorum: number): boolean {
-    if (!this.block.votes.length) {
+    if (this.hasLock() && !this.block.votes.length) {
       if (this.arrayVotes.reduce((p, v) => p + v.stake, 0) >= quorum) {
         this.block.votes = this.arrayVotes
           .map((_r) => {

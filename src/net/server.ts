@@ -216,7 +216,7 @@ export class Server {
     this.doRelease();
   }
 
-  private doRelease(t: number = 500) {
+  private doRelease(t: number = 100) {
     const h = this.blockchain.getHeight() + 1;
     const tx = this.pool.release(h);
     if (tx) {
@@ -232,7 +232,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutRelease = setTimeout(() => {
         this.doRelease(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 1.2));
+      }, Math.floor(t * 2));
     }
   }
 
@@ -255,7 +255,7 @@ export class Server {
     return true;
   }
 
-  private doLock(t: number = 500) {
+  private doLock(t: number = 100) {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock
@@ -272,7 +272,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutLock = setTimeout(() => {
         this.doLock(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 1.2));
+      }, Math.floor(t * 2));
     }
   }
 
@@ -283,7 +283,14 @@ export class Server {
       return false;
     }
 
-    this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum());
+    if (!this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum())) {
+      if (!this.pool.getArrayLocks().some((r) => r.origin === this.wallet.getPublicKey())) {
+        clearTimeout(this.timeoutLock);
+        this.doLock();
+      }
+      return false;
+    }
+
     if (this.pool.hasLock()) {
       clearTimeout(this.timeoutVote);
       this.doVote();
@@ -293,6 +300,10 @@ export class Server {
   }
 
   private doVote(t: number = 100) {
+    if (this.network.getStake(this.wallet.getPublicKey()) <= 0) {
+      return;
+    }
+
     const block = this.pool.getBlock();
     if (block.hash) {
       // send out the vote
@@ -309,7 +320,7 @@ export class Server {
       //@FIXME hard coded boundary and factor
       this.timeoutVote = setTimeout(() => {
         this.doVote(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 1.2));
+      }, Math.floor(t * 2));
     }
   }
 
@@ -317,21 +328,19 @@ export class Server {
     const v: VoteStruct = vote.get();
 
     // invalid vote - abort messaging
-    if (!Vote.isValid(v)) {
+    // process only votes if pool is locked
+    // process only votes with a stake > 0
+    if (!Vote.isValid(v) || !this.pool.hasLock() || this.network.getStake(v.origin) <= 0) {
       return false;
     }
 
-    // process only votes if pool is locked
-    if (!this.pool.hasLock() || !this.pool.addVote(v, this.network.getStake(v.origin))) {
+    if (!this.pool.addVote(v, this.network.getStake(v.origin))) {
       return false;
     }
 
     // check the quorum
     if (this.pool.hasQuorum(this.network.getQuorum())) {
-      const block = this.pool.getBlock();
-      if (block.hash) {
-        this.network.processMessage(new Sync().create([block]).pack());
-      }
+      this.network.processMessage(new Sync().setBroadcast(true).create([this.pool.getBlock()]).pack());
     }
 
     return true;
