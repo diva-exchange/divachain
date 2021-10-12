@@ -28,11 +28,6 @@ PROJECT_PATH=`pwd`/
 source "${PROJECT_PATH}bin/echos.sh"
 source "${PROJECT_PATH}bin/helpers.sh"
 
-if ! command_exists pkg; then
-  error "pkg not available. Install it with npm i -g pkg";
-  exit 1
-fi
-
 BUILD=${BUILD}
 case ${BUILD} in
   linux-arm64)
@@ -42,21 +37,28 @@ case ${BUILD} in
     ;;
 esac
 
-info "Building ${BUILD}"
 
 info "Transpiling TypeScript to JavaScript..."
 rm -rf ${PROJECT_PATH}dist/*
 ${PROJECT_PATH}node_modules/.bin/tsc
 cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}dist/schema
 
-info "Packaging..."
-rm -rf ${PROJECT_PATH}build/divachain-${BUILD}
-rm -rf ${PROJECT_PATH}build/prebuilds
-mkdir -p ${PROJECT_PATH}build/prebuilds/
-cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/${BUILD} ${PROJECT_PATH}build/prebuilds/
+if command_exists pkg; then
+  info "Packaging..."
 
-cd build/node14-${BUILD}
-pkg --no-bytecode \
-  --public \
-  --output ${PROJECT_PATH}build/divachain-${BUILD} \
-  .
+  info "Building ${BUILD}"
+
+  rm -rf ${PROJECT_PATH}build/divachain-${BUILD}
+  rm -rf ${PROJECT_PATH}build/prebuilds
+  mkdir -p ${PROJECT_PATH}build/prebuilds/
+  cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/${BUILD} ${PROJECT_PATH}build/prebuilds/
+
+  cd build/node14-${BUILD}
+  pkg --no-bytecode \
+    --public \
+    --output ${PROJECT_PATH}build/divachain-${BUILD} \
+    .
+else
+  info "Skipping Packaging..."
+  warn "Reason: pkg not available. Install it with npm i -g pkg";
+fi
