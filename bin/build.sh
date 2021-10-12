@@ -35,12 +35,14 @@ fi
 
 BUILD=${BUILD}
 case ${BUILD} in
-  linux-arm)
+  linux-arm64)
     ;;
   *)
     BUILD=linux-x64
     ;;
 esac
+
+info "Building ${BUILD}"
 
 info "Transpiling TypeScript to JavaScript..."
 rm -rf ${PROJECT_PATH}dist/*
