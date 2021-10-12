@@ -20,6 +20,7 @@
 import { Util } from './util';
 import { TransactionStruct } from './transaction';
 import { Validation } from '../net/validation';
+import { BLOCK_VERSION } from '../config';
 
 export type BlockStruct = {
   version: number;
@@ -48,7 +49,7 @@ export class Block {
 
   private constructor(previousBlock: BlockStruct, tx: Array<TransactionStruct>) {
     this.previousBlock = previousBlock;
-    this.version = 1; //@FIXME
+    this.version = BLOCK_VERSION;
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
     this.tx = tx;
