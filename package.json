@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "keywords": [
     "blockchain",
@@ -56,12 +56,12 @@
     "@types/pino": "^6.3.11",
     "@types/sodium-native": "^2.3.5",
     "@types/ws": "^8.2.0",
-    "@typescript-eslint/eslint-plugin": "^4.33.0",
-    "@typescript-eslint/parser": "^4.33.0",
+    "@typescript-eslint/eslint-plugin": "^5.0.0",
+    "@typescript-eslint/parser": "^5.0.0",
     "ajv-cli": "^5.0.0",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
-    "eslint": "^7.32.0",
+    "eslint": "^8.0.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^4.0.0",
     "mocha": "^9.1.2",
@@ -70,7 +70,7 @@
     "prettier": "^2.4.1",
     "source-map": "^0.7.3",
     "source-map-support": "^0.5.20",
-    "ts-node": "^10.2.1",
+    "ts-node": "^10.3.0",
     "typescript": "^4.4.3"
   }
 }

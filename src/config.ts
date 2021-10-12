@@ -38,6 +38,10 @@ export type Configuration = {
   i2p_socks_proxy_port?: number;
   i2p_socks_proxy_console_port?: number;
 
+  pbft_min_timeout_ms?: number;
+  pbft_max_timeout_ms?: number;
+  pbft_growth_factor_timeout_ms?: number;
+
   network_size?: number;
   network_morph_interval_ms?: number;
   network_refresh_interval_ms?: number;
@@ -52,10 +56,16 @@ export type Configuration = {
   blockchain_max_query_size?: number;
 };
 
+export const BLOCK_VERSION = 1;
+
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
 const DEFAULT_PORT_BLOCK_FEED = 17469;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
+
+const DEFAULT_PBFT_MIN_TIMEOUT_MS = 250;
+const DEFAULT_PBFT_MAX_TIMEOUT_MS = 5000;
+const DEFAULT_PBFT_GROWTH_FACTOR_TIMEOUT_MS = 2;
 
 const MIN_NETWORK_SIZE = 7;
 const MAX_NETWORK_SIZE = 64;
@@ -88,6 +98,9 @@ export class Config {
   public readonly i2p_socks_proxy_host: string;
   public readonly i2p_socks_proxy_port: number;
   public readonly i2p_socks_proxy_console_port: number;
+  public readonly pbft_min_timeout_ms: number;
+  public readonly pbft_max_timeout_ms: number;
+  public readonly pbft_growth_factor_timeout_ms: number;
   public readonly network_size: number;
   public readonly network_morph_interval_ms: number;
   public readonly network_refresh_interval_ms: number;
@@ -143,6 +156,19 @@ export class Config {
     this.i2p_socks_proxy_port = Config.port(c.i2p_socks_proxy_port || process.env.I2P_SOCKS_PROXY_PORT);
     this.i2p_socks_proxy_console_port = Config.port(
       c.i2p_socks_proxy_console_port || process.env.I2P_SOCKS_PROXY_CONSOLE_PORT
+    );
+
+    this.pbft_min_timeout_ms = Config.gte1(
+      c.pbft_min_timeout_ms || process.env.PBFT_MIN_TIMEOUT_MS,
+      DEFAULT_PBFT_MIN_TIMEOUT_MS
+    );
+    this.pbft_max_timeout_ms = Config.gte1(
+      c.pbft_max_timeout_ms || process.env.PBFT_MAX_TIMEOUT_MS,
+      DEFAULT_PBFT_MAX_TIMEOUT_MS
+    );
+    this.pbft_growth_factor_timeout_ms = Config.gte1(
+      c.pbft_growth_factor_timeout_ms || process.env.PBFT_GROWTH_FACTOR_TIMEOUT_MS,
+      DEFAULT_PBFT_GROWTH_FACTOR_TIMEOUT_MS
     );
 
     this.network_size = Config.b(c.network_size || process.env.NETWORK_SIZE, MIN_NETWORK_SIZE, MAX_NETWORK_SIZE);

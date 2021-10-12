@@ -216,7 +216,7 @@ export class Server {
     this.doRelease();
   }
 
-  private doRelease(t: number = 250) {
+  private doRelease(t: number = this.config.pbft_min_timeout_ms) {
     const h = this.blockchain.getHeight() + 1;
     const tx = this.pool.release(h);
     if (tx) {
@@ -229,10 +229,9 @@ export class Server {
           .pack()
       );
 
-      //@FIXME hard coded boundary and factor
       this.timeoutRelease = setTimeout(() => {
-        this.doRelease(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 2));
+        this.doRelease(t > this.config.pbft_max_timeout_ms ? this.config.pbft_max_timeout_ms : t);
+      }, Math.floor(t * this.config.pbft_growth_factor_timeout_ms));
     }
   }
 
@@ -250,7 +249,6 @@ export class Server {
     if (this.pool.add(p.tx)) {
       clearTimeout(this.timeoutVote);
       clearTimeout(this.timeoutLock);
-      //@FIXME hard coded timeout value
       this.timeoutLock = setTimeout(() => {
         this.doLock();
       }, 1);
@@ -259,7 +257,7 @@ export class Server {
     return true;
   }
 
-  private doLock(t: number = 250) {
+  private doLock(t: number = this.config.pbft_min_timeout_ms) {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock (which is a VoteStruct)
@@ -273,10 +271,9 @@ export class Server {
           .pack()
       );
 
-      //@FIXME hard coded boundary and factor
       this.timeoutLock = setTimeout(() => {
-        this.doLock(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 2));
+        this.doLock(t > this.config.pbft_max_timeout_ms ? this.config.pbft_max_timeout_ms : t);
+      }, Math.floor(t * this.config.pbft_growth_factor_timeout_ms));
     }
   }
 
@@ -291,13 +288,11 @@ export class Server {
 
     if (this.pool.hasLock()) {
       clearTimeout(this.timeoutVote);
-      //@FIXME hard coded timeout value
       this.timeoutVote = setTimeout(() => {
         this.doVote();
       }, 1);
     } else if (!this.pool.getArrayLocks().some((r) => r.origin === this.wallet.getPublicKey())) {
       clearTimeout(this.timeoutLock);
-      //@FIXME hard coded timeout value
       this.timeoutLock = setTimeout(() => {
         this.doLock();
       }, 1);
@@ -306,7 +301,7 @@ export class Server {
     return true;
   }
 
-  private doVote(t: number = 250) {
+  private doVote(t: number = this.config.pbft_min_timeout_ms) {
     if (this.network.getStake(this.wallet.getPublicKey()) <= 0) {
       return;
     }
@@ -324,10 +319,9 @@ export class Server {
           .pack()
       );
 
-      //@FIXME hard coded boundary and factor
       this.timeoutVote = setTimeout(() => {
-        this.doVote(t > 5000 ? 5000 : t);
-      }, Math.floor(t * 2));
+        this.doVote(t > this.config.pbft_max_timeout_ms ? this.config.pbft_max_timeout_ms : t);
+      }, Math.floor(t * this.config.pbft_growth_factor_timeout_ms));
     }
   }
 
