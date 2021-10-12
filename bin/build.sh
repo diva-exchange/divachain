@@ -33,19 +33,28 @@ if ! command_exists pkg; then
   exit 1
 fi
 
+BUILD=${BUILD}
+case ${BUILD} in
+  linux-arm)
+    ;;
+  *)
+    BUILD=linux-x64
+    ;;
+esac
+
 info "Transpiling TypeScript to JavaScript..."
 rm -rf ${PROJECT_PATH}dist/*
 ${PROJECT_PATH}node_modules/.bin/tsc
 cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}dist/schema
 
 info "Packaging..."
-rm -rf ${PROJECT_PATH}build/divachain-linux-x64
+rm -rf ${PROJECT_PATH}build/divachain-${BUILD}
 rm -rf ${PROJECT_PATH}build/prebuilds
 mkdir -p ${PROJECT_PATH}build/prebuilds/
-cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/linux-x64 ${PROJECT_PATH}build/prebuilds/
+cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/${BUILD} ${PROJECT_PATH}build/prebuilds/
 
-cd build/node14-linux-x64
+cd build/node14-${BUILD}
 pkg --no-bytecode \
   --public \
-  --output ${PROJECT_PATH}build/divachain-linux-x64 \
+  --output ${PROJECT_PATH}build/divachain-${BUILD} \
   .
