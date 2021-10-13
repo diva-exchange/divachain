@@ -1,3 +1,2 @@
-prebuilds
-divachain-linux-x64
-divachain-linux-arm64
+*
+!.gitignore

@@ -28,35 +28,38 @@ PROJECT_PATH=`pwd`/
 source "${PROJECT_PATH}bin/echos.sh"
 source "${PROJECT_PATH}bin/helpers.sh"
 
-BUILD=${BUILD}
-case ${BUILD} in
-  linux-arm64)
-    ;;
-  *)
-    BUILD=linux-x64
-    ;;
-esac
+if ! command_exists npm; then
+  error "npm not available. Install node";
+  exit 1
+fi
 
+npm ci
+
+info "Clean up..."
+rm -rf ${PROJECT_PATH}dist/*
+rm -rf ${PROJECT_PATH}build/prebuilds
+rm -rf ${PROJECT_PATH}build/divachain-*
 
 info "Transpiling TypeScript to JavaScript..."
-rm -rf ${PROJECT_PATH}dist/*
-${PROJECT_PATH}node_modules/.bin/tsc
-cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}dist/schema
+${PROJECT_PATH}node_modules/.bin/tsc -p ${PROJECT_PATH} --outDir ${PROJECT_PATH}dist
+rm -rf ${PROJECT_PATH}dist/version.js
+cp -r ${PROJECT_PATH}src/schema ${PROJECT_PATH}/dist/schema
+
+# create a static version file
+${PROJECT_PATH}node_modules/.bin/ts-node --files ${PROJECT_PATH}src/version.ts
+cp ${PROJECT_PATH}build/version ${PROJECT_PATH}dist/version
 
 if command_exists pkg; then
   info "Packaging..."
 
-  info "Building ${BUILD}"
+  #leveldown prebuilds
+  [[ -d ${PROJECT_PATH}node_modules/leveldown/prebuilds/ ]] &&
+    mkdir -p ${PROJECT_PATH}build/prebuilds &&
+    cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/linux-x64 ${PROJECT_PATH}build/prebuilds/linux-x64
 
-  rm -rf ${PROJECT_PATH}build/divachain-${BUILD}
-  rm -rf ${PROJECT_PATH}build/prebuilds
-  mkdir -p ${PROJECT_PATH}build/prebuilds/
-  cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/${BUILD} ${PROJECT_PATH}build/prebuilds/
-
-  cd build/node14-${BUILD}
   pkg --no-bytecode \
     --public \
-    --output ${PROJECT_PATH}build/divachain-${BUILD} \
+    --output ${PROJECT_PATH}build/divachain-linux-x64 \
     .
 else
   info "Skipping Packaging..."

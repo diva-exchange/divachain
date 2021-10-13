@@ -1,7 +1,8 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
+  "bin": "dist/main.js",
   "keywords": [
     "blockchain",
     "pbft",
@@ -23,6 +24,16 @@
     "start": "NODE_ENV=production node dist/main.js | pino-pretty -t -i pid,hostname",
     "start-dev": "NODE_ENV=development ts-node --files src/main.ts | pino-pretty -t -i pid,hostname",
     "test": "test/bin/clean-testenv.sh ; cp genesis/block.json test/genesis/block.json ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace DEBUG_PERFORMANCE=1 nyc mocha"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "dist/schema/**/*",
+      "dist/version",
+      "genesis/*",
+      "node_modules/sodium-native/prebuilds/linux-x64/*"
+    ],
+    "targets": [ "node14-linux-x64" ]
   },
   "dependencies": {
     "ajv": "^8.6.3",
@@ -52,7 +63,7 @@
     "@types/leveldown": "^4.0.3",
     "@types/levelup": "^4.3.3",
     "@types/mocha": "^9.0.0",
-    "@types/node": "^16.10.3",
+    "@types/node": "^16.10.4",
     "@types/pino": "^6.3.11",
     "@types/sodium-native": "^2.3.5",
     "@types/ws": "^8.2.0",
@@ -71,6 +82,6 @@
     "source-map": "^0.7.3",
     "source-map-support": "^0.5.20",
     "ts-node": "^10.3.0",
-    "typescript": "^4.4.3"
+    "typescript": "^4.4.4"
   }
 }

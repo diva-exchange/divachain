@@ -30,11 +30,11 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
 #############################################
 COPY bin /divachain/bin
 COPY src /divachain/src
-COPY build/node14-linux-x64 /divachain/build/node14-linux-x64
 COPY package.json /divachain/package.json
 COPY tsconfig.json /divachain/tsconfig.json
 
 RUN cd divachain \
+  && mkdir build \
   && mkdir genesis \
   && mkdir keys \
   && mkdir dist \

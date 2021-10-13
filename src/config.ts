@@ -125,10 +125,16 @@ export class Config {
     this.bootstrap =
       (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
-    this.path_app =
-      c.path_app ||
-      path.join(Object.keys(process).includes('pkg') ? path.dirname(process.execPath) : __dirname, '/../');
-    this.VERSION = require(path.join(this.path_app, 'package.json')).version;
+    this.path_app = c.path_app || path.join(__dirname, '/../');
+
+    try {
+      this.VERSION = fs.readFileSync(path.join(__dirname, 'version')).toString();
+    } catch (error) {
+      if (!fs.existsSync(path.join(this.path_app, 'package.json'))) {
+        throw new Error('File not found: ' + path.join(this.path_app, 'package.json'));
+      }
+      this.VERSION = require(path.join(this.path_app, 'package.json')).version;
+    }
 
     this.ip = c.ip || process.env.IP || DEFAULT_IP;
     this.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
@@ -139,17 +145,32 @@ export class Config {
 
     this.path_blockstore = c.path_blockstore || path.join(this.path_app, 'blockstore/');
     if (!fs.existsSync(this.path_blockstore)) {
-      fs.mkdirSync(this.path_blockstore, { mode: '755', recursive: true });
+      try {
+        fs.mkdirSync(this.path_blockstore, { mode: '755', recursive: true });
+      } catch (error) {
+        this.path_blockstore = path.join(process.cwd(), 'blockstore/');
+        fs.mkdirSync(this.path_blockstore, { mode: '755', recursive: true });
+      }
     }
 
     this.path_state = c.path_state || path.join(this.path_app, 'state/');
     if (!fs.existsSync(this.path_state)) {
-      fs.mkdirSync(this.path_state, { mode: '755', recursive: true });
+      try {
+        fs.mkdirSync(this.path_state, { mode: '755', recursive: true });
+      } catch (error) {
+        this.path_state = path.join(process.cwd(), 'state/');
+        fs.mkdirSync(this.path_state, { mode: '755', recursive: true });
+      }
     }
 
     this.path_keys = c.path_keys || path.join(this.path_app, 'keys/');
     if (!fs.existsSync(this.path_keys)) {
-      fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
+      try {
+        fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
+      } catch (error) {
+        this.path_keys = path.join(process.cwd(), 'keys/');
+        fs.mkdirSync(this.path_keys, { mode: '755', recursive: true });
+      }
     }
 
     this.i2p_socks_proxy_host = c.i2p_socks_proxy_host || process.env.I2P_SOCKS_PROXY_HOST || '';
