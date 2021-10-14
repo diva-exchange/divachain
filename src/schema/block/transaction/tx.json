@@ -17,13 +17,13 @@
       "items": {
         "anyOf": [
           {
-            "$ref": "addPeer.json"
+            "$ref": "add-peer.json"
           },
           {
-            "$ref": "removePeer.json"
+            "$ref": "remove-peer.json"
           },
           {
-            "$ref": "modifyStake.json"
+            "$ref": "modify-stake.json"
           },
           {
             "$ref": "data.json"

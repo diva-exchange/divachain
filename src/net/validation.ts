@@ -42,9 +42,9 @@ export class Validation {
     const schemaBlock: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/block.json');
     const schemaVotes: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/votes.json');
     const schemaTx: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/tx.json');
-    const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/addPeer.json');
-    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/removePeer.json');
-    const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modifyStake.json');
+    const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/add-peer.json');
+    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/remove-peer.json');
+    const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modify-stake.json');
     const schemaData: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/data.json');
     const schemaDecision: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/decision.json');
 
