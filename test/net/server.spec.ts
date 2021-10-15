@@ -207,6 +207,8 @@ class TestServer {
     const _pk = [...TestServer.mapConfigServer.keys()][0];
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/state/peer:' + _pk);
     expect(res).to.have.status(200);
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/state/peer:' + _pk + '?filter=' + _pk);
+    expect(res).to.have.status(200);
   }
 
   @test
@@ -227,7 +229,11 @@ class TestServer {
   async blocks() {
     const config = [...TestServer.mapConfigServer.values()][0];
     let res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks');
-    expect(res).to.have.status(404);
+    expect(res).to.have.status(200);
+
+    res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks?filter=addPeer');
+    expect(res.body.length).gte(1);
+    expect(res).to.have.status(200);
 
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/genesis');
     expect(res).to.have.status(200);
@@ -242,7 +248,7 @@ class TestServer {
     expect(res).to.have.status(200);
 
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks/-1/1');
-    expect(res).to.have.status(200);
+    expect(res).to.have.status(404);
 
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/blocks/1/-1');
     expect(res).to.have.status(200);

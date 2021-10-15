@@ -99,7 +99,7 @@ export class Bootstrap {
     await this.fetchFromApi('join/' + this.server.config.address + '/' + publicKey);
   }
 
-  join(address: string, publicKey: string): boolean {
+  join(address: string, publicKey: string, t: number = 10000): boolean {
     const ident = address + '/' + publicKey;
 
     //@TODO rather simple address check
@@ -126,15 +126,17 @@ export class Bootstrap {
 
         // retry
         this.mapToken.delete(ident);
+        t = Math.floor(t * 1.2);
         setTimeout(() => {
-          this.join(address, publicKey);
-        }, 30000);
+          this.join(address, publicKey, t > 120000 ? 120000 : t); //@TODO hard coded max value
+        }, t);
       }
-    }, 30000);
+    }, t);
 
     return true;
   }
 
+  //@FIXME only accessible, if the server is in "challenging" state
   challenge(token: string): string {
     return token && token.length === LENGTH_TOKEN ? this.server.getWallet().sign(token) : '';
   }

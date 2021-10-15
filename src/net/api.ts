@@ -22,6 +22,7 @@ import { Request, Response } from 'express';
 import { nanoid } from 'nanoid';
 import fs from 'fs';
 import path from 'path';
+import { BlockStruct } from '../chain/block';
 
 const MIN_LENGTH_API_TOKEN = 32;
 export const NAME_HEADER_API_TOKEN = 'diva-api-token';
@@ -94,7 +95,12 @@ export class Api {
     this.server.app.get('/state/:key?', async (req: Request, res: Response) => {
       const key = req.params.key || '';
       try {
-        return res.json(await this.server.getBlockchain().getState(key));
+        const filter = req.query.filter ? new RegExp(req.query.filter.toString()) : false;
+        const arrayState: Array<{ key: string; value: string }> = await this.server.getBlockchain().getState(key);
+        if (filter) {
+          return res.json(arrayState.filter((o) => filter.test(o.key)));
+        }
+        return res.json(arrayState);
       } catch (error: any) {
         return res.status(404).end();
       }
@@ -137,12 +143,21 @@ export class Api {
     });
 
     this.server.app.get('/blocks/:gte?/:lte?', async (req: Request, res: Response) => {
-      const gte = Number(typeof req.params.gte === 'undefined' ? 1 : req.params.gte);
-      const lte = Number(req.params.lte || 0);
+      const gte = Math.floor(Number(req.params.gte || 1));
+      const lte = Math.floor(Number(req.params.lte || 0));
       if (gte < 1) {
         return res.status(404).end();
       }
-      return res.json(await this.server.getBlockchain().getRange(gte, lte));
+      try {
+        const filter = req.query.filter ? new RegExp(req.query.filter.toString()) : false;
+        const arrayBlocks: Array<BlockStruct> = await this.server.getBlockchain().getRange(gte, lte);
+        if (filter) {
+          return res.json(arrayBlocks.filter((b) => filter.test(JSON.stringify(b))));
+        }
+        return res.json(arrayBlocks);
+      } catch (error: any) {
+        return res.status(404).end();
+      }
     });
 
     this.server.app.get('/blocks/page/:page/:size?', async (req: Request, res: Response) => {

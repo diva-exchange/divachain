@@ -83,7 +83,7 @@ Default: 5 * NETWORK_REFRESH_INTERVAL_MS
 Timeout, in milliseconds, after authorisation fails.
 
 ### NETWORK_PING_INTERVAL_MS
-Default: 10000ms
+Default: 5000ms
 
 Interval, in milliseconds, to ping the peers in the network.
 
@@ -116,25 +116,38 @@ Default: 500
 
 ### Quering the Blockchain
 
+#### GET /about
+Returns an object containing the version, the license and the public key of the peer.
+
 #### GET /peers
 
 #### GET /network
 
-#### GET /gossip
+#### GET /state/{key?}[?filter=some-valid-regex]
+Get all or a specific state from the local state database. The local state database is a key/values storage and represents a well-defined set of current states.
 
-#### GET /state/{key?}
+_Example:_ `http://url-divachain-api/state/?filter=^DivaExchange:` will return those states where the key starts with "DivaExchange:".
 
 #### GET /stack/transactions
+Get the stack (queue) of local transactions.
 
 #### GET /pool/transactions
+Get the current transactions in the pool (to be written to the next possible block). 
+
+#### GET /pool/locks
+Get the current locks on the transaction pool. 
 
 #### GET /pool/votes
+Get the current votes on the transaction pool. 
+
+#### GET /pool/block
+Get the block which might be committed, if the consensus gets reached.
 
 #### GET /block/genesis
 Get the genesis block.
 
 #### GET /block/latest
-Get the latest block.
+Get the latest block on the chain.
 
 #### GET /block/{height}
 Get a specific block on the given height. 
@@ -143,14 +156,18 @@ _Example:_ `http://url-divachain-api/block/10` will return the block on height 1
 
 _Error handling:_ If a block is not yet available, 404 (Not Found) will be returned.
 
-#### GET /blocks/{from?}/{to?}
+#### GET /blocks/{from?}/{to?}/[?filter=some-valid-regex]
 Get all blocks between height "from" (inclusive) and height "to" (inclusive). If "to" is not yet available, the blocks until the current height will be returned.
 
-_Example:_ `http://url-divachain-api/blocks/10/19` will return 10 blocks (block 10 until 19, if all blocks are already).
+The _optional_ query parameter `filter` is also supported. Supply some valid regex to filter the blocks. 
+
+_Example:_ `http://url-divachain-api/blocks/10/19/` will return 10 blocks (block 10 until 19, if all blocks are already).
  
 _Example:_ `http://url-divachain-api/blocks` will return the latest API_MAX_QUERY_SIZE blocks (at most).
 
-_Error handling:_ If "from" less than one, 404 (Not Found) will be returned.
+_Example:_ `http://url-divachain-api/blocks/10/19/?filter=abc` will return those blocks within the range of block 10 until 19, which do contain the string "abc".
+
+_Error handling:_ 404 (Not Found) will be returned.
 
 _Remark:_ Not more than API_MAX_QUERY_SIZE can be requested at once.
 
@@ -161,22 +178,34 @@ If size is not given, it will return API_MAX_QUERY_SIZE blocks or less.
 _Example:_ `http://url-divachain-api/blocks/page/1/5` will return the **last** 5 or less blocks of the chain.
 
 #### GET /transaction/{origin}/{ident}
+Get a well-defined transaction.
+
+_Error handling:_ 404 (Not Found) will be returned if the transaction is not available.
 
 ### Transmitting Transactions
 
 #### PUT /transaction/{ident?}
+Submit a new transaction proposal to the network.
 
 ### Joining and Leaving the Network
+This is an automated process. Neither developers nor users need to access these API endpoints.  
 
 #### GET /join/{address}/{publicKey}
+Request to join the network. A new address and a new public key wants to join the network.
+
+Send this GET request to any remote peer in the network which is online. This remote peer will later - in some seconds or even minutes - send back an independent GET request to the local /challenge/ endpoint. 
 
 #### GET /leave/{address}
+TBD.
 
 #### GET /challenge/{token}
+Response will contain the signed token. Verify the response with the public key of the remote peer.
 
 ### Network Synchronization
+This is an automated process. Neither developers nor users need to access these API endpoints.  
 
 #### GET /sync/{height}
+Get a well-defined number of blocks starting from {height} (including). See NETWORK_SYNC_SIZE.  
 
 ## How to Run Unit Tests
 
