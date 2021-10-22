@@ -75,6 +75,7 @@ export class Blockchain {
     this.height = 0;
     this.mapBlocks = new Map();
     this.latestBlock = {} as BlockStruct;
+    await this.dbState.clear();
 
     return new Promise((resolve, reject) => {
       this.dbBlockchain
@@ -307,7 +308,10 @@ export class Blockchain {
             await this.modifyStake(c as CommandModifyStake);
             break;
           case 'data':
-            await this.updateStateData(t.origin + ':' + (c as CommandData).ns, (c as CommandData).base64url);
+            await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).base64url);
+            break;
+          case 'decision':
+            await this.setDecision((c as CommandData).ns, t.origin);
             break;
         }
       }
@@ -348,6 +352,19 @@ export class Blockchain {
       this.mapPeer.set(command.publicKey, peer);
       await this.updateStateData('peer:' + command.publicKey, peer.stake);
     }
+  }
+
+  private async setDecision(ns: string, origin: string) {
+    const key = 'decision:' + ns;
+    let arrayOrigin: Array<string>;
+    try {
+      arrayOrigin = JSON.parse((await this.getState(key))[0].value);
+    } catch (error) {
+      arrayOrigin = [];
+    }
+    !arrayOrigin.includes(origin) &&
+      arrayOrigin.push(origin) &&
+      (await this.updateStateData(key, JSON.stringify(arrayOrigin)));
   }
 
   private async updateBlockData(key: string, value: string | number): Promise<boolean> {

@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "bin": "dist/main.js",
   "keywords": [
@@ -44,7 +44,7 @@
     "leveldown": "^6.1.0",
     "levelup": "^5.1.1",
     "nanoid": "^3.1.30",
-    "pino": "^7.0.1",
+    "pino": "^7.0.3",
     "simple-get": "^4.0.0",
     "socks-proxy-agent": "^6.1.0",
     "sodium-native": "^3.3.0",
@@ -63,12 +63,12 @@
     "@types/leveldown": "^4.0.3",
     "@types/levelup": "^4.3.3",
     "@types/mocha": "^9.0.0",
-    "@types/node": "^16.11.0",
-    "@types/pino": "^6.3.11",
+    "@types/node": "^16.11.3",
+    "@types/pino": "^6.3.12",
     "@types/sodium-native": "^2.3.5",
     "@types/ws": "^8.2.0",
-    "@typescript-eslint/eslint-plugin": "^5.0.0",
-    "@typescript-eslint/parser": "^5.0.0",
+    "@typescript-eslint/eslint-plugin": "^5.1.0",
+    "@typescript-eslint/parser": "^5.1.0",
     "ajv-cli": "^5.0.0",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
@@ -81,7 +81,7 @@
     "prettier": "^2.4.1",
     "source-map": "^0.7.3",
     "source-map-support": "^0.5.20",
-    "ts-node": "^10.3.0",
+    "ts-node": "^10.3.1",
     "typescript": "^4.4.4"
   }
 }
