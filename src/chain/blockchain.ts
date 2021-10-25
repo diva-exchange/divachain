@@ -386,7 +386,7 @@ export class Blockchain {
     if (!objOriginStake[origin]) {
       objOriginStake[origin] = this.server.getNetwork().getStake(origin);
       await this.updateStateData(key, JSON.stringify(objOriginStake));
-      if (this.server.getNetwork().getQuorum() <= Object.values(objOriginStake).reduce((a, b) => a + b, 0)) {
+      if (this.getQuorum() <= Object.values(objOriginStake).reduce((a, b) => a + b, 0)) {
         await this.updateStateData(key, Blockchain.STATE_DECISION_TAKEN);
       }
     }
