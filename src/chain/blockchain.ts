@@ -29,6 +29,15 @@ import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
 
 export class Blockchain {
+  private static readonly COMMAND_ADD_PEER = 'addPeer';
+  private static readonly COMMAND_REMOVE_PEER = 'removePeer';
+  private static readonly COMMAND_MODIFY_STAKE = 'modifyStake';
+  private static readonly COMMAND_DATA = 'data';
+  private static readonly COMMAND_DECISION = 'decision';
+  private static readonly STATE_DECISION_IDENT = 'decision:';
+  private static readonly STATE_PEER_IDENT = 'peer:';
+  private static readonly STATE_DECISION_TAKEN = 'taken';
+
   private readonly server: Server;
   private readonly publicKey: string;
   private readonly dbBlockchain: InstanceType<typeof LevelUp>;
@@ -202,9 +211,17 @@ export class Blockchain {
     return this.getRange(gte, lte);
   }
 
-  //@TODO search the cache first, before going to disc
   async getTransaction(origin: string, ident: string): Promise<{ height: number; transaction: TransactionStruct }> {
     return new Promise((resolve, reject) => {
+      // cache
+      for (const b of [...this.mapBlocks.values()]) {
+        const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+        if (t) {
+          return resolve({ height: b.height, transaction: t });
+        }
+      }
+
+      // disk
       this.dbBlockchain
         .createValueStream()
         .on('data', (data) => {
@@ -298,19 +315,19 @@ export class Blockchain {
     for (const t of block.tx) {
       for (const c of t.commands) {
         switch (c.command) {
-          case 'addPeer':
+          case Blockchain.COMMAND_ADD_PEER:
             await this.addPeer(c as CommandAddPeer);
             break;
-          case 'removePeer':
+          case Blockchain.COMMAND_REMOVE_PEER:
             await this.removePeer(c as CommandRemovePeer);
             break;
-          case 'modifyStake':
+          case Blockchain.COMMAND_MODIFY_STAKE:
             await this.modifyStake(c as CommandModifyStake);
             break;
-          case 'data':
+          case Blockchain.COMMAND_DATA:
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).base64url);
             break;
-          case 'decision':
+          case Blockchain.COMMAND_DECISION:
             await this.setDecision((c as CommandData).ns, t.origin);
             break;
         }
@@ -325,7 +342,7 @@ export class Blockchain {
 
     const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
     this.mapPeer.set(command.publicKey, peer);
-    await this.updateStateData('peer:' + command.publicKey, peer.stake);
+    await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
     this.server.getNetwork().addPeer(command.publicKey, peer);
   }
 
@@ -335,7 +352,7 @@ export class Blockchain {
       this.quorum = this.quorum - peer.stake;
 
       this.mapPeer.delete(command.publicKey);
-      await this.dbState.del('peer:' + command.publicKey);
+      await this.dbState.del(Blockchain.STATE_PEER_IDENT + command.publicKey);
       this.server.getNetwork().removePeer(command.publicKey);
     }
   }
@@ -350,21 +367,29 @@ export class Blockchain {
       peer.stake = peer.stake + command.stake;
 
       this.mapPeer.set(command.publicKey, peer);
-      await this.updateStateData('peer:' + command.publicKey, peer.stake);
+      await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
     }
   }
 
   private async setDecision(ns: string, origin: string) {
-    const key = 'decision:' + ns;
-    let arrayOrigin: Array<string>;
+    const key = Blockchain.STATE_DECISION_IDENT + ns;
+    let objOriginStake: { [origin: string]: number };
     try {
-      arrayOrigin = JSON.parse((await this.getState(key))[0].value);
+      const v = (await this.getState(key))[0].value;
+      if (v === Blockchain.STATE_DECISION_TAKEN) {
+        return;
+      }
+      objOriginStake = JSON.parse(v);
     } catch (error) {
-      arrayOrigin = [];
+      objOriginStake = {};
     }
-    !arrayOrigin.includes(origin) &&
-      arrayOrigin.push(origin) &&
-      (await this.updateStateData(key, JSON.stringify(arrayOrigin)));
+    if (!objOriginStake[origin]) {
+      objOriginStake[origin] = this.server.getNetwork().getStake(origin);
+      await this.updateStateData(key, JSON.stringify(objOriginStake));
+      if (this.server.getNetwork().getQuorum() <= Object.values(objOriginStake).reduce((a, b) => a + b, 0)) {
+        await this.updateStateData(key, Blockchain.STATE_DECISION_TAKEN);
+      }
+    }
   }
 
   private async updateBlockData(key: string, value: string | number): Promise<boolean> {
