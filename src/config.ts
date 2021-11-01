@@ -141,7 +141,19 @@ export class Config {
     this.port_block_feed = Config.port(c.port_block_feed || process.env.PORT_BLOCK_FEED || DEFAULT_PORT_BLOCK_FEED);
     this.address = c.address || process.env.ADDRESS || this.ip + ':' + this.port;
 
-    this.path_genesis = c.path_genesis || path.join(this.path_app, `genesis/${nameBlockGenesis}.json`);
+    this.path_genesis = c.path_genesis || path.join(this.path_app, 'genesis/');
+    if (!fs.existsSync(this.path_genesis)) {
+      try {
+        fs.mkdirSync(this.path_genesis, { mode: '755', recursive: true });
+      } catch (error) {
+        this.path_genesis = path.join(process.cwd(), 'genesis/');
+        fs.mkdirSync(this.path_genesis, { mode: '755', recursive: true });
+      }
+    }
+    this.path_genesis = this.path_genesis + nameBlockGenesis + '.json';
+    if (!fs.existsSync(this.path_genesis)) {
+      throw new Error(`Path to genesis block not found: ${this.path_genesis}`);
+    }
 
     this.path_blockstore = c.path_blockstore || path.join(this.path_app, 'blockstore/');
     if (!fs.existsSync(this.path_blockstore)) {
