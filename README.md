@@ -171,11 +171,11 @@ _Error handling:_ 404 (Not Found) will be returned.
 
 _Remark:_ Not more than API_MAX_QUERY_SIZE can be requested at once.
 
-#### GET /blocks/page/{page}/{size?}
+#### GET /page/{page}/{size?}
 Get a specific page of the blockchain, starting at the current height (reverse order).
 If size is not given, it will return API_MAX_QUERY_SIZE blocks or less. 
 
-_Example:_ `http://url-divachain-api/blocks/page/1/5` will return the **last** 5 or less blocks of the chain.
+_Example:_ `http://url-divachain-api/page/1/5` will return the **last** 5 or less blocks of the chain.
 
 #### GET /transaction/{origin}/{ident}
 Get a well-defined transaction.
