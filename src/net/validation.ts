@@ -19,11 +19,12 @@
 
 import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
-import { BlockStruct } from '../chain/block';
+import { Block, BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
 import { TransactionStruct } from '../chain/transaction';
 import path from 'path';
 import { Util } from '../chain/util';
+import { Blockchain } from '../chain/blockchain';
 
 export class Validation {
   private static message: ValidateFunction;
@@ -45,8 +46,8 @@ export class Validation {
     const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/add-peer.json');
     const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/remove-peer.json');
     const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modify-stake.json');
-    const schemaData: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/data.json');
-    const schemaDecision: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/decision.json');
+    const schemaDataDecision: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/transaction/data-decision.json');
 
     Validation.message = new Ajv({
       schemas: [
@@ -61,13 +62,12 @@ export class Validation {
         schemaAddPeer,
         schemaRemovePeer,
         schemaModifyStake,
-        schemaData,
-        schemaDecision,
+        schemaDataDecision,
       ],
     }).compile(schemaMessage);
 
     Validation.tx = new Ajv({
-      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaData, schemaDecision],
+      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaDataDecision],
     }).compile(schemaTx);
 
     Validation.isInitialized = true;
@@ -96,45 +96,42 @@ export class Validation {
     }
   }
 
-  static validateBlock(block: BlockStruct): boolean {
-    if (Util.hash(block.previousHash + block.version + block.height + JSON.stringify(block.tx)) !== block.hash) {
-      Logger.trace('Validation.validateBlock() - invalid block hash');
-      return false;
-    }
+  static validateBlock(structBlock: BlockStruct): boolean {
+    const { hash, height, tx, votes } = structBlock;
 
     let _aOrigin: Array<string>;
 
     // vote validation
     _aOrigin = [];
-    for (const vote of block.votes) {
+    for (const vote of votes) {
       if (_aOrigin.includes(vote.origin)) {
-        Logger.trace(`Validation.validateBlock() - Multiple votes from same origin: ${block.height}`);
+        Logger.trace(`Validation.validateBlock() - Multiple votes from same origin: ${height}`);
         return false;
       }
       _aOrigin.push(vote.origin);
 
-      if (!Util.verifySignature(vote.origin, vote.sig, block.hash)) {
-        Logger.trace(`Validation.validateBlock() - invalid vote: ${block.height}`);
+      if (!Util.verifySignature(vote.origin, vote.sig, hash)) {
+        Logger.trace(`Validation.validateBlock() - invalid vote: ${height}`);
         return false;
       }
     }
 
     // transaction validation
     _aOrigin = [];
-    for (const tx of block.tx) {
-      if (_aOrigin.includes(tx.origin)) {
-        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin: ${block.height}`);
+    for (const transaction of tx) {
+      if (_aOrigin.includes(transaction.origin)) {
+        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin: ${height}`);
         return false;
       }
-      _aOrigin.push(tx.origin);
+      _aOrigin.push(transaction.origin);
 
-      if (!Validation.validateTx(block.height, tx)) {
-        Logger.trace(`Validation.validateBlock() - invalid tx: ${block.height}`);
+      if (!Validation.validateTx(height, transaction)) {
+        Logger.trace(`Validation.validateBlock() - invalid tx: ${height}`);
         return false;
       }
     }
 
-    return true;
+    return Block.validateHash(structBlock);
   }
 
   static validateTx(height: number, tx: TransactionStruct): boolean {
@@ -148,11 +145,11 @@ export class Validation {
       Util.verifySignature(tx.origin, tx.sig, height + JSON.stringify(tx.commands)) &&
       tx.commands.filter((c) => {
         switch (c.command || '') {
-          case 'addPeer':
-          case 'removePeer':
-          case 'modifyStake':
-          case 'data':
-          case 'decision':
+          case Blockchain.COMMAND_ADD_PEER:
+          case Blockchain.COMMAND_REMOVE_PEER:
+          case Blockchain.COMMAND_MODIFY_STAKE:
+          case Blockchain.COMMAND_DATA:
+          case Blockchain.COMMAND_DECISION:
             if (!Validation.tx(tx)) {
               Logger.trace(JSON.stringify(Validation.tx.errors));
               return false;

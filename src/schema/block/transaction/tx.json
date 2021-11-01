@@ -26,10 +26,7 @@
             "$ref": "modify-stake.json"
           },
           {
-            "$ref": "data.json"
-          },
-          {
-            "$ref": "decision.json"
+            "$ref": "data-decision.json"
           }
         ]
       },

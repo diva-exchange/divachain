@@ -53,7 +53,14 @@ export class Block {
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
     this.tx = tx;
-    this.hash = Util.hash(this.previousHash + this.version + this.height + JSON.stringify(this.tx));
+    this.hash = Block.createHash({
+      version: this.version,
+      previousHash: this.previousHash,
+      hash: '',
+      tx: this.tx,
+      height: this.height,
+      votes: [],
+    });
   }
 
   get(): BlockStruct {
@@ -65,5 +72,15 @@ export class Block {
       height: this.height,
       votes: [],
     } as BlockStruct;
+  }
+
+  static createHash(structBlock: BlockStruct): string {
+    const { version, previousHash, height, tx } = structBlock;
+    return Util.hash(previousHash + version + height + JSON.stringify(tx));
+  }
+
+  static validateHash(structBlock: BlockStruct): boolean {
+    const { version, hash, previousHash, height, tx } = structBlock;
+    return Util.hash(previousHash + version + height + JSON.stringify(tx)) === hash;
   }
 }

@@ -17,8 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { BlockStruct } from './block';
-import { Util } from './util';
+import { Block, BlockStruct } from './block';
 import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
@@ -27,16 +26,17 @@ import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, CommandData, Tra
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
+import { Validation } from '../net/validation';
 
 export class Blockchain {
-  private static readonly COMMAND_ADD_PEER = 'addPeer';
-  private static readonly COMMAND_REMOVE_PEER = 'removePeer';
-  private static readonly COMMAND_MODIFY_STAKE = 'modifyStake';
-  private static readonly COMMAND_DATA = 'data';
-  private static readonly COMMAND_DECISION = 'decision';
-  private static readonly STATE_DECISION_IDENT = 'decision:';
-  private static readonly STATE_PEER_IDENT = 'peer:';
-  private static readonly STATE_DECISION_TAKEN = 'taken';
+  public static readonly COMMAND_ADD_PEER = 'addPeer';
+  public static readonly COMMAND_REMOVE_PEER = 'removePeer';
+  public static readonly COMMAND_MODIFY_STAKE = 'modifyStake';
+  public static readonly COMMAND_DATA = 'data';
+  public static readonly COMMAND_DECISION = 'decision';
+  public static readonly STATE_DECISION_IDENT = 'decision:';
+  public static readonly STATE_PEER_IDENT = 'peer:';
+  public static readonly STATE_DECISION_TAKEN = 'taken';
 
   private readonly server: Server;
   private readonly publicKey: string;
@@ -126,13 +126,15 @@ export class Blockchain {
     if (
       this.height + 1 !== block.height ||
       block.previousHash !== this.latestBlock.hash ||
-      block.hash !== Blockchain.hashBlock(block)
+      !Validation.validateBlock(block)
     ) {
       const l: string = `${this.publicKey} - failed to verify block ${block.height}: `;
-      if (block.previousHash !== this.latestBlock.hash) {
+      if (this.height + 1 !== block.height) {
+        Logger.warn(l + '"Height" check failed');
+      } else if (block.previousHash !== this.latestBlock.hash) {
         Logger.warn(l + '"Previous Hash" check failed');
       } else {
-        Logger.warn(l + '"Hash" check failed');
+        Logger.warn(l + '"Validation.validateBlock()" failed');
       }
       return false;
     }
@@ -140,9 +142,8 @@ export class Blockchain {
     this.updateCache(block);
 
     (async () => {
-      if (await this.updateBlockData(String(block.height).padStart(16, '0'), JSON.stringify(block))) {
-        await this.processState(block);
-      }
+      (await this.updateBlockData(String(block.height).padStart(16, '0'), JSON.stringify(block))) &&
+        (await this.processState(block));
     })();
 
     return true;
@@ -198,7 +199,7 @@ export class Blockchain {
     });
   }
 
-  async getPage(page: number = 1, size: number = 0): Promise<Array<BlockStruct>> {
+  async getPage(page: number, size: number): Promise<Array<BlockStruct>> {
     page = page < 1 ? 1 : Math.floor(page);
     size =
       size < 1 || size > this.server.config.blockchain_max_query_size
@@ -298,13 +299,8 @@ export class Blockchain {
       throw new Error('Genesis Block not found at: ' + p);
     }
     const b: BlockStruct = JSON.parse(fs.readFileSync(p).toString());
-    b.hash = Blockchain.hashBlock(b);
+    b.hash = Block.createHash(b);
     return b;
-  }
-
-  private static hashBlock(block: BlockStruct): string {
-    const { version, previousHash, height, tx } = block;
-    return Util.hash(previousHash + version + height + JSON.stringify(tx));
   }
 
   private async processState(block: BlockStruct) {

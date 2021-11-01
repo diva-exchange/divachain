@@ -160,7 +160,7 @@ export class Api {
       }
     });
 
-    this.server.app.get('/blocks/page/:page/:size?', async (req: Request, res: Response) => {
+    this.server.app.get('/page/:page/:size?', async (req: Request, res: Response) => {
       const page = Number(req.params.page || 1);
       const size = Number(req.params.size || 0);
       try {
