@@ -24,11 +24,6 @@ interface Command {
   command: string;
 }
 
-export interface CommandData extends Command {
-  ns: string;
-  base64url: string;
-}
-
 export interface CommandAddPeer extends Command {
   host: string;
   port: number;
@@ -44,7 +39,19 @@ export interface CommandModifyStake extends Command {
   stake: number;
 }
 
-export type ArrayCommand = Array<CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData>;
+export interface CommandData extends Command {
+  ns: string;
+  base64url: string;
+}
+
+export interface CommandDecision extends Command {
+  ns: string;
+  base64url: string;
+}
+
+export type ArrayCommand = Array<
+  CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData | CommandDecision
+>;
 
 export type TransactionStruct = {
   ident: string;

@@ -22,7 +22,14 @@ import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
 import path from 'path';
-import { CommandAddPeer, CommandRemovePeer, CommandModifyStake, CommandData, TransactionStruct } from './transaction';
+import {
+  CommandAddPeer,
+  CommandRemovePeer,
+  CommandModifyStake,
+  CommandData,
+  CommandDecision,
+  TransactionStruct,
+} from './transaction';
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
@@ -324,7 +331,7 @@ export class Blockchain {
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).base64url);
             break;
           case Blockchain.COMMAND_DECISION:
-            await this.setDecision((c as CommandData).ns, t.origin);
+            await this.setDecision((c as CommandDecision).ns, t.origin);
             break;
         }
       }
