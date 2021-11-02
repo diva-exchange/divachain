@@ -226,7 +226,7 @@ class TestServer {
   @test
   async stackTransactions() {
     const config = [...TestServer.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/stack/transactions');
+    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/stack');
     expect(res).to.have.status(200);
   }
 
@@ -304,7 +304,7 @@ class TestServer {
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 500; // transactions
+    const _outer = 200; // transactions
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions
@@ -334,12 +334,12 @@ class TestServer {
       } catch (error: any) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 200));
+      await TestServer.wait(1 + Math.floor(Math.random() * 300));
     }
 
     Logger.trace('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(60000);
+    await TestServer.wait(30000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];

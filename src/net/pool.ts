@@ -81,9 +81,13 @@ export class Pool {
   }
 
   release(height: number): TransactionStruct | false {
-    if (this.inTransit.ident || !this.stackTransaction.length) {
-      return this.inTransit.ident ? this.inTransit : false;
+    if (this.inTransit.ident) {
+      return this.inTransit;
     }
+    if (!this.stackTransaction.length) {
+      return false;
+    }
+
     const r: recordStack = this.stackTransaction.shift() as recordStack;
     this.inTransit = new Transaction(this.wallet, height, r.ident, r.commands).get();
     return this.inTransit;
@@ -93,9 +97,9 @@ export class Pool {
     return this.stackTransaction;
   }
 
-  add(tx: TransactionStruct): boolean {
-    if (this.current.has(tx.origin)) {
-      return false;
+  add(tx: TransactionStruct) {
+    if (this.hasLock() || this.current.has(tx.origin)) {
+      return;
     }
 
     this.current.set(tx.origin, tx);
@@ -104,7 +108,6 @@ export class Pool {
     this.block = {} as BlockStruct;
     this.arrayLocks = [];
     this.arrayVotes = [];
-    return true;
   }
 
   get(): Array<TransactionStruct> {
@@ -143,16 +146,12 @@ export class Pool {
   }
 
   addVote(vote: VoteStruct, stake: number): boolean {
-    if (
-      stake <= 0 ||
-      this.block.hash !== vote.hash ||
-      this.arrayVotes.some((r) => r.origin === vote.origin) ||
-      !this.arrayLocks.some((r) => r.origin === vote.origin)
-    ) {
+    if (stake <= 0 || this.block.hash !== vote.hash) {
       return false;
     }
 
-    this.arrayVotes.push({ origin: vote.origin, sig: vote.sig, stake: stake });
+    !this.arrayVotes.some((r) => r.origin === vote.origin) &&
+      this.arrayVotes.push({ origin: vote.origin, sig: vote.sig, stake: stake });
     return true;
   }
 

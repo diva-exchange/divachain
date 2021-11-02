@@ -128,7 +128,7 @@ Get all or a specific state from the local state database. The local state datab
 
 _Example:_ `http://url-divachain-api/state/?filter=^DivaExchange:` will return those states where the key starts with "DivaExchange:".
 
-#### GET /stack/transactions
+#### GET /stack
 Get the stack (queue) of local transactions.
 
 #### GET /pool/transactions

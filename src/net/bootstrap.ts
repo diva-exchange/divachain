@@ -88,7 +88,7 @@ export class Bootstrap {
       while (blockNetwork.height > h) {
         const arrayBlocks: Array<BlockStruct> = await this.fetchFromApi('sync/' + (h + 1));
         for (const b of arrayBlocks) {
-          this.server.getBlockchain().add(b);
+          await this.server.getBlockchain().add(b);
         }
         h = this.server.getBlockchain().getLatestBlock().height;
       }
@@ -164,7 +164,6 @@ export class Bootstrap {
     ) {
       throw new Error('Bootstrap.confirm() - stackTransaction()/addPeer failed');
     }
-    this.server.releaseTxProposal();
     this.mapToken.delete(ident);
   }
 

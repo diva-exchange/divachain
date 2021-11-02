@@ -106,7 +106,7 @@ export class Api {
       }
     });
 
-    this.server.app.get('/stack/transactions', (req: Request, res: Response) => {
+    this.server.app.get('/stack', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getStack());
     });
 
@@ -187,7 +187,6 @@ export class Api {
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
       const ident = this.server.stackTxProposal(req.body, req.params.ident);
       if (ident) {
-        this.server.releaseTxProposal();
         return res.json({ ident: ident });
       }
       res.status(403).end();

@@ -47,9 +47,6 @@ export class Server {
   private readonly webSocketServerBlockFeed: WebSocket.Server;
 
   private pool: Pool = {} as Pool;
-  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
@@ -162,6 +159,19 @@ export class Server {
       await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
     }
 
+    setInterval(() => {
+      this.doReleaseTxProposal();
+    }, 500);
+    setInterval(() => {
+      this.doLock();
+    }, 250);
+    setInterval(() => {
+      this.doVote();
+    }, 250);
+    setInterval(() => {
+      this.doSync();
+    }, 50);
+
     return this;
   }
 
@@ -211,12 +221,7 @@ export class Server {
     return this.pool.stack(ident, arrayCommand);
   }
 
-  releaseTxProposal() {
-    clearTimeout(this.timeoutRelease);
-    this.doRelease();
-  }
-
-  private doRelease(t: number = this.config.pbft_min_timeout_ms) {
+  private doReleaseTxProposal() {
     const h = this.blockchain.getHeight() + 1;
     const tx = this.pool.release(h);
     if (tx) {
@@ -228,36 +233,24 @@ export class Server {
           })
           .pack()
       );
-
-      this.timeoutRelease = setTimeout(() => {
-        this.doRelease(t > this.config.pbft_max_timeout_ms ? this.config.pbft_max_timeout_ms : t);
-      }, Math.floor(t * this.config.pbft_growth_factor_timeout_ms));
     }
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
     const p: TxProposalStruct = proposal.get();
-    const h: number = this.blockchain.getHeight() + 1;
 
     // accept only valid transaction proposals
-    // process only proposals matching the next block height
-    if (!TxProposal.isValid(p) || h !== p.height) {
+    if (!TxProposal.isValid(p)) {
       return false;
     }
 
-    // try to add the proposal to the pool
-    if (this.pool.add(p.tx)) {
-      clearTimeout(this.timeoutVote);
-      clearTimeout(this.timeoutLock);
-      this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, 1);
+    if (p.height === this.blockchain.getHeight() + 1) {
+      this.pool.add(p.tx);
     }
-
     return true;
   }
 
-  private doLock(t: number = this.config.pbft_min_timeout_ms) {
+  private doLock() {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock (which is a VoteStruct)
@@ -270,88 +263,60 @@ export class Server {
           })
           .pack()
       );
-
-      this.timeoutLock = setTimeout(() => {
-        this.doLock(t > this.config.pbft_max_timeout_ms ? this.config.pbft_max_timeout_ms : t);
-      }, Math.floor(t * this.config.pbft_growth_factor_timeout_ms));
     }
   }
 
   private processLock(lock: Lock): boolean {
     const l: VoteStruct = lock.get();
 
-    if (!Lock.isValid(l) || this.pool.hasLock()) {
+    if (!Lock.isValid(l)) {
       return false;
     }
 
     this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum());
 
-    if (this.pool.hasLock()) {
-      clearTimeout(this.timeoutVote);
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, 1);
-    } else if (!this.pool.getArrayLocks().some((r) => r.origin === this.wallet.getPublicKey())) {
-      clearTimeout(this.timeoutLock);
-      this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, 1);
-    }
-
     return true;
   }
 
-  private doVote(t: number = this.config.pbft_min_timeout_ms) {
-    if (this.network.getStake(this.wallet.getPublicKey()) <= 0) {
-      return;
-    }
-
-    const block = this.pool.getBlock();
-    if (block.hash) {
-      // send out the vote
-      this.network.processMessage(
-        new Vote()
-          .create({
-            origin: this.wallet.getPublicKey(),
-            hash: block.hash,
-            sig: this.wallet.sign(block.hash),
-          })
-          .pack()
-      );
-
-      this.timeoutVote = setTimeout(() => {
-        this.doVote(t > this.config.pbft_max_timeout_ms ? this.config.pbft_max_timeout_ms : t);
-      }, Math.floor(t * this.config.pbft_growth_factor_timeout_ms));
+  private doVote() {
+    if (this.network.getStake(this.wallet.getPublicKey()) > 0) {
+      const block = this.pool.getBlock();
+      if (block.hash) {
+        // send out the vote
+        this.network.processMessage(
+          new Vote()
+            .create({
+              origin: this.wallet.getPublicKey(),
+              hash: block.hash,
+              sig: this.wallet.sign(block.hash),
+            })
+            .pack()
+        );
+      }
     }
   }
 
   private processVote(vote: Vote): boolean {
     const v: VoteStruct = vote.get();
 
-    // invalid vote - abort messaging
+    // process only valid votes
     if (!Vote.isValid(v)) {
       return false;
     }
 
-    // process only votes if pool is locked
-    // process only votes with a stake > 0
-    if (!this.pool.hasLock() || this.network.getStake(v.origin) <= 0) {
-      return false;
-    }
-
-    if (!this.pool.addVote(v, this.network.getStake(v.origin))) {
-      return false;
-    }
-
-    // check the quorum
-    if (this.pool.hasQuorum(this.network.getQuorum())) {
-      this.network.processMessage(new Sync().setBroadcast(true).create([this.pool.getBlock()]).pack());
-    }
-
-    return true;
+    return this.pool.addVote(v, this.network.getStake(v.origin));
   }
 
-  private processSync(sync: Sync) {
+  private doSync() {
+    // check the quorum
+    if (this.pool.hasQuorum(this.network.getQuorum())) {
+      (async (block: BlockStruct) => {
+        await this.addBlock(block);
+      })(this.pool.getBlock());
+    }
+  }
+
+  private processSync(sync: Sync): boolean {
     this.stackSync = this.stackSync.concat(sync.get()).sort((a, b) => (a.height > b.height ? 1 : -1));
 
     let h = this.blockchain.getHeight();
@@ -359,7 +324,9 @@ export class Server {
 
     while (b.height) {
       if (b.height === h + 1) {
-        this.addBlock(b);
+        (async (block: BlockStruct) => {
+          await this.addBlock(block);
+        })(b);
       } else if (b.height > h + 1) {
         break;
       }
@@ -367,17 +334,16 @@ export class Server {
       h = this.blockchain.getHeight();
       b = (this.stackSync.shift() || {}) as BlockStruct;
     }
+
+    return true;
   }
 
-  private addBlock(block: BlockStruct) {
-    if (this.blockchain.add(block)) {
+  private async addBlock(block: BlockStruct) {
+    if (await this.blockchain.add(block)) {
       this.pool.clear(block);
-      this.releaseTxProposal();
-
-      (async () => {
-        const feed = JSON.stringify(block);
-        this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(feed));
-      })();
+      setImmediate((s: string) => {
+        this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
+      }, JSON.stringify(block));
     }
   }
 
@@ -390,8 +356,7 @@ export class Server {
       case Message.TYPE_VOTE:
         return this.processVote(new Vote(message));
       case Message.TYPE_SYNC:
-        this.processSync(new Sync(message));
-        return true;
+        return this.processSync(new Sync(message));
       default:
         throw new Error('Invalid message type');
     }
