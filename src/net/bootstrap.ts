@@ -88,7 +88,7 @@ export class Bootstrap {
       while (blockNetwork.height > h) {
         const arrayBlocks: Array<BlockStruct> = await this.fetchFromApi('sync/' + (h + 1));
         for (const b of arrayBlocks) {
-          await this.server.getBlockchain().add(b);
+          this.server.getBlockchain().add(b);
         }
         h = this.server.getBlockchain().getLatestBlock().height;
       }

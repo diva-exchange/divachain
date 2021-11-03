@@ -144,7 +144,8 @@ export class Server {
     this.blockchain = await Blockchain.make(this);
     Logger.info('Blockchain initialized');
 
-    this.pool = new Pool(this.wallet, this.blockchain);
+    this.pool = Pool.make(this);
+    Logger.info('Pool initialized');
 
     await this.httpServer.listen(this.config.port, this.config.ip);
 
@@ -241,9 +242,8 @@ export class Server {
       return false;
     }
 
-    if (p.height === this.blockchain.getHeight() + 1) {
-      this.pool.add(p.tx);
-    }
+    p.height === this.blockchain.getHeight() + 1 && this.pool.add(p.tx);
+
     return true;
   }
 
@@ -305,9 +305,7 @@ export class Server {
 
     // check the quorum
     if (this.pool.hasQuorum(this.network.getQuorum())) {
-      (async (block: BlockStruct) => {
-        await this.addBlock(block);
-      })(this.pool.getBlock());
+      this.addBlock(this.pool.getBlock());
     }
 
     return r;
@@ -321,9 +319,7 @@ export class Server {
 
     while (b.height) {
       if (b.height === h + 1) {
-        (async (block: BlockStruct) => {
-          await this.addBlock(block);
-        })(b);
+        this.addBlock(b);
       } else if (b.height > h + 1) {
         break;
       }
@@ -335,17 +331,16 @@ export class Server {
     return true;
   }
 
-  private async addBlock(block: BlockStruct) {
+  private addBlock(block: BlockStruct) {
     //@FIXME loggging
     Logger.trace(`Block added ${block.height}`);
 
-    if (await this.blockchain.add(block)) {
+    if (this.blockchain.add(block)) {
       this.pool.clear(block);
       setImmediate((s: string) => {
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
       }, JSON.stringify(block));
     }
-
   }
 
   private onMessage(type: number, message: Buffer | string): boolean {

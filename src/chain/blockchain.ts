@@ -129,7 +129,7 @@ export class Blockchain {
     }
   }
 
-  async add(block: BlockStruct): Promise<boolean> {
+  add(block: BlockStruct): boolean {
     if (
       this.height + 1 !== block.height ||
       block.previousHash !== this.latestBlock.hash ||
@@ -148,8 +148,10 @@ export class Blockchain {
 
     this.updateCache(block);
 
-    (await this.updateBlockData(String(block.height).padStart(16, '0'), JSON.stringify(block))) &&
-      (await this.processState(block));
+    (async (b: BlockStruct) => {
+      (await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b))) &&
+        (await this.processState(b));
+    })(block);
 
     return true;
   }

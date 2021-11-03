@@ -459,7 +459,9 @@ export class Network {
         peer.stale++;
         if (peer.stale >= this.server.config.network_stale_threshold) {
           peer.stale = 0;
-          (async () => { await this.doSync(height, ws); })();
+          (async () => {
+            await this.doSync(height, ws);
+          })();
         }
       } else {
         peer.stale = 0;

@@ -20,13 +20,12 @@
 'use strict';
 
 import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
-import { Wallet } from '../chain/wallet';
 import { Block, BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
 import { Validation } from './validation';
 import { Util } from '../chain/util';
-import { Blockchain } from '../chain/blockchain';
 import { VoteStruct } from './message/vote';
+import { Server } from './server';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -48,9 +47,7 @@ type recordVote = {
 };
 
 export class Pool {
-  private readonly wallet: Wallet;
-  private readonly publicKey: string;
-  private readonly blockchain: Blockchain;
+  private readonly server: Server;
 
   private stackTransaction: Array<recordStack> = [];
   private inTransit: TransactionStruct = {} as TransactionStruct;
@@ -59,22 +56,24 @@ export class Pool {
   private cacheCurrent: Array<TransactionStruct> = [];
   private hashCurrent: string = '';
 
-  private arrayLocks: Array<recordLock> = [];
+  private mapLocks: Map<string, recordLock> = new Map();
   private block: BlockStruct = {} as BlockStruct;
 
   private arrayVotes: Array<recordVote> = [];
 
-  constructor(wallet: Wallet, blockchain: Blockchain) {
-    this.wallet = wallet;
-    this.publicKey = this.wallet.getPublicKey();
-    this.blockchain = blockchain;
+  static make(server: Server) {
+    return new Pool(server);
+  }
+
+  private constructor(server: Server) {
+    this.server = server;
   }
 
   stack(ident: string, commands: ArrayCommand): string | false {
     ident = ident && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(DEFAULT_LENGTH_IDENT);
 
     // test for transaction validity, use any valid height - so 1 is just fine
-    const tx = new Transaction(this.wallet, 1, ident, commands).get();
+    const tx = new Transaction(this.server.getWallet(), 1, ident, commands).get();
     return Validation.validateTx(1, tx) && this.stackTransaction.push({ ident: ident, commands: commands }) > 0
       ? ident
       : false;
@@ -89,7 +88,7 @@ export class Pool {
     }
 
     const r: recordStack = this.stackTransaction.shift() as recordStack;
-    this.inTransit = new Transaction(this.wallet, height, r.ident, r.commands).get();
+    this.inTransit = new Transaction(this.server.getWallet(), height, r.ident, r.commands).get();
     return this.inTransit;
   }
 
@@ -106,7 +105,7 @@ export class Pool {
     this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
     this.hashCurrent = Util.hash(this.cacheCurrent.reduce((s, tx) => s + tx.sig, ''));
     this.block = {} as BlockStruct;
-    this.arrayLocks = [];
+    this.mapLocks = new Map();
     this.arrayVotes = [];
   }
 
@@ -115,7 +114,7 @@ export class Pool {
   }
 
   getArrayLocks(): Array<recordLock> {
-    return this.arrayLocks;
+    return [...this.mapLocks.values()];
   }
 
   getArrayVotes(): Array<recordVote> {
@@ -131,13 +130,13 @@ export class Pool {
   }
 
   lock(lock: VoteStruct, stake: number, quorum: number) {
-    if (lock.hash !== this.hashCurrent || this.arrayLocks.some((r) => r.origin === lock.origin)) {
+    if (lock.hash !== this.hashCurrent || this.mapLocks.has(lock.origin)) {
       return;
     }
 
-    this.arrayLocks.push({ origin: lock.origin, stake: stake });
-    if (this.arrayLocks.reduce((p, r) => p + r.stake, 0) >= quorum) {
-      this.block = Block.make(this.blockchain.getLatestBlock(), this.cacheCurrent);
+    this.mapLocks.set(lock.origin, { origin: lock.origin, stake: stake });
+    if (this.getArrayLocks().reduce((p, r) => p + r.stake, 0) >= quorum) {
+      this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.cacheCurrent);
     }
   }
 
@@ -180,7 +179,7 @@ export class Pool {
     }
     this.inTransit = {} as TransactionStruct;
     this.current = new Map();
-    this.arrayLocks = [];
+    this.mapLocks = new Map();
     this.block = {} as BlockStruct;
     this.arrayVotes = [];
     this.cacheCurrent = [];
