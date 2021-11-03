@@ -103,7 +103,7 @@ export class Server {
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
-        Logger.warn(JSON.stringify(error));
+        Logger.warn('Server webSocketServer.error: ' + JSON.stringify(error));
         ws.terminate();
       });
     });
@@ -118,7 +118,7 @@ export class Server {
     });
     this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
-        Logger.warn(JSON.stringify(error));
+        Logger.warn('Server webSocketServerBlockFeed.error: ' + JSON.stringify(error));
         ws.terminate();
       });
     });
@@ -303,10 +303,8 @@ export class Server {
 
     const r = this.pool.addVote(v, this.network.getStake(v.origin));
 
-    // check the quorum
-    if (this.pool.hasQuorum(this.network.getQuorum())) {
-      this.addBlock(this.pool.getBlock());
-    }
+    // check the quorum and add the block if reached
+    this.pool.hasQuorum(this.network.getQuorum()) && this.addBlock(this.pool.getBlock());
 
     return r;
   }

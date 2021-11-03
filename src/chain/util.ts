@@ -45,8 +45,8 @@ export class Util {
         Buffer.from(data),
         Buffer.from(base64url.unescape(publicKey), 'base64')
       );
-    } catch (error: any) {
-      Logger.warn(JSON.stringify(error));
+    } catch (error) {
+      Logger.warn('Util.verifySignature() failed: ' + JSON.stringify(error));
     }
     return false;
   }

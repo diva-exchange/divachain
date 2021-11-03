@@ -91,8 +91,7 @@ export class Network {
     });
 
     this.server.getWebSocketServer().on('error', (error: Error) => {
-      Logger.warn('WebsocketServer error');
-      Logger.trace(error);
+      Logger.warn('WebsocketServer error: ' + JSON.stringify(error));
     });
 
     const startDelayMs = this.server.config.i2p_socks_proxy_host
@@ -242,9 +241,8 @@ export class Network {
               this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1 ? this.peersIn[_pk].ws : this.peersOut[_pk].ws,
               m.pack()
             );
-          } catch (error: any) {
-            Logger.warn('processMessage() - broadcast: Websocket Error');
-            Logger.trace(error);
+          } catch (error) {
+            Logger.warn('Network.processMessage() broadcast Error: ' + JSON.stringify(error));
           }
         }
       }
@@ -283,7 +281,7 @@ export class Network {
 
       ws.on('error', (error: Error) => {
         ws.close();
-        Logger.trace(error);
+        Logger.trace('Network.Auth() ws.error: ' + JSON.stringify(error));
       });
       ws.on('close', () => {
         delete this.peersIn[publicKeyPeer];
@@ -362,7 +360,7 @@ export class Network {
     });
     ws.on('error', (error: Error) => {
       ws.close();
-      Logger.trace(error);
+      Logger.trace('Network.connect() ws.error: ' + JSON.stringify(error));
     });
     ws.once('message', (message: Buffer) => {
       const mC = new Challenge(message);
@@ -447,8 +445,8 @@ export class Network {
           .create(await this.server.getBlockchain().getRange(height + 1, height + this.server.config.network_sync_size))
           .pack()
       );
-    } catch (error: any) {
-      Logger.trace(error);
+    } catch (error) {
+      Logger.trace('Network.doSync() Error' + JSON.stringify(error));
     }
   }
 

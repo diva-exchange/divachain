@@ -331,10 +331,10 @@ class TestServer {
         arrayTimestamp.push(new Date().getTime());
         arrayRequests.push(arrayOrigin[i]);
         arrayIdents.push(res.body.ident);
-      } catch (error: any) {
+      } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 300));
+      await TestServer.wait(1 + Math.floor(Math.random() * 100));
     }
 
     Logger.trace('waiting for sync');

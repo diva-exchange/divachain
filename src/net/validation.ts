@@ -86,7 +86,7 @@ export class Validation {
       case Message.TYPE_VOTE:
       case Message.TYPE_SYNC:
         if (!Validation.message(m.getMessage())) {
-          Logger.trace(JSON.stringify(Validation.message.errors));
+          Logger.trace('Validation.validateMessage() failed: ' + JSON.stringify(Validation.message.errors));
           return false;
         }
         return true;
@@ -151,7 +151,7 @@ export class Validation {
           case Blockchain.COMMAND_DATA:
           case Blockchain.COMMAND_DECISION:
             if (!Validation.tx(tx)) {
-              Logger.trace(JSON.stringify(Validation.tx.errors));
+              Logger.trace('Validation.validateTx() failed: ' + JSON.stringify(Validation.tx.errors));
               return false;
             }
             return true;

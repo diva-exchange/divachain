@@ -124,9 +124,8 @@ export class Blockchain {
   async reset(genesis: BlockStruct) {
     await this.clear();
     this.server.getNetwork().resetNetwork();
-    if (await this.updateBlockData(String(1).padStart(16, '0'), JSON.stringify(genesis))) {
-      await this.init();
-    }
+    await this.updateBlockData(String(1).padStart(16, '0'), JSON.stringify(genesis));
+    await this.init();
   }
 
   add(block: BlockStruct): boolean {
@@ -149,8 +148,8 @@ export class Blockchain {
     this.updateCache(block);
 
     (async (b: BlockStruct) => {
-      (await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b))) &&
-        (await this.processState(b));
+      await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b));
+      await this.processState(b);
     })(block);
 
     return true;
@@ -395,21 +394,19 @@ export class Blockchain {
     }
   }
 
-  private async updateBlockData(key: string, value: string | number): Promise<boolean> {
+  private async updateBlockData(key: string, value: string | number) {
     try {
       await this.dbBlockchain.put(key, value);
-      return true;
-    } catch (error: any) {
-      Logger.warn(JSON.stringify(error));
+    } catch (error) {
+      Logger.warn('Blockchain.updateBlockData() failed: ' + JSON.stringify(error));
     }
-    return false;
   }
 
   private async updateStateData(key: string, value: string | number) {
     try {
       await this.dbState.put(key, value);
-    } catch (error: any) {
-      Logger.warn(JSON.stringify(error));
+    } catch (error) {
+      Logger.warn('Blockchain.updateStateData() failed: ' + JSON.stringify(error));
     }
   }
 }

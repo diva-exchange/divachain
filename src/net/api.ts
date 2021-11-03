@@ -71,7 +71,7 @@ export class Api {
       const h = Math.floor(Number(req.params.height) || 0);
       try {
         return res.json(await this.server.getBlockchain().getRange(h, h + this.server.config.network_sync_size));
-      } catch (error: any) {
+      } catch (error) {
         return res.status(404).end();
       }
     });
@@ -101,7 +101,7 @@ export class Api {
           return res.json(arrayState.filter((o) => filter.test(o.key)));
         }
         return res.json(arrayState);
-      } catch (error: any) {
+      } catch (error) {
         return res.status(404).end();
       }
     });
@@ -155,7 +155,7 @@ export class Api {
           return res.json(arrayBlocks.filter((b) => filter.test(JSON.stringify(b))));
         }
         return res.json(arrayBlocks);
-      } catch (error: any) {
+      } catch (error) {
         return res.status(404).end();
       }
     });
@@ -165,7 +165,7 @@ export class Api {
       const size = Number(req.params.size || 0);
       try {
         return res.json(await this.server.getBlockchain().getPage(page, size));
-      } catch (error: any) {
+      } catch (error) {
         return res.status(404).end();
       }
     });
@@ -178,7 +178,7 @@ export class Api {
       }
       try {
         return res.json(await this.server.getBlockchain().getTransaction(origin, ident));
-      } catch (error: any) {
+      } catch (error) {
         return res.status(404).end();
       }
     });

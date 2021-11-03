@@ -121,8 +121,8 @@ export class Bootstrap {
       try {
         res = JSON.parse(await this.fetch('http://' + address + '/challenge/' + token));
         this.confirm(address, publicKey, res.token);
-      } catch (error: any) {
-        Logger.warn(JSON.stringify(error));
+      } catch (error) {
+        Logger.warn('Bootstrap.join() failed: ' + JSON.stringify(error));
 
         // retry
         this.mapToken.delete(ident);
@@ -172,8 +172,8 @@ export class Bootstrap {
     do {
       try {
         this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network'));
-      } catch (error: any) {
-        Logger.warn(JSON.stringify(error));
+      } catch (error) {
+        Logger.warn('Bootstrap.populateNetwork() failed: ' + JSON.stringify(error));
         this.arrayNetwork = [];
       }
       r++;
@@ -191,8 +191,8 @@ export class Bootstrap {
       urlApi = 'http://' + aNetwork.pop().api + '/' + endpoint;
       try {
         return JSON.parse(await this.fetch(urlApi));
-      } catch (error: any) {
-        Logger.warn(JSON.stringify(error));
+      } catch (error) {
+        Logger.warn('Bootstrap.fetchFromApi() failed: ' + JSON.stringify(error));
       }
     } while (aNetwork.length);
 
