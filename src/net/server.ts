@@ -340,14 +340,12 @@ export class Server {
     Logger.trace(`Block added ${block.height}`);
 
     if (await this.blockchain.add(block)) {
+      this.pool.clear(block);
       setImmediate((s: string) => {
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
       }, JSON.stringify(block));
-    } else {
-      block.tx = [];
     }
 
-    this.pool.clear(block);
   }
 
   private onMessage(type: number, message: Buffer | string): boolean {

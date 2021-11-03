@@ -295,8 +295,8 @@ export class Network {
           this.processMessage(message, publicKeyPeer);
         }
       });
-      ws.on('ping', async (data) => {
-        this.peersIn[publicKeyPeer] && (await this.processPing(data, this.peersIn[publicKeyPeer], ws));
+      ws.on('ping', (data) => {
+        this.peersIn[publicKeyPeer] && this.processPing(data, this.peersIn[publicKeyPeer], ws);
       });
       ws.on('pong', () => {
         this.peersIn[publicKeyPeer] && (this.peersIn[publicKeyPeer].alive = Date.now());
@@ -452,14 +452,14 @@ export class Network {
     }
   }
 
-  private async processPing(data: Buffer, peer: Peer, ws: WebSocket): Promise<void> {
+  private processPing(data: Buffer, peer: Peer, ws: WebSocket) {
     const height = Number(data);
     if (height) {
       if (height < this.server.getBlockchain().getHeight()) {
         peer.stale++;
-        if (peer.stale > this.server.config.network_stale_threshold) {
+        if (peer.stale >= this.server.config.network_stale_threshold) {
           peer.stale = 0;
-          await this.doSync(height, ws);
+          (async () => { await this.doSync(height, ws); })();
         }
       } else {
         peer.stale = 0;
