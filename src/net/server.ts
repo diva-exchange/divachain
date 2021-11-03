@@ -162,13 +162,13 @@ export class Server {
 
     setInterval(() => {
       this.doReleaseTxProposal();
-    }, 500);
+    }, 1000);
     setInterval(() => {
       this.doLock();
-    }, 250);
+    }, 500);
     setInterval(() => {
       this.doVote();
-    }, 250);
+    }, 500);
 
     return this;
   }
