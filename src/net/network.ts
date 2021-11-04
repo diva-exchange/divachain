@@ -21,7 +21,6 @@ import { Logger } from '../logger';
 import { Auth } from './message/auth';
 import { Challenge } from './message/challenge';
 import { Message } from './message/message';
-import { nanoid } from 'nanoid';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
 import { Validation } from './validation';
@@ -29,6 +28,7 @@ import { Util } from '../chain/util';
 import { Server } from './server';
 import { Sync } from './message/sync';
 import Timeout = NodeJS.Timeout;
+import { nanoid } from 'nanoid';
 
 const WS_CLIENT_OPTIONS = {
   compress: true,
@@ -54,6 +54,7 @@ export class Network {
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
   private arrayPeerNetwork: Array<string> = [];
   private arrayBroadcast: Array<string> = [];
+  private arrayGossip: Array<string> = [];
 
   private peersIn: { [publicKey: string]: Peer } = {};
   private peersOut: { [publicKey: string]: Peer } = {};
@@ -156,7 +157,12 @@ export class Network {
   }
 
   peers() {
-    const peers: { net: Array<string>; broadcast: Array<string>; in: Array<object>; out: Array<object> } = {
+    const peers: {
+      net: Array<string>;
+      broadcast: Array<string>;
+      in: Array<object>;
+      out: Array<object>;
+    } = {
       net: this.arrayPeerNetwork,
       broadcast: this.arrayBroadcast,
       in: [],
@@ -215,6 +221,12 @@ export class Network {
       Logger.trace(`${_l} Type: ${m.getMessage().type} Ident: ${m.getMessage().ident}`);
     }
 
+    // prevent duplicate message gossipping
+    if (this.arrayGossip.includes(m.ident())) {
+      return;
+    }
+    this.arrayGossip.push(m.ident());
+
     // stateless validation
     if (!Validation.validateMessage(m)) {
       return;
@@ -259,14 +271,14 @@ export class Network {
       ws.close(4005, 'Auth Timeout');
     }, this.server.config.network_auth_timeout_ms);
 
-    const challenge = nanoid(26);
+    const challenge = nanoid(32);
     Network.send(ws, new Challenge().create(challenge).pack());
 
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
-
       const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
       const mA = new Auth(message);
+
       if (!peer.host || !Validation.validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
@@ -321,7 +333,7 @@ export class Network {
     const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
       headers: {
         'diva-identity': this.publicKey,
       },
@@ -367,8 +379,7 @@ export class Network {
       if (!Validation.validateMessage(mC) || !mC.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
-      const wallet = this.server.getWallet();
-      Network.send(ws, new Auth().create(wallet.sign(mC.getChallenge())).pack());
+      Network.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
@@ -421,6 +432,11 @@ export class Network {
       .forEach((peer) => {
         peer.alive < t && peer.ws.close(4002, 'Timeout');
       });
+
+    //@TODO add thresholds to config
+    if (this.arrayGossip.length > this.mapPeer.size * 1000) {
+      this.arrayGossip.splice(0, this.mapPeer.size * 333);
+    }
 
     this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }

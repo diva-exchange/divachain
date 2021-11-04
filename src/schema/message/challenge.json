@@ -3,5 +3,5 @@
   "$id": "/schema/message/challenge.json",
 
   "type": "string",
-  "pattern": "^[A-Za-z0-9_-]{26}$"
+  "pattern": "^[A-Za-z0-9_-]{32}$"
 }

@@ -17,7 +17,6 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import base64url from 'base64-url';
 import sodium from 'sodium-native';
 import fs from 'fs';
 import path from 'path';
@@ -48,12 +47,12 @@ export class Wallet {
     const pathPublic = path.join(this.config.path_keys, this.ident + '.public');
     const pathSecret = path.join(this.config.path_keys, this.ident + '.secret');
     if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
-      this.publicKey.fill(Buffer.from(base64url.unescape(fs.readFileSync(pathPublic).toString()), 'base64'));
+      this.publicKey.fill(fs.readFileSync(pathPublic));
       this.secretKey.fill(fs.readFileSync(pathSecret));
     } else {
       sodium.crypto_sign_keypair(this.publicKey, this.secretKey);
 
-      fs.writeFileSync(pathPublic, base64url.escape(this.publicKey.toString('base64')), { mode: '0644' });
+      fs.writeFileSync(pathPublic, this.publicKey, { mode: '0644' });
       fs.writeFileSync(pathSecret, this.secretKey, { mode: '0600' });
     }
 
@@ -66,7 +65,7 @@ export class Wallet {
 
   /**
    * @param data {string}
-   * @returns {string} - base64url encoded signature
+   * @returns {string} - hex encoded signature
    */
   sign(data: string): string {
     if (!this.ident) {
@@ -74,20 +73,18 @@ export class Wallet {
     }
 
     const bufferSignature: Buffer = Buffer.alloc(sodium.crypto_sign_BYTES);
-    const bufferDataHash: Buffer = Buffer.from(data);
+    sodium.crypto_sign_detached(bufferSignature, Buffer.from(data), this.secretKey);
 
-    sodium.crypto_sign_detached(bufferSignature, bufferDataHash, this.secretKey);
-
-    return base64url.escape(bufferSignature.toString('base64'));
+    return bufferSignature.toString('hex');
   }
 
   /**
-   * @returns {string} - base64url encoded
+   * @returns {string} - hex encoded
    */
   getPublicKey(): string {
     if (!this.ident) {
       this.open();
     }
-    return base64url.escape(this.publicKey.toString('base64'));
+    return this.publicKey.toString('hex');
   }
 }

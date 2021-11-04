@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import base64url from 'base64-url';
+import base64url from 'base64url';
 import { nanoid } from 'nanoid';
 
 export type MessageStruct = {
@@ -65,11 +65,6 @@ export class Message {
     return this.message.type;
   }
 
-  setBroadcast(broadcast: boolean) {
-    this.message.broadcast = broadcast;
-    return this;
-  }
-
   isBroadcast(): boolean {
     return this.message.broadcast;
   }
@@ -100,7 +95,7 @@ export class Message {
    * @throws {Error}
    */
   pack(version?: number): string {
-    this.message.ident = this.message.ident || this.message.type + nanoid(16);
+    this.message.ident = this.message.ident || nanoid(16);
     this.message.broadcast = this.message.broadcast || false;
     return this._pack(version);
   }

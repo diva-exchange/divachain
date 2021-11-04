@@ -21,10 +21,10 @@ import SocksProxyAgent from 'socks-proxy-agent/dist/agent';
 import get from 'simple-get';
 import { Logger } from '../logger';
 import { Server } from './server';
-import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
 import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
+import { nanoid } from 'nanoid';
 
 const MAX_RETRY = 10;
 const LENGTH_TOKEN = 32;

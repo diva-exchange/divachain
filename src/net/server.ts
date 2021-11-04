@@ -55,6 +55,10 @@ export class Server {
 
   private stackSync: Array<BlockStruct> = [];
 
+  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+
   constructor(config: Config) {
     this.config = config;
     Logger.info(`divachain ${this.config.VERSION} instantiating...`);
@@ -99,7 +103,7 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
@@ -160,16 +164,6 @@ export class Server {
       await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
     }
 
-    setInterval(() => {
-      this.doReleaseTxProposal();
-    }, 1000);
-    setInterval(() => {
-      this.doLock();
-    }, 500);
-    setInterval(() => {
-      this.doVote();
-    }, 500);
-
     return this;
   }
 
@@ -216,6 +210,11 @@ export class Server {
   }
 
   stackTxProposal(arrayCommand: ArrayCommand, ident: string = ''): string | false {
+    clearTimeout(this.timeoutRelease);
+    this.timeoutRelease = setTimeout(() => {
+      this.doReleaseTxProposal();
+    }, 0);
+
     return this.pool.stack(ident, arrayCommand);
   }
 
@@ -231,6 +230,11 @@ export class Server {
           })
           .pack()
       );
+
+      // retry
+      this.timeoutRelease = setTimeout(() => {
+        this.doReleaseTxProposal();
+      }, 500);
     }
   }
 
@@ -238,11 +242,17 @@ export class Server {
     const p: TxProposalStruct = proposal.get();
 
     // accept only valid transaction proposals
-    if (!TxProposal.isValid(p)) {
+    // process proposals must match the height of the next block
+    if (!TxProposal.isValid(p) || p.height !== this.blockchain.getHeight() + 1) {
       return false;
     }
 
-    p.height === this.blockchain.getHeight() + 1 && this.pool.add(p.tx);
+    if (this.pool.add(p.tx)) {
+      clearTimeout(this.timeoutLock);
+      this.timeoutLock = setTimeout(() => {
+        this.doLock();
+      }, 500);
+    }
 
     return true;
   }
@@ -260,18 +270,30 @@ export class Server {
           })
           .pack()
       );
+
+      // retry
+      this.timeoutLock = setTimeout(() => {
+        this.doLock();
+      }, 2000);
     }
   }
 
   private processLock(lock: Lock): boolean {
     const l: VoteStruct = lock.get();
 
+    // process only valid locks
     if (!Lock.isValid(l)) {
       return false;
     }
 
-    this.pool.lock(l, this.network.getStake(l.origin), this.network.getQuorum());
+    this.pool.lock(l);
 
+    if (this.pool.hasLock()) {
+      clearTimeout(this.timeoutVote);
+      this.timeoutVote = setTimeout(() => {
+        this.doVote();
+      }, 0);
+    }
     return true;
   }
 
@@ -289,6 +311,11 @@ export class Server {
             })
             .pack()
         );
+
+        // retry
+        this.timeoutVote = setTimeout(() => {
+          this.doVote();
+        }, 2000);
       }
     }
   }
@@ -301,12 +328,10 @@ export class Server {
       return false;
     }
 
-    const r = this.pool.addVote(v, this.network.getStake(v.origin));
-
     // check the quorum and add the block if reached
-    this.pool.hasQuorum(this.network.getQuorum()) && this.addBlock(this.pool.getBlock());
+    this.pool.addVote(v) && this.addBlock(this.pool.getBlock());
 
-    return r;
+    return true;
   }
 
   private processSync(sync: Sync): boolean {
@@ -330,14 +355,22 @@ export class Server {
   }
 
   private addBlock(block: BlockStruct) {
-    //@FIXME loggging
-    Logger.trace(`Block added ${block.height}`);
-
     if (this.blockchain.add(block)) {
+      //@FIXME loggging
+      Logger.trace(`Block added ${block.height}`);
+
       this.pool.clear(block);
+
       setImmediate((s: string) => {
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
       }, JSON.stringify(block));
+
+      clearTimeout(this.timeoutRelease);
+      this.timeoutRelease = setTimeout(() => {
+        this.doReleaseTxProposal();
+      }, 0);
+    } else {
+      this.pool.clear();
     }
   }
 

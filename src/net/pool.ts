@@ -21,11 +21,11 @@
 
 import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Block, BlockStruct } from '../chain/block';
-import { nanoid } from 'nanoid';
 import { Validation } from './validation';
 import { Util } from '../chain/util';
 import { VoteStruct } from './message/vote';
 import { Server } from './server';
+import { nanoid } from 'nanoid';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -33,11 +33,6 @@ const MAX_LENGTH_IDENT = 32;
 type recordStack = {
   ident: string;
   commands: ArrayCommand;
-};
-
-type recordLock = {
-  origin: string;
-  stake: number;
 };
 
 type recordVote = {
@@ -51,11 +46,11 @@ export class Pool {
   private stackTransaction: Array<recordStack> = [];
   private inTransit: TransactionStruct = {} as TransactionStruct;
 
+  private currentHeight: number = 0;
   private current: Map<string, TransactionStruct> = new Map();
-  private cacheCurrent: Array<TransactionStruct> = [];
   private hashCurrent: string = '';
 
-  private mapLocks: Map<string, recordLock> = new Map();
+  private arrayLocks: Array<string> = [];
   private stakeLocks: number = 0;
   private block: BlockStruct = {} as BlockStruct;
 
@@ -81,15 +76,19 @@ export class Pool {
   }
 
   release(height: number): TransactionStruct | false {
-    if (this.inTransit.ident) {
+    if (this.currentHeight === height && this.inTransit.ident) {
       return this.inTransit;
+    }
+    this.currentHeight = height;
+    if (this.inTransit.ident) {
+      this.stackTransaction.unshift({ ident: this.inTransit.ident, commands: this.inTransit.commands });
     }
     if (!this.stackTransaction.length) {
       return false;
     }
 
     const r: recordStack = this.stackTransaction.shift() as recordStack;
-    this.inTransit = new Transaction(this.server.getWallet(), height, r.ident, r.commands).get();
+    this.inTransit = new Transaction(this.server.getWallet(), this.currentHeight, r.ident, r.commands).get();
     return this.inTransit;
   }
 
@@ -97,27 +96,21 @@ export class Pool {
     return this.stackTransaction;
   }
 
-  add(tx: TransactionStruct) {
+  add(tx: TransactionStruct): boolean {
     if (this.hasLock() || this.current.has(tx.origin)) {
-      return;
+      return false;
     }
 
     this.current.set(tx.origin, tx);
-    this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
-    this.hashCurrent = Util.hash(this.cacheCurrent.reduce((s, tx) => s + tx.sig, ''));
-    this.block = {} as BlockStruct;
-    this.mapLocks = new Map();
+    this.hashCurrent = Util.hash([...this.current.keys()].sort().join());
+    this.arrayLocks = [];
     this.stakeLocks = 0;
-    this.mapVotes = new Map();
-    this.stakeVotes = 0;
+
+    return true;
   }
 
-  get(): Array<TransactionStruct> {
-    return this.cacheCurrent;
-  }
-
-  getArrayLocks(): Array<recordLock> {
-    return [...this.mapLocks.values()];
+  getArrayLocks(): Array<string> {
+    return this.arrayLocks;
   }
 
   getArrayVotes(): Array<recordVote> {
@@ -132,15 +125,21 @@ export class Pool {
     return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
-  lock(lock: VoteStruct, stake: number, quorum: number) {
-    if (lock.hash !== this.hashCurrent || this.mapLocks.has(lock.origin)) {
+  lock(lock: VoteStruct) {
+    if (this.hasLock() || lock.hash !== this.hashCurrent || this.arrayLocks.includes(lock.origin)) {
       return;
     }
 
-    this.mapLocks.set(lock.origin, { origin: lock.origin, stake: stake });
-    this.stakeLocks += stake;
-    if (this.stakeLocks >= quorum) {
-      this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.cacheCurrent);
+    this.arrayLocks.push(lock.origin);
+    this.stakeLocks += this.server.getNetwork().getStake(lock.origin);
+
+    if (this.stakeLocks >= this.server.getNetwork().getQuorum()) {
+      this.block = Block.make(
+        this.server.getBlockchain().getLatestBlock(),
+        [...this.current.values()].sort((a, b) => (a.origin > b.origin ? 1 : -1))
+      );
+      this.mapVotes = new Map();
+      this.stakeVotes = 0;
     }
   }
 
@@ -148,46 +147,38 @@ export class Pool {
     return !!this.block.hash;
   }
 
-  addVote(vote: VoteStruct, stake: number): boolean {
-    if (stake <= 0 || this.block.hash !== vote.hash) {
+  addVote(vote: VoteStruct): boolean {
+    const stake = this.server.getNetwork().getStake(vote.origin);
+    if (stake <= 0 || this.block.hash !== vote.hash || this.mapVotes.has(vote.origin)) {
       return false;
     }
 
-    if (!this.mapVotes.has(vote.origin)) {
-      this.mapVotes.set(vote.origin, { origin: vote.origin, sig: vote.sig });
-      this.stakeVotes += stake;
+    this.mapVotes.set(vote.origin, { origin: vote.origin, sig: vote.sig });
+    this.stakeVotes += stake;
+    if (this.stakeVotes >= this.server.getNetwork().getQuorum()) {
+      this.block.votes = this.getArrayVotes();
     }
 
-    return true;
+    return !!this.block.votes.length;
   }
 
-  hasQuorum(quorum: number): boolean {
-    if (this.hasLock() && !this.block.votes.length) {
-      if (this.stakeVotes >= quorum) {
-        this.block.votes = this.getArrayVotes();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  clear(block: BlockStruct) {
+  clear(block: BlockStruct = {} as BlockStruct) {
     if (
       this.inTransit.sig &&
-      !block.tx.some((t) => {
+      (!block.hash || !block.tx.some((t) => {
         return t.sig === this.inTransit.sig;
-      })
+      }))
     ) {
       this.stackTransaction.unshift({ ident: this.inTransit.ident, commands: this.inTransit.commands });
     }
     this.inTransit = {} as TransactionStruct;
+    this.currentHeight = 0;
     this.current = new Map();
-    this.mapLocks = new Map();
+    this.arrayLocks = [];
     this.stakeLocks = 0;
     this.block = {} as BlockStruct;
     this.mapVotes = new Map();
     this.stakeVotes = 0;
-    this.cacheCurrent = [];
     this.hashCurrent = '';
   }
 }

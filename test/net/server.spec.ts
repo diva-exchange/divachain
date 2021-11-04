@@ -34,7 +34,7 @@ import { Logger } from '../../src/logger';
 chai.use(chaiHttp);
 
 const SIZE_TESTNET = 17;
-const NETWORK_SIZE = 7;
+const NETWORK_SIZE = 13;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -157,7 +157,7 @@ class TestServer {
         .send([{ seq: 1, command: 'data', ns: 'test:test', base64url: 'abcABC' + t }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('data' + t);
-      await TestServer.wait(200);
+      await TestServer.wait(50);
     }
 
     for (let t = 0; t < 3; t++) {
@@ -168,7 +168,7 @@ class TestServer {
         .send([{ seq: 1, command: 'decision', ns: 'test:test', base64url: 'abcABC' + t }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('decision' + t);
-      await TestServer.wait(200);
+      await TestServer.wait(500);
     }
 
     console.log('waiting for sync...');
@@ -199,6 +199,7 @@ class TestServer {
   async peers() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const res = await chai.request(`http://${config.ip}:${config.port}`).get('/peers');
+    console.log(res.body);
     expect(res).to.have.status(200);
   }
 
@@ -233,10 +234,7 @@ class TestServer {
   @test
   async pool() {
     const config = [...TestServer.mapConfigServer.values()][0];
-    let res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/transactions');
-    expect(res).to.have.status(200);
-
-    res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/locks');
+    let res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/locks');
     expect(res).to.have.status(200);
 
     res = await chai.request(`http://${config.ip}:${config.port}`).get('/pool/votes');
@@ -304,7 +302,7 @@ class TestServer {
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 30; // transactions
+    const _outer = 100; // transactions
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions

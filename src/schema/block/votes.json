@@ -6,11 +6,11 @@
   "properties": {
     "origin": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{43}$"
+      "pattern": "^[a-f0-9]{64}$"
     },
     "sig": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{86}$"
+      "pattern": "^[a-f0-9]{128}$"
     }
   },
   "additionalProperties": false,

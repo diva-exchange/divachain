@@ -19,13 +19,13 @@
 
 import { Server } from './server';
 import { Request, Response } from 'express';
-import { nanoid } from 'nanoid';
 import fs from 'fs';
 import path from 'path';
 import { BlockStruct } from '../chain/block';
+import { nanoid } from 'nanoid';
 
-const MIN_LENGTH_API_TOKEN = 32;
 export const NAME_HEADER_API_TOKEN = 'diva-api-token';
+const DEFAULT_LENGTH_TOKEN = 32;
 
 export class Api {
   private package: any = require('../../package.json');
@@ -47,8 +47,7 @@ export class Api {
   }
 
   private createToken() {
-    const l = Math.floor((Math.random() * MIN_LENGTH_API_TOKEN) / 3) + MIN_LENGTH_API_TOKEN;
-    fs.writeFileSync(this.pathToken, nanoid(l), { mode: '0600' });
+    fs.writeFileSync(this.pathToken, nanoid(DEFAULT_LENGTH_TOKEN), { mode: '0600' });
     this.token = fs.readFileSync(this.pathToken).toString();
     setTimeout(() => {
       this.createToken();
@@ -108,10 +107,6 @@ export class Api {
 
     this.server.app.get('/stack', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getStack());
-    });
-
-    this.server.app.get('/pool/transactions', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().get());
     });
 
     this.server.app.get('/pool/locks', (req: Request, res: Response) => {

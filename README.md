@@ -131,9 +131,6 @@ _Example:_ `http://url-divachain-api/state/?filter=^DivaExchange:` will return t
 #### GET /stack
 Get the stack (queue) of local transactions.
 
-#### GET /pool/transactions
-Get the current transactions in the pool (to be written to the next possible block). 
-
 #### GET /pool/locks
 Get the current locks on the transaction pool. 
 
