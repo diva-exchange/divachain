@@ -57,6 +57,7 @@ export class Server {
 
   private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutResolveDeadlock: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
@@ -232,22 +233,33 @@ export class Server {
         this.doReleaseTxProposal();
       }, 500);
     }
+
+    ((height) => {
+      clearTimeout(this.timeoutResolveDeadlock);
+      this.timeoutResolveDeadlock = setTimeout(() => {
+        if (!this.pool.hasLock() && this.pool.getHash() && this.pool.getHeight() === height) {
+          //@FIXME logging
+          Logger.trace(`RESOLVE DEADLOCK height ${height} hash ${this.pool.getHash()}`);
+
+          this.network.resetGossip();
+          this.pool.resolveDeadlock();
+        }
+      }, 5000);
+    })(this.pool.getHeight());
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
     const p: TxProposalStruct = proposal.get();
 
     // accept only valid transaction proposals
-    if (!TxProposal.isValid(p)) {
+    if (!TxProposal.isValid(p) || !this.pool.add(p)) {
       return false;
     }
 
-    if (this.pool.add(p)) {
-      clearTimeout(this.timeoutLock);
-      this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, 250);
-    }
+    clearTimeout(this.timeoutLock);
+    this.timeoutLock = setTimeout(() => {
+      this.doLock();
+    }, 250);
 
     return true;
   }
@@ -277,11 +289,9 @@ export class Server {
     const l: VoteStruct = lock.get();
 
     // process only valid locks
-    if (!Lock.isValid(l)) {
+    if (!Lock.isValid(l) || !this.pool.lock(l)) {
       return false;
     }
-
-    this.pool.lock(l);
 
     if (this.pool.hasLock()) {
       clearTimeout(this.timeoutVote);
@@ -289,6 +299,7 @@ export class Server {
         this.doVote();
       }, 0);
     }
+
     return true;
   }
 
@@ -353,6 +364,9 @@ export class Server {
     clearTimeout(this.timeoutVote);
 
     if (this.blockchain.add(block)) {
+      //@FIXME logging
+      Logger.trace('Added block ' + block.height);
+
       this.pool.clear(block);
 
       setImmediate((s: string) => {

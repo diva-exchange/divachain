@@ -33,7 +33,7 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 27;
+const SIZE_TESTNET = 17;
 const NETWORK_SIZE = 7;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
@@ -332,7 +332,7 @@ class TestServer {
       } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 500));
+      await TestServer.wait(1 + Math.floor(Math.random() * 300));
     }
 
     Logger.trace('waiting for sync');

@@ -148,6 +148,10 @@ export class Network {
     });
   }
 
+  resetGossip() {
+    this.arrayGossip = [];
+  }
+
   getQuorum(): number {
     return (2 * this.server.getBlockchain().getQuorum()) / 3; // PBFT, PoS
   }
