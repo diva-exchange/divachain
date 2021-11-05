@@ -371,11 +371,6 @@ export class Blockchain {
       }
       this.quorum = this.quorum + command.stake;
       peer.stake = peer.stake + command.stake;
-
-      //@FIXME logging
-      Logger.trace('Network Quorum: ' + this.quorum);
-      Logger.trace('Peer ' + command.publicKey + ' stake: ' + peer.stake);
-
       this.mapPeer.set(command.publicKey, peer);
       await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
     }

@@ -353,9 +353,6 @@ export class Server {
     clearTimeout(this.timeoutVote);
 
     if (this.blockchain.add(block)) {
-      //@FIXME loggging
-      Logger.trace(`Block added ${block.height}`);
-
       this.pool.clear(block);
 
       setImmediate((s: string) => {
