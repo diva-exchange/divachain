@@ -29,7 +29,7 @@ export class Sync extends Message {
   }
 
   create(arrayBlocks: Array<BlockStruct>): Sync {
-    this.message.ident = this.message.type.toString() + Util.hash(JSON.stringify(arrayBlocks));
+    this.message.ident = [this.message.type, Util.hash(JSON.stringify(arrayBlocks))].join();
     this.message.data = arrayBlocks;
     return this;
   }

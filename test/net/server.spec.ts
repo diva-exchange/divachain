@@ -64,7 +64,7 @@ class TestServer {
         network_size: NETWORK_SIZE,
         network_morph_interval_ms: 120000,
         network_verbose_logging: false,
-        blockchain_max_blocks_in_memory: 5,
+        blockchain_max_blocks_in_memory: 1000,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
@@ -332,7 +332,7 @@ class TestServer {
       } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 200));
+      await TestServer.wait(1 + Math.floor(Math.random() * 500));
     }
 
     Logger.trace('waiting for sync');
@@ -340,7 +340,7 @@ class TestServer {
     await TestServer.wait(30000);
 
     // all blockchains have to be equal
-    const arrayBlocks: Array<any> = [];
+    let arrayBlocks: Array<any> = [];
     for (const config of arrayConfig) {
       const res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/latest');
       arrayBlocks.push(res.body);
@@ -351,6 +351,15 @@ class TestServer {
       console.log(`${i}: ${_b.hash} (${_b.height})`);
       expect(_h).eq(_b.hash);
     });
+
+    // number of transactions must much expectations
+    const res = await chai.request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`).get('/blocks');
+    arrayBlocks = res.body;
+    let amountTransactions = 0;
+    arrayBlocks.forEach((b: BlockStruct) => {
+      amountTransactions += b.tx.length;
+    });
+    console.log('Transactions check: ' + amountTransactions);
 
     let x = 0;
     while (arrayRequests.length) {
@@ -368,7 +377,7 @@ class TestServer {
             : `No performance data for block ${res.body.height}`
         );
       } else {
-        console.error(`Request ${x} not found`);
+        console.error(`Request ${x} not found: ${baseUrl}/transaction/${origin}/${ident}`);
       }
       x++;
     }

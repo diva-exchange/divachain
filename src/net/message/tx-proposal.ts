@@ -34,7 +34,7 @@ export class TxProposal extends Message {
   }
 
   create(structTxProposal: TxProposalStruct): TxProposal {
-    this.message.ident = this.message.type.toString() + structTxProposal.height.toString() + structTxProposal.tx.sig;
+    this.message.ident = [this.message.type, structTxProposal.height, structTxProposal.tx.sig].join();
     this.message.data = structTxProposal;
     return this;
   }

@@ -14,7 +14,7 @@
     },
     "publicKey": {
       "type": "string",
-      "pattern": "^[a-f0-9]{64}$"
+      "pattern": "^[A-Za-z0-9_-]{43}$"
     },
     "stake": {
       "type": "integer",

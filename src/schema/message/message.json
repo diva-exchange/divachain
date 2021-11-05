@@ -6,7 +6,7 @@
   "properties": {
     "ident": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{1,160}$"
+      "pattern": "^[A-Za-z0-9,_-]{1,128}$"
     },
     "type": {
       "type": "integer",
@@ -39,7 +39,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^[a-f0-9]{64}$"
+        "pattern": "^[A-Za-z0-9_-]{43}$"
       },
       "minItems": 1,
       "uniqueItems": true

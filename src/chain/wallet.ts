@@ -21,6 +21,7 @@ import sodium from 'sodium-native';
 import fs from 'fs';
 import path from 'path';
 import { Config } from '../config';
+import base64url from 'base64url';
 
 export class Wallet {
   private config: Config;
@@ -65,7 +66,7 @@ export class Wallet {
 
   /**
    * @param data {string}
-   * @returns {string} - hex encoded signature
+   * @returns {string} - base64url encoded signature
    */
   sign(data: string): string {
     if (!this.ident) {
@@ -75,16 +76,16 @@ export class Wallet {
     const bufferSignature: Buffer = Buffer.alloc(sodium.crypto_sign_BYTES);
     sodium.crypto_sign_detached(bufferSignature, Buffer.from(data), this.secretKey);
 
-    return bufferSignature.toString('hex');
+    return base64url.encode(bufferSignature.toString('binary'), 'binary');
   }
 
   /**
-   * @returns {string} - hex encoded
+   * @returns {string} - base64url encoded
    */
   getPublicKey(): string {
     if (!this.ident) {
       this.open();
     }
-    return this.publicKey.toString('hex');
+    return base64url.encode(this.publicKey.toString('binary'), 'binary');
   }
 }

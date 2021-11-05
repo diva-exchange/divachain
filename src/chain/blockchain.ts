@@ -87,13 +87,13 @@ export class Blockchain {
     });
   }
 
-  private async init(): Promise<void> {
+  private async init() {
     this.height = 0;
     this.mapBlocks = new Map();
     this.latestBlock = {} as BlockStruct;
     await this.dbState.clear();
 
-    return new Promise((resolve, reject) => {
+    await new Promise((resolve, reject) => {
       this.dbBlockchain
         .createReadStream()
         .on('data', async (data) => {
@@ -229,17 +229,21 @@ export class Blockchain {
       }
 
       // disk
+      let b: BlockStruct = {} as BlockStruct;
+      let t: TransactionStruct = {} as TransactionStruct;
       this.dbBlockchain
         .createValueStream()
         .on('data', (data) => {
-          const b: BlockStruct = JSON.parse(data) as BlockStruct;
-          const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
-          t && resolve({ height: b.height, transaction: t });
+          if (!t.origin) {
+            b = JSON.parse(data) as BlockStruct;
+            t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident) ||
+              {} as TransactionStruct;
+          }
         })
         .on('end', () => {
-          reject(new Error('Not found'));
+          t.origin ? resolve({ height: b.height, transaction: t }) : reject(new Error('Not Found'));
         })
-        .on('error', reject);
+        .on('error', reject)
     });
   }
 
@@ -252,7 +256,7 @@ export class Blockchain {
           .on('data', (data) => {
             a.push({ key: data.key.toString(), value: data.value.toString() });
             if (a.length === this.server.config.blockchain_max_query_size) {
-              resolve(a);
+              return resolve(a);
             }
           })
           .on('end', () => {

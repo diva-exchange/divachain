@@ -17,30 +17,31 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+import base64url from 'base64url';
 import sodium from 'sodium-native';
 
 export class Util {
   /**
    * @param s {string}
-   * @returns {string} - hash, hex encoded
+   * @returns {string} - hash, base64url encoded
    */
   static hash(s: string): string {
     const bufferOutput: Buffer = Buffer.alloc(sodium.crypto_hash_sha256_BYTES);
     sodium.crypto_hash_sha256(bufferOutput, Buffer.from(s));
-    return bufferOutput.toString('hex');
+    return base64url.encode(bufferOutput.toString('binary'), 'binary');
   }
 
   /**
-   * @param {string} publicKey - hex encoded
-   * @param {string} sig - hex encoded
+   * @param {string} publicKey - base64url encoded
+   * @param {string} sig - base64url encoded
    * @param {string} data
    * @returns {boolean}
    */
   static verifySignature(publicKey: string, sig: string, data: string): boolean {
     return sodium.crypto_sign_verify_detached(
-      Buffer.from(sig, 'hex'),
+      Buffer.from(base64url.decode(sig, 'binary'), 'binary'),
       Buffer.from(data),
-      Buffer.from(publicKey, 'hex')
+      Buffer.from(base64url.decode(publicKey, 'binary'), 'binary')
     );
   }
 

@@ -17,6 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
+
 'use strict';
 
 import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
@@ -26,6 +27,7 @@ import { Util } from '../chain/util';
 import { VoteStruct } from './message/vote';
 import { Server } from './server';
 import { nanoid } from 'nanoid';
+import {TxProposalStruct} from './message/tx-proposal';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -44,9 +46,9 @@ export class Pool {
   private readonly server: Server;
 
   private stackTransaction: Array<recordStack> = [];
-  private inTransit: TransactionStruct = {} as TransactionStruct;
+  private inTransit: TxProposalStruct = {} as TxProposalStruct;
 
-  private currentHeight: number = 0;
+  private currentHeight: number;
   private current: Map<string, TransactionStruct> = new Map();
   private hashCurrent: string = '';
 
@@ -63,6 +65,7 @@ export class Pool {
 
   private constructor(server: Server) {
     this.server = server;
+    this.currentHeight = server.getBlockchain().getHeight() + 1;
   }
 
   stack(ident: string, commands: ArrayCommand): string | false {
@@ -75,33 +78,27 @@ export class Pool {
       : false;
   }
 
-  release(height: number): TransactionStruct | false {
-    if (this.currentHeight === height && this.inTransit.ident) {
-      return this.inTransit;
+  release(): TxProposalStruct | false {
+    if (!this.inTransit.height && this.stackTransaction.length) {
+      const r: recordStack = this.stackTransaction.shift() as recordStack;
+      this.inTransit = {
+        height: this.currentHeight,
+        tx: new Transaction(this.server.getWallet(), this.currentHeight, r.ident, r.commands).get()
+      };
     }
-    this.currentHeight = height;
-    if (this.inTransit.ident) {
-      this.stackTransaction.unshift({ ident: this.inTransit.ident, commands: this.inTransit.commands });
-    }
-    if (!this.stackTransaction.length) {
-      return false;
-    }
-
-    const r: recordStack = this.stackTransaction.shift() as recordStack;
-    this.inTransit = new Transaction(this.server.getWallet(), this.currentHeight, r.ident, r.commands).get();
-    return this.inTransit;
+    return this.inTransit.height ? this.inTransit : false;
   }
 
   getStack() {
     return this.stackTransaction;
   }
 
-  add(tx: TransactionStruct): boolean {
-    if (this.hasLock() || this.current.has(tx.origin)) {
+  add(p: TxProposalStruct): boolean {
+    if (p.height !== this.currentHeight || this.hasLock() || this.current.has(p.tx.origin)) {
       return false;
     }
 
-    this.current.set(tx.origin, tx);
+    this.current.set(p.tx.origin, p.tx);
     this.hashCurrent = Util.hash([...this.current.keys()].sort().join());
     this.arrayLocks = [];
     this.stakeLocks = 0;
@@ -162,17 +159,19 @@ export class Pool {
     return !!this.block.votes.length;
   }
 
-  clear(block: BlockStruct = {} as BlockStruct) {
+  clear(block: BlockStruct) {
     if (
-      this.inTransit.sig &&
-      (!block.hash || !block.tx.some((t) => {
-        return t.sig === this.inTransit.sig;
+      this.inTransit.height &&
+      (!block.tx.some((t) => {
+        return t.sig === this.inTransit.tx.sig;
       }))
     ) {
-      this.stackTransaction.unshift({ ident: this.inTransit.ident, commands: this.inTransit.commands });
+      this.stackTransaction.unshift({ ident: this.inTransit.tx.ident, commands: this.inTransit.tx.commands });
     }
-    this.inTransit = {} as TransactionStruct;
-    this.currentHeight = 0;
+    this.inTransit = {} as TxProposalStruct;
+    this.currentHeight = block.height + 1;
+    this.release();
+
     this.current = new Map();
     this.arrayLocks = [];
     this.stakeLocks = 0;

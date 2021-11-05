@@ -34,7 +34,7 @@ export class Vote extends Message {
   }
 
   create(structVote: VoteStruct): Vote {
-    this.message.ident = this.message.type.toString() + structVote.sig;
+    this.message.ident = [this.message.type, structVote.sig].join();
     this.message.data = structVote;
     return this;
   }

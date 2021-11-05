@@ -29,7 +29,7 @@ export class Lock extends Message {
   }
 
   create(structLock: VoteStruct): Lock {
-    this.message.ident = this.message.type.toString() + structLock.sig;
+    this.message.ident = [this.message.type, structLock.sig].join();
     this.message.data = structLock;
     return this;
   }

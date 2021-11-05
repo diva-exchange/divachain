@@ -148,9 +148,6 @@ export class Server {
     this.blockchain = await Blockchain.make(this);
     Logger.info('Blockchain initialized');
 
-    this.pool = Pool.make(this);
-    Logger.info('Pool initialized');
-
     await this.httpServer.listen(this.config.port, this.config.ip);
 
     if (this.config.bootstrap) {
@@ -163,6 +160,9 @@ export class Server {
     if (this.blockchain.getHeight() === 0) {
       await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
     }
+
+    this.pool = Pool.make(this);
+    Logger.info('Pool initialized');
 
     return this;
   }
@@ -219,15 +219,11 @@ export class Server {
   }
 
   private doReleaseTxProposal() {
-    const h = this.blockchain.getHeight() + 1;
-    const tx = this.pool.release(h);
-    if (tx) {
+    const p = this.pool.release();
+    if (p) {
       this.network.processMessage(
         new TxProposal()
-          .create({
-            height: h,
-            tx: tx,
-          })
+          .create(p)
           .pack()
       );
 
@@ -242,16 +238,15 @@ export class Server {
     const p: TxProposalStruct = proposal.get();
 
     // accept only valid transaction proposals
-    // process proposals must match the height of the next block
-    if (!TxProposal.isValid(p) || p.height !== this.blockchain.getHeight() + 1) {
+    if (!TxProposal.isValid(p)) {
       return false;
     }
 
-    if (this.pool.add(p.tx)) {
+    if (this.pool.add(p)) {
       clearTimeout(this.timeoutLock);
       this.timeoutLock = setTimeout(() => {
         this.doLock();
-      }, 500);
+      }, 250);
     }
 
     return true;
@@ -274,7 +269,7 @@ export class Server {
       // retry
       this.timeoutLock = setTimeout(() => {
         this.doLock();
-      }, 2000);
+      }, 500);
     }
   }
 
@@ -315,7 +310,7 @@ export class Server {
         // retry
         this.timeoutVote = setTimeout(() => {
           this.doVote();
-        }, 2000);
+        }, 500);
       }
     }
   }
@@ -355,6 +350,10 @@ export class Server {
   }
 
   private addBlock(block: BlockStruct) {
+    clearTimeout(this.timeoutRelease);
+    clearTimeout(this.timeoutLock);
+    clearTimeout(this.timeoutVote);
+
     if (this.blockchain.add(block)) {
       //@FIXME loggging
       Logger.trace(`Block added ${block.height}`);
@@ -365,12 +364,9 @@ export class Server {
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
       }, JSON.stringify(block));
 
-      clearTimeout(this.timeoutRelease);
       this.timeoutRelease = setTimeout(() => {
         this.doReleaseTxProposal();
       }, 0);
-    } else {
-      this.pool.clear();
     }
   }
 
