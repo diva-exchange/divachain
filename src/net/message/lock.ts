@@ -28,8 +28,8 @@ export class Lock extends Message {
     this.message.broadcast = true;
   }
 
-  create(structLock: VoteStruct): Lock {
-    this.message.ident = [this.message.type, structLock.sig].join();
+  create(structLock: VoteStruct, retry: number): Lock {
+    this.message.ident = [this.message.type, retry, structLock.sig].join();
     this.message.data = structLock;
     return this;
   }

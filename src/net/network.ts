@@ -67,6 +67,10 @@ export class Network {
   private timeoutPing: Timeout = {} as Timeout;
   private timeoutClean: Timeout = {} as Timeout;
 
+  public PBFT_LOCK_MS: number = 0;
+  public PBFT_RETRY_MS: number = 0;
+  public PBFT_DEADLOCK_MS: number = 0;
+
   static make(server: Server, onMessage: Function) {
     return new Network(server, onMessage);
   }
@@ -148,10 +152,6 @@ export class Network {
     });
   }
 
-  resetGossip() {
-    this.arrayGossip = [];
-  }
-
   getQuorum(): number {
     return (2 * this.server.getBlockchain().getQuorum()) / 3; // PBFT, PoS
   }
@@ -225,16 +225,16 @@ export class Network {
       Logger.trace(`${_l} Type: ${m.getMessage().type} Ident: ${m.getMessage().ident}`);
     }
 
+    // stateless validation
+    if (!Validation.validateMessage(m)) {
+      return;
+    }
+
     // prevent duplicate message gossipping
     if (this.arrayGossip.includes(m.ident())) {
       return;
     }
     this.arrayGossip.push(m.ident());
-
-    // stateless validation
-    if (!Validation.validateMessage(m)) {
-      return;
-    }
 
     // process message handler callback and - if successful - continue with broadcasting
     if (this._onMessage && this._onMessage(m.type(), message) && m.isBroadcast()) {
@@ -427,6 +427,11 @@ export class Network {
     this.timeoutMorph = setTimeout(() => {
       this.morphPeerNetwork();
     }, this.server.config.network_morph_interval_ms);
+
+    this.PBFT_LOCK_MS = this.server.config.pbft_lock_ms * net.length;
+    this.PBFT_RETRY_MS = this.server.config.pbft_retry_ms * net.length;
+    this.PBFT_DEADLOCK_MS = this.server.config.pbft_deadlock_ms * net.length;
+    Logger.info(`PBFT: lock ${this.PBFT_LOCK_MS}ms; retry ${this.PBFT_RETRY_MS}ms; deadlock ${this.PBFT_DEADLOCK_MS}ms`);
   }
 
   private clean() {

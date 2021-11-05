@@ -38,9 +38,9 @@ export type Configuration = {
   i2p_socks_proxy_port?: number;
   i2p_socks_proxy_console_port?: number;
 
-  pbft_min_timeout_ms?: number;
-  pbft_max_timeout_ms?: number;
-  pbft_growth_factor_timeout_ms?: number;
+  pbft_lock_ms?: number;
+  pbft_retry_ms?: number;
+  pbft_deadlock_ms?: number;
 
   network_size?: number;
   network_morph_interval_ms?: number;
@@ -63,9 +63,9 @@ const DEFAULT_PORT = 17468;
 const DEFAULT_PORT_BLOCK_FEED = 17469;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
-const DEFAULT_PBFT_MIN_TIMEOUT_MS = 100;
-const DEFAULT_PBFT_MAX_TIMEOUT_MS = 1000;
-const DEFAULT_PBFT_GROWTH_FACTOR_TIMEOUT_MS = 2;
+const DEFAULT_PBFT_LOCK_MS = 10; // multiplied by number of peers in the network
+const DEFAULT_PBFT_RETRY_MS = 100; // multiplied by number of peers in the network
+const DEFAULT_PBFT_DEADLOCK_MS = 200; // multiplied by number of peers in the network
 
 const MIN_NETWORK_SIZE = 7;
 const MAX_NETWORK_SIZE = 64;
@@ -98,9 +98,9 @@ export class Config {
   public readonly i2p_socks_proxy_host: string;
   public readonly i2p_socks_proxy_port: number;
   public readonly i2p_socks_proxy_console_port: number;
-  public readonly pbft_min_timeout_ms: number;
-  public readonly pbft_max_timeout_ms: number;
-  public readonly pbft_growth_factor_timeout_ms: number;
+  public readonly pbft_lock_ms: number;
+  public readonly pbft_retry_ms: number;
+  public readonly pbft_deadlock_ms: number;
   public readonly network_size: number;
   public readonly network_morph_interval_ms: number;
   public readonly network_refresh_interval_ms: number;
@@ -191,17 +191,17 @@ export class Config {
       c.i2p_socks_proxy_console_port || process.env.I2P_SOCKS_PROXY_CONSOLE_PORT
     );
 
-    this.pbft_min_timeout_ms = Config.gte1(
-      c.pbft_min_timeout_ms || process.env.PBFT_MIN_TIMEOUT_MS,
-      DEFAULT_PBFT_MIN_TIMEOUT_MS
+    this.pbft_lock_ms = Config.gte1(
+      c.pbft_lock_ms || process.env.PBFT_LOCK_MS,
+      DEFAULT_PBFT_LOCK_MS
     );
-    this.pbft_max_timeout_ms = Config.gte1(
-      c.pbft_max_timeout_ms || process.env.PBFT_MAX_TIMEOUT_MS,
-      DEFAULT_PBFT_MAX_TIMEOUT_MS
+    this.pbft_retry_ms = Config.gte1(
+      c.pbft_retry_ms || process.env.PBFT_RETRY_MS,
+      DEFAULT_PBFT_RETRY_MS
     );
-    this.pbft_growth_factor_timeout_ms = Config.gte1(
-      c.pbft_growth_factor_timeout_ms || process.env.PBFT_GROWTH_FACTOR_TIMEOUT_MS,
-      DEFAULT_PBFT_GROWTH_FACTOR_TIMEOUT_MS
+    this.pbft_deadlock_ms = Config.gte1(
+      c.pbft_deadlock_ms || process.env.PBFT_DEADLOCK_MS,
+      DEFAULT_PBFT_DEADLOCK_MS
     );
 
     this.network_size = Config.b(c.network_size || process.env.NETWORK_SIZE, MIN_NETWORK_SIZE, MAX_NETWORK_SIZE);

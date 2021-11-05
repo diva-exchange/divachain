@@ -70,7 +70,7 @@ class TestValidation {
       origin: TestValidation.wallet.getPublicKey(),
       hash: hash,
       sig: TestValidation.wallet.sign(hash),
-    });
+    }, 1);
     expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 }

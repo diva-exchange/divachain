@@ -236,14 +236,15 @@ export class Blockchain {
         .on('data', (data) => {
           if (!t.origin) {
             b = JSON.parse(data) as BlockStruct;
-            t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident) ||
-              {} as TransactionStruct;
+            t =
+              b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident) ||
+              ({} as TransactionStruct);
           }
         })
         .on('end', () => {
           t.origin ? resolve({ height: b.height, transaction: t }) : reject(new Error('Not Found'));
         })
-        .on('error', reject)
+        .on('error', reject);
     });
   }
 

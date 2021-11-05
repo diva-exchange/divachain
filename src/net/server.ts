@@ -57,7 +57,6 @@ export class Server {
 
   private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutResolveDeadlock: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
@@ -219,52 +218,40 @@ export class Server {
     return this.pool.stack(ident, arrayCommand);
   }
 
-  private doReleaseTxProposal() {
+  private doReleaseTxProposal(retry: number = 0) {
     const p = this.pool.release();
     if (p) {
-      this.network.processMessage(
-        new TxProposal()
-          .create(p)
-          .pack()
-      );
-
-      // retry
-      this.timeoutRelease = setTimeout(() => {
-        this.doReleaseTxProposal();
-      }, 500);
+      this.network.processMessage(new TxProposal().create(p, retry).pack());
     }
 
-    ((height) => {
-      clearTimeout(this.timeoutResolveDeadlock);
-      this.timeoutResolveDeadlock = setTimeout(() => {
-        if (!this.pool.hasLock() && this.pool.getHash() && this.pool.getHeight() === height) {
-          //@FIXME logging
-          Logger.trace(`RESOLVE DEADLOCK height ${height} hash ${this.pool.getHash()}`);
-
-          this.network.resetGossip();
-          this.pool.resolveDeadlock();
-        }
-      }, 5000);
-    })(this.pool.getHeight());
+    // retry
+    retry++;
+    this.timeoutRelease = setTimeout(() => {
+      this.doReleaseTxProposal(retry);
+    }, this.network.PBFT_RETRY_MS);
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
     const p: TxProposalStruct = proposal.get();
 
     // accept only valid transaction proposals
-    if (!TxProposal.isValid(p) || !this.pool.add(p)) {
+    if (!TxProposal.isValid(p)) {
+      return false;
+    }
+
+    if (!this.pool.add(p)) {
       return false;
     }
 
     clearTimeout(this.timeoutLock);
     this.timeoutLock = setTimeout(() => {
       this.doLock();
-    }, 250);
+    }, this.network.PBFT_LOCK_MS); // higher value = higher tx density within a block
 
     return true;
   }
 
-  private doLock() {
+  private doLock(retry: number = 0) {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock (which is a VoteStruct)
@@ -274,14 +261,15 @@ export class Server {
             origin: this.wallet.getPublicKey(),
             hash: hash,
             sig: this.wallet.sign(hash),
-          })
+          }, retry)
           .pack()
       );
 
       // retry
+      retry++;
       this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, 500);
+        this.doLock(retry);
+      }, this.network.PBFT_RETRY_MS);
     }
   }
 
@@ -303,7 +291,7 @@ export class Server {
     return true;
   }
 
-  private doVote() {
+  private doVote(retry: number = 0) {
     const block = this.pool.getBlock();
     if (block.hash) {
       // send out the vote
@@ -313,14 +301,15 @@ export class Server {
             origin: this.wallet.getPublicKey(),
             hash: block.hash,
             sig: this.wallet.sign(block.hash),
-          })
+          }, retry)
           .pack()
       );
 
       // retry
+      retry++;
       this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, 500);
+        this.doVote(retry);
+      }, this.network.PBFT_RETRY_MS);
     }
   }
 
@@ -372,11 +361,11 @@ export class Server {
       setImmediate((s: string) => {
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
       }, JSON.stringify(block));
-
-      this.timeoutRelease = setTimeout(() => {
-        this.doReleaseTxProposal();
-      }, 0);
     }
+
+    this.timeoutRelease = setTimeout(() => {
+      this.doReleaseTxProposal();
+    }, 0);
   }
 
   private onMessage(type: number, message: Buffer | string): boolean {

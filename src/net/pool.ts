@@ -17,7 +17,6 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-
 'use strict';
 
 import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
@@ -27,7 +26,7 @@ import { Util } from '../chain/util';
 import { VoteStruct } from './message/vote';
 import { Server } from './server';
 import { nanoid } from 'nanoid';
-import {TxProposalStruct} from './message/tx-proposal';
+import { TxProposalStruct } from './message/tx-proposal';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -49,6 +48,7 @@ export class Pool {
   private inTransit: TxProposalStruct = {} as TxProposalStruct;
 
   private current: Map<string, TransactionStruct> = new Map();
+  private cacheCurrent: Array<TransactionStruct> = [];
   private hashCurrent: string = '';
   private heightCurrent: number;
 
@@ -58,6 +58,8 @@ export class Pool {
 
   private mapVotes: Map<string, recordVote> = new Map();
   private stakeVotes: number = 0;
+
+  private timeoutResolveDeadlock: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   static make(server: Server) {
     return new Pool(server);
@@ -83,7 +85,7 @@ export class Pool {
       const r: recordStack = this.stackTransaction.shift() as recordStack;
       this.inTransit = {
         height: this.heightCurrent,
-        tx: new Transaction(this.server.getWallet(), this.heightCurrent, r.ident, r.commands).get()
+        tx: new Transaction(this.server.getWallet(), this.heightCurrent, r.ident, r.commands).get(),
       };
     }
     return this.inTransit.height ? this.inTransit : false;
@@ -94,25 +96,26 @@ export class Pool {
   }
 
   add(p: TxProposalStruct): boolean {
-    if (p.height !== this.heightCurrent || this.hasLock()) {
+    if (p.height !== this.heightCurrent || this.current.has(p.tx.origin)) {
       return false;
     }
 
-    if (!this.current.has(p.tx.origin)) {
-      this.current.set(p.tx.origin, p.tx);
-      this.hashCurrent = Util.hash([...this.current.keys()].sort().join());
+    this.current.set(p.tx.origin, p.tx);
+    this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
+    this.hashCurrent = Util.hash(this.cacheCurrent.reduce((s, tx) => s + tx.sig, ''));
+    this.arrayLocks = [];
+    this.stakeLocks = 0;
+
+    clearTimeout(this.timeoutResolveDeadlock);
+    this.timeoutResolveDeadlock = setTimeout(() => {
       this.arrayLocks = [];
       this.stakeLocks = 0;
-    }
+      this.block = {} as BlockStruct;
+      this.mapVotes = new Map();
+      this.stakeVotes = 0;
+    }, this.server.getNetwork().PBFT_DEADLOCK_MS);
 
     return true;
-  }
-
-  resolveDeadlock() {
-    if (!this.hasLock()) {
-      this.arrayLocks = [];
-      this.stakeLocks = 0;
-    }
   }
 
   getArrayLocks(): Array<string> {
@@ -127,31 +130,22 @@ export class Pool {
     return this.hashCurrent;
   }
 
-  getHeight(): number {
-    return this.heightCurrent;
-  }
-
   getBlock(): BlockStruct {
     return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
   lock(lock: VoteStruct): boolean {
-    if (this.hasLock() || lock.hash !== this.hashCurrent) {
+    if (this.hasLock() || lock.hash !== this.hashCurrent || this.arrayLocks.includes(lock.origin)) {
       return false;
     }
 
-    if (!this.arrayLocks.includes(lock.origin)) {
-      this.arrayLocks.push(lock.origin);
-      this.stakeLocks += this.server.getNetwork().getStake(lock.origin);
+    this.arrayLocks.push(lock.origin);
+    this.stakeLocks += this.server.getNetwork().getStake(lock.origin);
 
-      if (this.stakeLocks >= this.server.getNetwork().getQuorum()) {
-        this.block = Block.make(
-          this.server.getBlockchain().getLatestBlock(),
-          [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1))
-        );
-        this.mapVotes = new Map();
-        this.stakeVotes = 0;
-      }
+    if (this.stakeLocks >= this.server.getNetwork().getQuorum()) {
+      this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.cacheCurrent);
+      this.mapVotes = new Map();
+      this.stakeVotes = 0;
     }
 
     return true;
@@ -168,11 +162,12 @@ export class Pool {
 
     const stake = this.server.getNetwork().getStake(vote.origin);
     if (stake > 0) {
-      this.mapVotes.set(vote.origin, {origin: vote.origin, sig: vote.sig});
+      this.mapVotes.set(vote.origin, { origin: vote.origin, sig: vote.sig });
       this.stakeVotes += stake;
     }
 
     if (this.stakeVotes >= this.server.getNetwork().getQuorum()) {
+      clearTimeout(this.timeoutResolveDeadlock);
       this.block.votes = this.getArrayVotes();
     }
 
@@ -182,9 +177,9 @@ export class Pool {
   clear(block: BlockStruct) {
     if (
       this.inTransit.height &&
-      (!block.tx.some((t) => {
+      !block.tx.some((t) => {
         return t.sig === this.inTransit.tx.sig;
-      }))
+      })
     ) {
       this.stackTransaction.unshift({ ident: this.inTransit.tx.ident, commands: this.inTransit.tx.commands });
     }

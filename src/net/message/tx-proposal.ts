@@ -33,8 +33,8 @@ export class TxProposal extends Message {
     this.message.broadcast = true;
   }
 
-  create(structTxProposal: TxProposalStruct): TxProposal {
-    this.message.ident = [this.message.type, structTxProposal.height, structTxProposal.tx.sig].join();
+  create(structTxProposal: TxProposalStruct, retry: number): TxProposal {
+    this.message.ident = [this.message.type, retry, structTxProposal.height, structTxProposal.tx.sig].join();
     this.message.data = structTxProposal;
     return this;
   }

@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 17;
-const NETWORK_SIZE = 7;
+const SIZE_TESTNET = 37; // total peers in the whole network
+const NETWORK_SIZE = 13; // number of peers a single peer tries to connect to...
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -302,7 +302,7 @@ class TestServer {
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 100; // transactions
+    const _outer = 500; // transactions
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions
@@ -332,12 +332,12 @@ class TestServer {
       } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 300));
+      await TestServer.wait(1 + Math.floor(Math.random() * 100));
     }
 
     Logger.trace('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(30000);
+    await TestServer.wait(60000);
 
     // all blockchains have to be equal
     let arrayBlocks: Array<any> = [];

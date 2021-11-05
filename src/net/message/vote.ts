@@ -33,8 +33,8 @@ export class Vote extends Message {
     this.message.broadcast = true;
   }
 
-  create(structVote: VoteStruct): Vote {
-    this.message.ident = [this.message.type, structVote.sig].join();
+  create(structVote: VoteStruct, retry: number): Vote {
+    this.message.ident = [this.message.type, retry, structVote.sig].join();
     this.message.data = structVote;
     return this;
   }
