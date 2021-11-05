@@ -145,13 +145,16 @@ export class Pool {
   }
 
   addVote(vote: VoteStruct): boolean {
-    const stake = this.server.getNetwork().getStake(vote.origin);
-    if (stake <= 0 || this.block.hash !== vote.hash || this.mapVotes.has(vote.origin)) {
+    if (this.block.hash !== vote.hash || this.mapVotes.has(vote.origin)) {
       return false;
     }
 
-    this.mapVotes.set(vote.origin, { origin: vote.origin, sig: vote.sig });
-    this.stakeVotes += stake;
+    const stake = this.server.getNetwork().getStake(vote.origin);
+    if (stake > 0) {
+      this.mapVotes.set(vote.origin, {origin: vote.origin, sig: vote.sig});
+      this.stakeVotes += stake;
+    }
+
     if (this.stakeVotes >= this.server.getNetwork().getQuorum()) {
       this.block.votes = this.getArrayVotes();
     }

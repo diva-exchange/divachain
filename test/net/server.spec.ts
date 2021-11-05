@@ -34,7 +34,7 @@ import { Logger } from '../../src/logger';
 chai.use(chaiHttp);
 
 const SIZE_TESTNET = 17;
-const NETWORK_SIZE = 13;
+const NETWORK_SIZE = 7;
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -332,7 +332,7 @@ class TestServer {
       } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 500));
+      await TestServer.wait(1 + Math.floor(Math.random() * 200));
     }
 
     Logger.trace('waiting for sync');
@@ -352,8 +352,8 @@ class TestServer {
       expect(_h).eq(_b.hash);
     });
 
-    // number of transactions must much expectations
-    const res = await chai.request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`).get('/blocks');
+    // number of transactions must match expectations
+    const res = await chai.request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`).get('/blocks/2');
     arrayBlocks = res.body;
     let amountTransactions = 0;
     arrayBlocks.forEach((b: BlockStruct) => {

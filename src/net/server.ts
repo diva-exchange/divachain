@@ -293,25 +293,23 @@ export class Server {
   }
 
   private doVote() {
-    if (this.network.getStake(this.wallet.getPublicKey()) > 0) {
-      const block = this.pool.getBlock();
-      if (block.hash) {
-        // send out the vote
-        this.network.processMessage(
-          new Vote()
-            .create({
-              origin: this.wallet.getPublicKey(),
-              hash: block.hash,
-              sig: this.wallet.sign(block.hash),
-            })
-            .pack()
-        );
+    const block = this.pool.getBlock();
+    if (block.hash) {
+      // send out the vote
+      this.network.processMessage(
+        new Vote()
+          .create({
+            origin: this.wallet.getPublicKey(),
+            hash: block.hash,
+            sig: this.wallet.sign(block.hash),
+          })
+          .pack()
+      );
 
-        // retry
-        this.timeoutVote = setTimeout(() => {
-          this.doVote();
-        }, 500);
-      }
+      // retry
+      this.timeoutVote = setTimeout(() => {
+        this.doVote();
+      }, 500);
     }
   }
 
