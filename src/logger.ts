@@ -26,17 +26,13 @@ export const Logger = pino(
 );
 
 process.on(
-  'uncaughtException',
-  pino.final(Logger, (err, finalLogger) => {
-    finalLogger.error(err, 'uncaughtException');
+  'uncaughtException', (err) => {
+    Logger.fatal(err, 'uncaughtException');
     process.env.NODE_ENV !== 'test' && process.exit(1);
-  })
-);
+  });
 
 process.on(
-  'unhandledRejection',
-  pino.final(Logger, (err, finalLogger) => {
-    finalLogger.error(err, 'unhandledRejection');
+  'unhandledRejection', (err) => {
+    Logger.fatal(err, 'unhandledRejection');
     process.env.NODE_ENV !== 'test' && process.exit(1);
-  })
-);
+  });
