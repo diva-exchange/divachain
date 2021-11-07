@@ -21,7 +21,6 @@
 
 import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
 import { Block, BlockStruct } from '../chain/block';
-import { Validation } from './validation';
 import { Util } from '../chain/util';
 import { VoteStruct } from './message/vote';
 import { Server } from './server';
@@ -75,7 +74,8 @@ export class Pool {
 
     // test for transaction validity, use any valid height - so 1 is just fine
     const tx = new Transaction(this.server.getWallet(), 1, ident, commands).get();
-    return Validation.validateTx(1, tx) && this.stackTransaction.push({ ident: ident, commands: commands }) > 0
+    return this.server.getValidation().validateTx(1, tx) &&
+      this.stackTransaction.push({ ident: ident, commands: commands }) > 0
       ? ident
       : false;
   }
@@ -113,7 +113,7 @@ export class Pool {
       this.block = {} as BlockStruct;
       this.mapVotes = new Map();
       this.stakeVotes = 0;
-    }, this.server.getNetwork().PBFT_DEADLOCK_MS);
+    }, this.server.config.pbft_deadlock_ms);
 
     return true;
   }
@@ -185,8 +185,6 @@ export class Pool {
     }
     this.inTransit = {} as TxProposalStruct;
     this.heightCurrent = block.height + 1;
-    this.release();
-
     this.current = new Map();
     this.arrayLocks = [];
     this.stakeLocks = 0;

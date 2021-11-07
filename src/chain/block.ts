@@ -19,7 +19,6 @@
 
 import { Util } from './util';
 import { TransactionStruct } from './transaction';
-import { Validation } from '../net/validation';
 import { BLOCK_VERSION } from '../config';
 
 export type BlockStruct = {
@@ -40,11 +39,7 @@ export class Block {
   readonly tx: Array<TransactionStruct>;
 
   static make(previousBlock: BlockStruct, tx: Array<TransactionStruct>): BlockStruct {
-    const b = new Block(previousBlock, tx).get();
-    if (!Validation.validateBlock(b)) {
-      throw new Error('Invalid Block');
-    }
-    return b;
+    return new Block(previousBlock, tx).get();
   }
 
   private constructor(previousBlock: BlockStruct, tx: Array<TransactionStruct>) {

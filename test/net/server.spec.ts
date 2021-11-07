@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 37; // total peers in the whole network
-const NETWORK_SIZE = 13; // number of peers a single peer tries to connect to...
+const SIZE_TESTNET = 13; // total peers in the whole network
+const NETWORK_SIZE = 11; // number of peers a single peer tries to connect to...
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -51,8 +51,9 @@ class TestServer {
 
     const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
     let s = 1;
+    let config = {} as Config;
     for (let i = 1; i <= SIZE_TESTNET; i++) {
-      const config = new Config({
+      config = new Config({
         no_bootstrapping: 1,
         ip: IP,
         port: BASE_PORT + i,
@@ -62,9 +63,12 @@ class TestServer {
         path_blockstore: path.join(__dirname, '../blockstore'),
         path_keys: path.join(__dirname, '../keys'),
         network_size: NETWORK_SIZE,
-        network_morph_interval_ms: 120000,
+        network_morph_interval_ms: 60000,
         network_verbose_logging: false,
         blockchain_max_blocks_in_memory: 1000,
+        pbft_lock_ms: 200,
+        pbft_retry_ms: 500,
+        pbft_deadlock_ms: 5000,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
@@ -332,12 +336,12 @@ class TestServer {
       } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 100));
+      await TestServer.wait(1 + Math.floor(Math.random() * 300));
     }
 
     Logger.trace('waiting for sync');
     // wait for a possible sync
-    await TestServer.wait(60000);
+    await TestServer.wait(20000);
 
     // all blockchains have to be equal
     let arrayBlocks: Array<any> = [];

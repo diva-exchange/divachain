@@ -23,7 +23,6 @@ import { Challenge } from './message/challenge';
 import { Message } from './message/message';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import WebSocket from 'ws';
-import { Validation } from './validation';
 import { Util } from '../chain/util';
 import { Server } from './server';
 import { Sync } from './message/sync';
@@ -67,10 +66,6 @@ export class Network {
   private timeoutPing: Timeout = {} as Timeout;
   private timeoutClean: Timeout = {} as Timeout;
 
-  public PBFT_LOCK_MS: number = 0;
-  public PBFT_RETRY_MS: number = 0;
-  public PBFT_DEADLOCK_MS: number = 0;
-
   static make(server: Server, onMessage: Function) {
     return new Network(server, onMessage);
   }
@@ -81,8 +76,6 @@ export class Network {
 
     this.publicKey = this.server.getWallet().getPublicKey();
     Logger.info(`Network, public key: ${this.publicKey}`);
-
-    Validation.init();
 
     // incoming connection
     this.server.getWebSocketServer().on('connection', (ws, request) => {
@@ -99,12 +92,7 @@ export class Network {
       Logger.warn('WebsocketServer error: ' + JSON.stringify(error));
     });
 
-    const startDelayMs = this.server.config.i2p_socks_proxy_host
-      ? this.server.config.network_morph_interval_ms
-      : this.server.config.network_refresh_interval_ms;
-
-    Logger.info(`Starting P2P network in about ${Math.floor(startDelayMs / 1000)} secs`);
-
+    //@FIXME might go wrong, if the P2P network starts too early... (look at flow)
     // initial timeout
     setTimeout(() => {
       Logger.info('Starting P2P network');
@@ -112,7 +100,7 @@ export class Network {
       this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
       this.timeoutPing = setTimeout(() => this.ping(), this.server.config.network_ping_interval_ms);
       this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
-    }, startDelayMs);
+    }, this.server.config.network_refresh_interval_ms);
   }
 
   shutdown() {
@@ -226,7 +214,7 @@ export class Network {
     }
 
     // stateless validation
-    if (!Validation.validateMessage(m)) {
+    if (!this.server.getValidation().validateMessage(m)) {
       return;
     }
 
@@ -283,7 +271,7 @@ export class Network {
       const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
       const mA = new Auth(message);
 
-      if (!peer.host || !Validation.validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
+      if (!peer.host || !this.server.getValidation().validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
@@ -380,7 +368,7 @@ export class Network {
     });
     ws.once('message', (message: Buffer) => {
       const mC = new Challenge(message);
-      if (!Validation.validateMessage(mC) || !mC.isValid()) {
+      if (!this.server.getValidation().validateMessage(mC) || !mC.isValid()) {
         return ws.close(4003, 'Challenge Failed');
       }
       Network.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
@@ -427,11 +415,6 @@ export class Network {
     this.timeoutMorph = setTimeout(() => {
       this.morphPeerNetwork();
     }, this.server.config.network_morph_interval_ms);
-
-    this.PBFT_LOCK_MS = this.server.config.pbft_lock_ms * net.length;
-    this.PBFT_RETRY_MS = this.server.config.pbft_retry_ms * net.length;
-    this.PBFT_DEADLOCK_MS = this.server.config.pbft_deadlock_ms * net.length;
-    Logger.info(`PBFT: lock ${this.PBFT_LOCK_MS}ms; retry ${this.PBFT_RETRY_MS}ms; deadlock ${this.PBFT_DEADLOCK_MS}ms`);
   }
 
   private clean() {

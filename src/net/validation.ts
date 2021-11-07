@@ -27,12 +27,14 @@ import { Util } from '../chain/util';
 import { Blockchain } from '../chain/blockchain';
 
 export class Validation {
-  private static message: ValidateFunction;
-  private static tx: ValidateFunction;
+  private readonly message: ValidateFunction;
+  private readonly tx: ValidateFunction;
 
-  private static isInitialized: Boolean = false;
+  static make() {
+    return new Validation();
+  }
 
-  static init() {
+  private constructor() {
     const pathSchema = path.join(__dirname, '../schema/');
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
     const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
@@ -49,7 +51,7 @@ export class Validation {
     const schemaDataDecision: JSONSchemaType<BlockStruct> = require(pathSchema +
       'block/transaction/data-decision.json');
 
-    Validation.message = new Ajv({
+    this.message = new Ajv({
       schemas: [
         schemaAuth,
         schemaChallenge,
@@ -66,18 +68,12 @@ export class Validation {
       ],
     }).compile(schemaMessage);
 
-    Validation.tx = new Ajv({
+    this.tx = new Ajv({
       schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaDataDecision],
     }).compile(schemaTx);
-
-    Validation.isInitialized = true;
   }
 
-  static validateMessage(m: Message): boolean {
-    if (!Validation.isInitialized) {
-      Validation.init();
-    }
-
+  validateMessage(m: Message): boolean {
     switch (m.type()) {
       case Message.TYPE_AUTH:
       case Message.TYPE_CHALLENGE:
@@ -85,8 +81,8 @@ export class Validation {
       case Message.TYPE_LOCK:
       case Message.TYPE_VOTE:
       case Message.TYPE_SYNC:
-        if (!Validation.message(m.getMessage())) {
-          Logger.trace('Validation.validateMessage() failed: ' + JSON.stringify(Validation.message.errors));
+        if (!this.message(m.getMessage())) {
+          Logger.trace('Validation.validateMessage() failed: ' + JSON.stringify(this.message.errors));
           return false;
         }
         return true;
@@ -96,7 +92,7 @@ export class Validation {
     }
   }
 
-  static validateBlock(structBlock: BlockStruct): boolean {
+  validateBlock(structBlock: BlockStruct): boolean {
     const { hash, height, tx, votes } = structBlock;
 
     let _aOrigin: Array<string>;
@@ -125,7 +121,7 @@ export class Validation {
       }
       _aOrigin.push(transaction.origin);
 
-      if (!Validation.validateTx(height, transaction)) {
+      if (!this.validateTx(height, transaction)) {
         Logger.trace(`Validation.validateBlock() - invalid tx: ${height}`);
         return false;
       }
@@ -134,11 +130,7 @@ export class Validation {
     return Block.validateHash(structBlock);
   }
 
-  static validateTx(height: number, tx: TransactionStruct): boolean {
-    if (!Validation.isInitialized) {
-      Validation.init();
-    }
-
+  validateTx(height: number, tx: TransactionStruct): boolean {
     // Signature and Schema validation
     return (
       Array.isArray(tx.commands) &&
@@ -150,8 +142,8 @@ export class Validation {
           case Blockchain.COMMAND_MODIFY_STAKE:
           case Blockchain.COMMAND_DATA:
           case Blockchain.COMMAND_DECISION:
-            if (!Validation.tx(tx)) {
-              Logger.trace('Validation.validateTx() failed: ' + JSON.stringify(Validation.tx.errors));
+            if (!this.tx(tx)) {
+              Logger.trace('Validation.validateTx() failed: ' + JSON.stringify(this.tx.errors));
               return false;
             }
             return true;

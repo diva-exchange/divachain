@@ -53,7 +53,8 @@ export type Configuration = {
   network_verbose_logging?: boolean;
 
   blockchain_max_blocks_in_memory?: number;
-  blockchain_max_query_size?: number;
+
+  api_max_query_size?: number;
 };
 
 export const BLOCK_VERSION = 1;
@@ -63,21 +64,35 @@ const DEFAULT_PORT = 17468;
 const DEFAULT_PORT_BLOCK_FEED = 17469;
 const DEFAULT_NAME_GENESIS_BLOCK = 'block';
 
-const DEFAULT_PBFT_LOCK_MS = 10; // multiplied by number of peers in the network
-const DEFAULT_PBFT_RETRY_MS = 100; // multiplied by number of peers in the network
-const DEFAULT_PBFT_DEADLOCK_MS = 200; // multiplied by number of peers in the network
+const MIN_PBFT_LOCK_MS = 50;
+const MAX_PBFT_LOCK_MS = 2000;
+const MIN_PBFT_RETRY_MS = 200;
+const MAX_PBFT_RETRY_MS = 2000;
+const MIN_PBFT_DEADLOCK_MS = 3000;
+const MAX_PBFT_DEADLOCK_MS = 10000;
 
 const MIN_NETWORK_SIZE = 7;
 const MAX_NETWORK_SIZE = 64;
-const MIN_NETWORK_MORPH_INTERVAL_MS = 120000; // 2 minutes
-const MAX_NETWORK_MORPH_INTERVAL_MS = 600000; // 10 minutes
-const DEFAULT_NETWORK_REFRESH_INTERVAL_MS = 3000;
-const DEFAULT_NETWORK_PING_INTERVAL_MS = 3000;
-const DEFAULT_NETWORK_STALE_THRESHOLD = 2;
-const DEFAULT_NETWORK_SYNC_SIZE = 50;
+const MIN_NETWORK_MORPH_INTERVAL_MS = 60000;
+const MAX_NETWORK_MORPH_INTERVAL_MS = 600000;
+const MIN_NETWORK_REFRESH_INTERVAL_MS = 3000;
+const MAX_NETWORK_REFRESH_INTERVAL_MS = 10000;
+const MIN_NETWORK_AUTH_TIMEOUT_MS = 30000;
+const MAX_NETWORK_AUTH_TIMEOUT_MS = 60000;
+const MIN_NETWORK_PING_INTERVAL_MS = 2000;
+const MAX_NETWORK_PING_INTERVAL_MS = 10000;
+const MIN_NETWORK_CLEAN_INTERVAL_MS = 10000;
+const MAX_NETWORK_CLEAN_INTERVAL_MS = 30000;
+const MIN_NETWORK_STALE_THRESHOLD = 2;
+const MAX_NETWORK_STALE_THRESHOLD = 5;
+const MIN_NETWORK_SYNC_SIZE = 10;
+const MAX_NETWORK_SYNC_SIZE = 100;
 
-const DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
-const DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE = 500;
+const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 500;
+const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 5000;
+
+const MIN_API_MAX_QUERY_SIZE = 10;
+const MAX_API_MAX_QUERY_SIZE = 100;
 
 export class Config {
   public readonly debug_performance: boolean;
@@ -98,9 +113,6 @@ export class Config {
   public readonly i2p_socks_proxy_host: string;
   public readonly i2p_socks_proxy_port: number;
   public readonly i2p_socks_proxy_console_port: number;
-  public readonly pbft_lock_ms: number;
-  public readonly pbft_retry_ms: number;
-  public readonly pbft_deadlock_ms: number;
   public readonly network_size: number;
   public readonly network_morph_interval_ms: number;
   public readonly network_refresh_interval_ms: number;
@@ -111,8 +123,13 @@ export class Config {
   public readonly network_sync_size: number;
   public readonly network_verbose_logging: boolean;
 
+  public readonly pbft_lock_ms: number;
+  public readonly pbft_retry_ms: number;
+  public readonly pbft_deadlock_ms: number;
+
   public readonly blockchain_max_blocks_in_memory: number;
-  public readonly blockchain_max_query_size: number;
+
+  public readonly api_max_query_size: number;
 
   constructor(c: Configuration) {
     this.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
@@ -191,19 +208,6 @@ export class Config {
       c.i2p_socks_proxy_console_port || process.env.I2P_SOCKS_PROXY_CONSOLE_PORT
     );
 
-    this.pbft_lock_ms = Config.gte1(
-      c.pbft_lock_ms || process.env.PBFT_LOCK_MS,
-      DEFAULT_PBFT_LOCK_MS
-    );
-    this.pbft_retry_ms = Config.gte1(
-      c.pbft_retry_ms || process.env.PBFT_RETRY_MS,
-      DEFAULT_PBFT_RETRY_MS
-    );
-    this.pbft_deadlock_ms = Config.gte1(
-      c.pbft_deadlock_ms || process.env.PBFT_DEADLOCK_MS,
-      DEFAULT_PBFT_DEADLOCK_MS
-    );
-
     this.network_size = Config.b(c.network_size || process.env.NETWORK_SIZE, MIN_NETWORK_SIZE, MAX_NETWORK_SIZE);
     this.network_morph_interval_ms = Config.b(
       c.network_morph_interval_ms || process.env.NETWORK_MORPH_INTERVAL_MS,
@@ -211,41 +215,59 @@ export class Config {
       MAX_NETWORK_MORPH_INTERVAL_MS
     );
 
-    this.network_refresh_interval_ms = Config.gte1(
+    this.network_refresh_interval_ms = Config.b(
       c.network_refresh_interval_ms || process.env.NETWORK_REFRESH_INTERVAL_MS,
-      DEFAULT_NETWORK_REFRESH_INTERVAL_MS
+      MIN_NETWORK_REFRESH_INTERVAL_MS,
+      MAX_NETWORK_REFRESH_INTERVAL_MS
     );
-    this.network_auth_timeout_ms = Config.gte1(
+    this.network_auth_timeout_ms = Config.b(
       c.network_auth_timeout_ms || process.env.NETWORK_AUTH_TIMEOUT_MS,
-      this.network_refresh_interval_ms * 5
+      MIN_NETWORK_AUTH_TIMEOUT_MS,
+      MAX_NETWORK_AUTH_TIMEOUT_MS
     );
-    this.network_ping_interval_ms = Config.gte1(
+    this.network_ping_interval_ms = Config.b(
       c.network_ping_interval_ms || process.env.NETWORK_PING_INTERVAL_MS,
-      DEFAULT_NETWORK_PING_INTERVAL_MS
+      MIN_NETWORK_PING_INTERVAL_MS,
+      MAX_NETWORK_PING_INTERVAL_MS
     );
-    this.network_clean_interval_ms = Config.gte1(
+    this.network_clean_interval_ms = Config.b(
       c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS,
-      this.network_ping_interval_ms * 5
+      MIN_NETWORK_CLEAN_INTERVAL_MS,
+      MAX_NETWORK_CLEAN_INTERVAL_MS
     );
 
-    this.network_stale_threshold = Config.gte1(
+    this.network_stale_threshold = Config.b(
       c.network_stale_threshold || process.env.NETWORK_STALE_THRESHOLD,
-      DEFAULT_NETWORK_STALE_THRESHOLD
+      MIN_NETWORK_STALE_THRESHOLD,
+      MAX_NETWORK_STALE_THRESHOLD
     );
-    this.network_sync_size = Config.gte1(
+    this.network_sync_size = Config.b(
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
-      DEFAULT_NETWORK_SYNC_SIZE
+      MIN_NETWORK_SYNC_SIZE,
+      MAX_NETWORK_SYNC_SIZE
     );
 
     this.network_verbose_logging = Config.tf(c.network_verbose_logging || process.env.NETWORK_VERBOSE_LOGGING);
 
-    this.blockchain_max_blocks_in_memory = Config.gte1(
-      c.blockchain_max_blocks_in_memory || process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY,
-      DEFAULT_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
+    this.pbft_lock_ms = Config.b(c.pbft_lock_ms || process.env.PBFT_LOCK_MS, MIN_PBFT_LOCK_MS, MAX_PBFT_LOCK_MS);
+    this.pbft_retry_ms = Config.b(c.pbft_retry_ms || process.env.PBFT_RETRY_MS, MIN_PBFT_RETRY_MS, MAX_PBFT_RETRY_MS);
+    this.pbft_deadlock_ms = Config.b(
+      c.pbft_deadlock_ms || process.env.PBFT_DEADLOCK_MS,
+      MIN_PBFT_DEADLOCK_MS,
+      MAX_PBFT_DEADLOCK_MS
     );
-    this.blockchain_max_query_size = Config.gte1(
-      c.blockchain_max_query_size || process.env.API_MAX_QUERY_SIZE,
-      DEFAULT_BLOCKCHAIN_MAX_QUERY_SIZE
+
+    this.blockchain_max_blocks_in_memory = Config.b(
+      c.blockchain_max_blocks_in_memory ||
+        process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY ||
+        MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY,
+      MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY,
+      MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
+    );
+    this.api_max_query_size = Config.b(
+      c.api_max_query_size || process.env.API_MAX_QUERY_SIZE || MAX_API_MAX_QUERY_SIZE,
+      MIN_API_MAX_QUERY_SIZE,
+      MAX_API_MAX_QUERY_SIZE
     );
   }
 
@@ -257,18 +279,6 @@ export class Config {
    */
   private static tf(n: any): boolean {
     return Number(n) > 0;
-  }
-
-  /**
-   * Number transformation
-   * Returns an integer greater or equal than one
-   *
-   * @param {any} n - Anything transformed to a number
-   * @param {number} d - Default
-   */
-  private static gte1(n: any, d: number): number {
-    n = Number(n);
-    return n > 0 ? Math.ceil(n) : Math.floor(d > 1 ? d : 1);
   }
 
   /**

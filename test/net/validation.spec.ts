@@ -34,6 +34,7 @@ import { nanoid } from 'nanoid';
 class TestValidation {
   private static config: Config;
   private static wallet: Wallet;
+  private static validation: Validation;
 
   @slow(200)
   static before() {
@@ -44,6 +45,7 @@ class TestValidation {
       path_keys: path.join(__dirname, '../keys'),
     });
     TestValidation.wallet = Wallet.make(TestValidation.config);
+    TestValidation.validation = Validation.make();
   }
 
   @slow(100)
@@ -54,23 +56,26 @@ class TestValidation {
   @test
   validateAuth() {
     const m = new Auth().create(TestValidation.wallet.sign('test'));
-    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
+    expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
   validateChallenge() {
     const m = new Challenge().create(nanoid(32));
-    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
+    expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 
   @test
   validateVote() {
     const hash = Util.hash('test');
-    const m = new Vote().create({
-      origin: TestValidation.wallet.getPublicKey(),
-      hash: hash,
-      sig: TestValidation.wallet.sign(hash),
-    }, 1);
-    expect(Validation.validateMessage(new Message(m.pack()))).to.be.true;
+    const m = new Vote().create(
+      {
+        origin: TestValidation.wallet.getPublicKey(),
+        hash: hash,
+        sig: TestValidation.wallet.sign(hash),
+      },
+      1
+    );
+    expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 }

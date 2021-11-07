@@ -19,7 +19,6 @@
 
 import { Message } from './message';
 import { TransactionStruct } from '../../chain/transaction';
-import { Validation } from '../validation';
 
 export type TxProposalStruct = {
   height: number;
@@ -41,9 +40,5 @@ export class TxProposal extends Message {
 
   get(): TxProposalStruct {
     return this.message.data as TxProposalStruct;
-  }
-
-  static isValid(structTxProposal: TxProposalStruct): boolean {
-    return Validation.validateTx(structTxProposal.height, structTxProposal.tx);
   }
 }

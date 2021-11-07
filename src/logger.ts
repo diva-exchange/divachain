@@ -25,14 +25,12 @@ export const Logger = pino(
     : { level: process.env.LOG_LEVEL || 'warn' }
 );
 
-process.on(
-  'uncaughtException', (err) => {
-    Logger.fatal(err, 'uncaughtException');
-    process.env.NODE_ENV !== 'test' && process.exit(1);
-  });
+process.on('uncaughtException', (err) => {
+  Logger.fatal(err, 'uncaughtException');
+  process.env.NODE_ENV !== 'test' && process.exit(1);
+});
 
-process.on(
-  'unhandledRejection', (err) => {
-    Logger.fatal(err, 'unhandledRejection');
-    process.env.NODE_ENV !== 'test' && process.exit(1);
-  });
+process.on('unhandledRejection', (err) => {
+  Logger.fatal(err, 'unhandledRejection');
+  process.env.NODE_ENV !== 'test' && process.exit(1);
+});

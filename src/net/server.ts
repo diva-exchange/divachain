@@ -27,6 +27,7 @@ import compression from 'compression';
 import { Bootstrap } from './bootstrap';
 import { BlockStruct } from '../chain/block';
 import { Blockchain } from '../chain/blockchain';
+import { Validation } from './validation';
 import { Pool } from './pool';
 import { Wallet } from '../chain/wallet';
 import { Network } from './network';
@@ -52,6 +53,7 @@ export class Server {
   private wallet: Wallet = {} as Wallet;
   private network: Network = {} as Network;
   private blockchain: Blockchain = {} as Blockchain;
+  private validation: Validation = {} as Validation;
 
   private stackSync: Array<BlockStruct> = [];
 
@@ -148,6 +150,9 @@ export class Server {
     this.blockchain = await Blockchain.make(this);
     Logger.info('Blockchain initialized');
 
+    this.validation = Validation.make();
+    Logger.info('Validation initialized');
+
     await this.httpServer.listen(this.config.port, this.config.ip);
 
     if (this.config.bootstrap) {
@@ -209,6 +214,10 @@ export class Server {
     return this.blockchain;
   }
 
+  getValidation(): Validation {
+    return this.validation;
+  }
+
   stackTxProposal(arrayCommand: ArrayCommand, ident: string = ''): string | false {
     clearTimeout(this.timeoutRelease);
     this.timeoutRelease = setTimeout(() => {
@@ -228,14 +237,14 @@ export class Server {
     retry++;
     this.timeoutRelease = setTimeout(() => {
       this.doReleaseTxProposal(retry);
-    }, this.network.PBFT_RETRY_MS);
+    }, this.config.pbft_retry_ms);
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
     const p: TxProposalStruct = proposal.get();
 
     // accept only valid transaction proposals
-    if (!TxProposal.isValid(p)) {
+    if (!this.validation.validateTx(p.height, p.tx)) {
       return false;
     }
 
@@ -246,7 +255,7 @@ export class Server {
     clearTimeout(this.timeoutLock);
     this.timeoutLock = setTimeout(() => {
       this.doLock();
-    }, this.network.PBFT_LOCK_MS); // higher value = higher tx density within a block
+    }, this.config.pbft_lock_ms);
 
     return true;
   }
@@ -257,11 +266,14 @@ export class Server {
       // send out the lock (which is a VoteStruct)
       this.network.processMessage(
         new Lock()
-          .create({
-            origin: this.wallet.getPublicKey(),
-            hash: hash,
-            sig: this.wallet.sign(hash),
-          }, retry)
+          .create(
+            {
+              origin: this.wallet.getPublicKey(),
+              hash: hash,
+              sig: this.wallet.sign(hash),
+            },
+            retry
+          )
           .pack()
       );
 
@@ -269,7 +281,7 @@ export class Server {
       retry++;
       this.timeoutLock = setTimeout(() => {
         this.doLock(retry);
-      }, this.network.PBFT_RETRY_MS);
+      }, this.config.pbft_retry_ms);
     }
   }
 
@@ -297,11 +309,14 @@ export class Server {
       // send out the vote
       this.network.processMessage(
         new Vote()
-          .create({
-            origin: this.wallet.getPublicKey(),
-            hash: block.hash,
-            sig: this.wallet.sign(block.hash),
-          }, retry)
+          .create(
+            {
+              origin: this.wallet.getPublicKey(),
+              hash: block.hash,
+              sig: this.wallet.sign(block.hash),
+            },
+            retry
+          )
           .pack()
       );
 
@@ -309,7 +324,7 @@ export class Server {
       retry++;
       this.timeoutVote = setTimeout(() => {
         this.doVote(retry);
-      }, this.network.PBFT_RETRY_MS);
+      }, this.config.pbft_retry_ms);
     }
   }
 

@@ -30,10 +30,12 @@ The configuration can be controlled using environment variables.
 
 ### NO_BOOTSTRAPPING
 Set to 1 to skip bootstrapping.
+
 Default: 0
 
 ### BOOTSTRAP
 URL to a entrypoint in the network, like http://diva.i2p.
+
 Default: (empty)
 
 ### NAME_BLOCK_GENESIS
@@ -57,60 +59,95 @@ Default: 0
 ### I2P_SOCKS_PROXY_CONSOLE_PORT
 Default: 0
 
-### MAX_BLOCKS_IN_MEMORY
-Default: 1000
-
-Maximum number of blocks kept in memory.
-
 ### NETWORK_SIZE
-Default: 7
+Number of peers to connect to (outgoing peer connections).
 
-Between 7 and 64 peers.
+Minimum: 7\
+Maximum: 64\
+Default: Minimum
 
 ### NETWORK_MORPH_INTERVAL_MS
-Default: 120000ms
+Time, in milliseconds, between slight changes in the peer topology. The network morphs over time. 
 
-Between 2 minutes and 10 minutes (120'000ms and 600'000ms).
+Minimum: 60000\
+Maximum: 600000\
+Default: Minimum
 
 ### NETWORK_REFRESH_INTERVAL_MS
-Default: 5000ms
-
 Interval, in milliseconds, to refresh the network (connect to peers, if needed). 
 
-### NETWORK_AUTH_TIMEOUT_MS
-Default: 5 * NETWORK_REFRESH_INTERVAL_MS
+Minimum: 5000\
+Maximum: 30000\
+Default: Minimum
 
+### NETWORK_AUTH_TIMEOUT_MS
 Timeout, in milliseconds, after authorisation fails.
 
-### NETWORK_PING_INTERVAL_MS
-Default: 5000ms
+Minimum: 30000\
+Maximum: 60000\
+Default: Minimum
 
+### NETWORK_PING_INTERVAL_MS
 Interval, in milliseconds, to ping the peers in the network.
 
-### NETWORK_CLEAN_INTERVAL_MS
-Default: 5 * NETWORK_PING_INTERVAL_MS
+Minimum: 2000\
+Maximum: 10000\
+Default: Minimum
 
+### NETWORK_CLEAN_INTERVAL_MS
 Interval, in milliseconds, to clean up the network environment (like gossiping data).
 
-### NETWORK_STALE_THRESHOLD
-Default: 2
+Minimum: 10000\
+Maximum: 30000\
+Default: Minimum
 
-Number of pings from a stale peer until synchronization gets triggered.
+### NETWORK_STALE_THRESHOLD
+Number of pings from a stale peer until a synchronization message gets sent to the peer.
+
+Minimum: 2\
+Maximum: 5\
+Default: Minimum
 
 ### NETWORK_SYNC_SIZE
-Default: 50
 Maximum number of blocks of synchronization message might contain. Must not exceed API_MAX_QUERY_SIZE.
 
-### NETWORK_VERBOSE_LOGGING
-Default: 0
+Minimum: 10\
+Maximum: 100\
+Default: Minimum
 
+### NETWORK_VERBOSE_LOGGING
 Whether to log all network traffic (very verbose). Set to 1 to enable verbose logging.
 
+Default: 0
+
+### PBFT_LOCK_MS
+Minimum: 50\
+Maximum: 2000\
+Default: Minimum
+
+### PBFT_RETRY_MS
+Minimum: 200\
+Maximum: 2000\
+Default: Minimum
+
+### PBFT_DEADLOCK_MS
+Minimum: 3000\
+Maximum: 10000\
+Default: Minimum
+
 ### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
-Default: 1000
+Number of blocks kept in memory (cache).
+
+Minimum: 10\
+Maximum: 100\
+Default: Maximum
 
 ### API_MAX_QUERY_SIZE
-Default: 500
+Number of blocks which can be queried through the API.
+
+Minimum: 10\
+Maximum: 100\
+Default: Maximum
 
 ## API Endpoints
 

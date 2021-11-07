@@ -33,7 +33,6 @@ import {
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
-import { Validation } from '../net/validation';
 
 export class Blockchain {
   public static readonly COMMAND_ADD_PEER = 'addPeer';
@@ -132,7 +131,7 @@ export class Blockchain {
     if (
       this.height + 1 !== block.height ||
       block.previousHash !== this.latestBlock.hash ||
-      !Validation.validateBlock(block)
+      !this.server.getValidation().validateBlock(block)
     ) {
       const l: string = `${this.publicKey} - failed to verify block ${block.height}: `;
       if (this.height + 1 !== block.height) {
@@ -179,10 +178,7 @@ export class Blockchain {
     gte = gte <= this.height ? Math.floor(gte) : this.height;
     lte = lte <= this.height ? lte : this.height;
     gte = lte - gte > 0 ? gte : lte;
-    gte =
-      lte - gte >= this.server.config.blockchain_max_query_size
-        ? lte - this.server.config.blockchain_max_query_size + 1
-        : gte;
+    gte = lte - gte >= this.server.config.api_max_query_size ? lte - this.server.config.api_max_query_size + 1 : gte;
 
     // cache available?
     if (this.mapBlocks.has(gte) && this.mapBlocks.has(lte)) {
@@ -208,8 +204,8 @@ export class Blockchain {
   async getPage(page: number, size: number): Promise<Array<BlockStruct>> {
     page = page < 1 ? 1 : Math.floor(page);
     size =
-      size < 1 || size > this.server.config.blockchain_max_query_size
-        ? this.server.config.blockchain_max_query_size
+      size < 1 || size > this.server.config.api_max_query_size
+        ? this.server.config.api_max_query_size
         : Math.floor(size);
     size = size > this.height ? this.height : size;
     const lte = this.height - (page - 1) * size < 1 ? size : this.height - (page - 1) * size;
@@ -256,7 +252,7 @@ export class Blockchain {
           .createReadStream()
           .on('data', (data) => {
             a.push({ key: data.key.toString(), value: data.value.toString() });
-            if (a.length === this.server.config.blockchain_max_query_size) {
+            if (a.length === this.server.config.api_max_query_size) {
               return resolve(a);
             }
           })
