@@ -325,7 +325,7 @@ export class Network {
     const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: false,
+      perMessageDeflate: true,
       headers: {
         'diva-identity': this.publicKey,
       },
