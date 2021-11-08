@@ -119,18 +119,18 @@ Whether to log all network traffic (very verbose). Set to 1 to enable verbose lo
 Default: 0
 
 ### PBFT_LOCK_MS
-Minimum: 50\
-Maximum: 2000\
-Default: Minimum
-
-### PBFT_RETRY_MS
 Minimum: 200\
 Maximum: 2000\
 Default: Minimum
 
+### PBFT_RETRY_MS
+Minimum: 1000\
+Maximum: 5000\
+Default: Minimum
+
 ### PBFT_DEADLOCK_MS
-Minimum: 3000\
-Maximum: 10000\
+Minimum: 10000\
+Maximum: 30000\
 Default: Minimum
 
 ### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
