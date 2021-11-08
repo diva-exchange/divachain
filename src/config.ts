@@ -57,12 +57,12 @@ export type Configuration = {
   api_max_query_size?: number;
 };
 
-export const BLOCK_VERSION = 1;
+export const BLOCK_VERSION = 2;
 
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
 const DEFAULT_PORT_BLOCK_FEED = 17469;
-const DEFAULT_NAME_GENESIS_BLOCK = 'block';
+const DEFAULT_NAME_GENESIS_BLOCK = 'schema.block.v2.block';
 
 const MIN_PBFT_LOCK_MS = 50;
 const MAX_PBFT_LOCK_MS = 2000;
@@ -88,8 +88,8 @@ const MAX_NETWORK_STALE_THRESHOLD = 5;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
 
-const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 500;
-const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 5000;
+const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
+const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
 
 const MIN_API_MAX_QUERY_SIZE = 10;
 const MAX_API_MAX_QUERY_SIZE = 100;

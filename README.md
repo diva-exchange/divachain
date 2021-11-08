@@ -19,8 +19,6 @@ The network itself is permission- and leaderless. Each peer in the network repre
 5. Voting: each peer receiving a vote, checks it for validity and - if the peer agrees - votes for the block too.
 6. Commit: as soon as a peer in the network detects that consensus has been reached (2/3 of the network have voted for a specific block), it writes the block to the chain and sends a synchronization message to the network.
  
-
-
 ## Create Your Local Environment
 
 To create a docker based local environment use the project https://codeberg.org/diva.exchange/diva-dockerized.
@@ -138,8 +136,8 @@ Default: Minimum
 ### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
 Number of blocks kept in memory (cache).
 
-Minimum: 10\
-Maximum: 100\
+Minimum: 100\
+Maximum: 1000\
 Default: Maximum
 
 ### API_MAX_QUERY_SIZE

@@ -9,7 +9,7 @@
       "minimum": 1
     },
     "tx": {
-      "$ref": "/schema/block/transaction/tx.json"
+      "$ref": "/schema/block/v2/transaction/tx.json"
     }
   },
   "required": [

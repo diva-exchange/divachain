@@ -4,7 +4,14 @@
 
   "type": "array",
   "items": {
-    "$ref": "/schema/block/block.json"
+    "anyOf": [
+      {
+        "$ref": "/schema/block/v1/block.json"
+      },
+      {
+        "$ref":"/schema/block/v2/block.json"
+      }
+    ]
   },
   "minItems": 1,
   "uniqueItems": true

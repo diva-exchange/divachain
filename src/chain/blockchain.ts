@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Block, BlockStruct } from './block';
+import { BlockStruct } from './block';
 import fs from 'fs';
 import LevelUp from 'levelup';
 import LevelDown from 'leveldown';
@@ -33,6 +33,7 @@ import {
 import { Server } from '../net/server';
 import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
+import { Util } from './util';
 
 export class Blockchain {
   public static readonly COMMAND_ADD_PEER = 'addPeer';
@@ -306,7 +307,7 @@ export class Blockchain {
       throw new Error('Genesis Block not found at: ' + p);
     }
     const b: BlockStruct = JSON.parse(fs.readFileSync(p).toString());
-    b.hash = Block.createHash(b);
+    b.hash = Util.hash(b.previousHash + b.version + b.height + JSON.stringify(b.tx));
     return b;
   }
 

@@ -19,7 +19,7 @@
 
 import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
-import { Block, BlockStruct } from '../chain/block';
+import { BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
 import { TransactionStruct } from '../chain/transaction';
 import path from 'path';
@@ -28,7 +28,6 @@ import { Blockchain } from '../chain/blockchain';
 
 export class Validation {
   private readonly message: ValidateFunction;
-  private readonly tx: ValidateFunction;
 
   static make() {
     return new Validation();
@@ -42,14 +41,28 @@ export class Validation {
     const schemaTxProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/tx-proposal.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
     const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
-    const schemaBlock: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/block.json');
-    const schemaVotes: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/votes.json');
-    const schemaTx: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/tx.json');
-    const schemaAddPeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/add-peer.json');
-    const schemaRemovePeer: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/remove-peer.json');
-    const schemaModifyStake: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/transaction/modify-stake.json');
-    const schemaDataDecision: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/transaction/data-decision.json');
+
+    const schemaBlockV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/block.json');
+    const schemaVotesV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/votes.json');
+    const schemaTxV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/transaction/tx.json');
+    const schemaAddPeerV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/transaction/add-peer.json');
+    const schemaRemovePeerV1: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v1/transaction/remove-peer.json');
+    const schemaModifyStakeV1: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v1/transaction/modify-stake.json');
+    const schemaDataV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/transaction/data.json');
+    const schemaDecisionV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/transaction/decision.json');
+
+    const schemaBlockV2: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v2/block.json');
+    const schemaVotesV2: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v2/votes.json');
+    const schemaTxV2: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v2/transaction/tx.json');
+    const schemaAddPeerV2: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v2/transaction/add-peer.json');
+    const schemaRemovePeerV2: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v2/transaction/remove-peer.json');
+    const schemaModifyStakeV2: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v2/transaction/modify-stake.json');
+    const schemaDataDecisionV2: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v2/transaction/data-decision.json');
 
     this.message = new Ajv({
       schemas: [
@@ -58,21 +71,26 @@ export class Validation {
         schemaTxProposal,
         schemaVote,
         schemaSync,
-        schemaBlock,
-        schemaVotes,
-        schemaTx,
-        schemaAddPeer,
-        schemaRemovePeer,
-        schemaModifyStake,
-        schemaDataDecision,
+        schemaBlockV1,
+        schemaVotesV1,
+        schemaTxV1,
+        schemaAddPeerV1,
+        schemaRemovePeerV1,
+        schemaModifyStakeV1,
+        schemaDataV1,
+        schemaDecisionV1,
+        schemaBlockV2,
+        schemaVotesV2,
+        schemaTxV2,
+        schemaAddPeerV2,
+        schemaRemovePeerV2,
+        schemaModifyStakeV2,
+        schemaDataDecisionV2,
       ],
     }).compile(schemaMessage);
-
-    this.tx = new Ajv({
-      schemas: [schemaAddPeer, schemaRemovePeer, schemaModifyStake, schemaDataDecision],
-    }).compile(schemaTx);
   }
 
+  // stateless
   validateMessage(m: Message): boolean {
     switch (m.type()) {
       case Message.TYPE_AUTH:
@@ -92,8 +110,9 @@ export class Validation {
     }
   }
 
+  // statefull
   validateBlock(structBlock: BlockStruct): boolean {
-    const { hash, height, tx, votes } = structBlock;
+    const { version, previousHash, hash, height, tx, votes } = structBlock;
 
     let _aOrigin: Array<string>;
 
@@ -127,11 +146,11 @@ export class Validation {
       }
     }
 
-    return Block.validateHash(structBlock);
+    return Util.hash(previousHash + version + height + JSON.stringify(tx)) === hash;
   }
 
+  // stateful
   validateTx(height: number, tx: TransactionStruct): boolean {
-    // Signature and Schema validation
     return (
       Array.isArray(tx.commands) &&
       Util.verifySignature(tx.origin, tx.sig, height + JSON.stringify(tx.commands)) &&
@@ -142,10 +161,6 @@ export class Validation {
           case Blockchain.COMMAND_MODIFY_STAKE:
           case Blockchain.COMMAND_DATA:
           case Blockchain.COMMAND_DECISION:
-            if (!this.tx(tx)) {
-              Logger.trace('Validation.validateTx() failed: ' + JSON.stringify(this.tx.errors));
-              return false;
-            }
             return true;
           default:
             return false;

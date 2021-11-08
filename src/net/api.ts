@@ -158,11 +158,7 @@ export class Api {
     this.server.app.get('/page/:page/:size?', async (req: Request, res: Response) => {
       const page = Number(req.params.page || 1);
       const size = Number(req.params.size || 0);
-      try {
-        return res.json(await this.server.getBlockchain().getPage(page, size));
-      } catch (error) {
-        return res.status(404).end();
-      }
+      return res.json(await this.server.getBlockchain().getPage(page, size));
     });
 
     this.server.app.get('/transaction/:origin/:ident', async (req: Request, res: Response) => {

@@ -28,6 +28,8 @@ import { nanoid } from 'nanoid';
 
 const MAX_RETRY = 10;
 const LENGTH_TOKEN = 32;
+const MIN_WAIT_JOIN_MS = 15000;
+const MAX_WAIT_JOIN_MS = 60000;
 
 type Options = {
   url: string;
@@ -36,10 +38,12 @@ type Options = {
   followRedirects: boolean;
 };
 
+type recordNetwork = { publicKey: string; api: string };
+
 export class Bootstrap {
   private readonly server: Server;
   private mapToken: Map<string, string>;
-  private arrayNetwork: Array<{ publicKey: string; api: string }> = [];
+  private arrayNetwork: Array<recordNetwork> = [];
 
   static async make(server: Server): Promise<Bootstrap> {
     const b = new Bootstrap(server);
@@ -99,7 +103,9 @@ export class Bootstrap {
     await this.fetchFromApi('join/' + this.server.config.address + '/' + publicKey);
   }
 
-  join(address: string, publicKey: string, t: number = 10000): boolean {
+  join(address: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
+    t = Math.floor(t);
+    t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
     const ident = address + '/' + publicKey;
 
     //@TODO rather simple address check
@@ -126,9 +132,9 @@ export class Bootstrap {
 
         // retry
         this.mapToken.delete(ident);
-        t = Math.floor(t * 1.2);
+        t = t + MIN_WAIT_JOIN_MS;
         setTimeout(() => {
-          this.join(address, publicKey, t > 120000 ? 120000 : t); //@TODO hard coded max value
+          this.join(address, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
         }, t);
       }
     }, t);
@@ -162,7 +168,7 @@ export class Bootstrap {
         } as CommandAddPeer,
       ])
     ) {
-      throw new Error('Bootstrap.confirm() - stackTransaction()/addPeer failed');
+      throw new Error('Bootstrap.confirm() - stackTransaction(addPeer) failed');
     }
     this.mapToken.delete(ident);
   }
@@ -171,7 +177,11 @@ export class Bootstrap {
     let r = 0;
     do {
       try {
-        this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network'));
+        this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network')).sort(
+          (a: recordNetwork, b: recordNetwork) => {
+            return a.publicKey > b.publicKey ? 1 : -1;
+          }
+        );
       } catch (error) {
         Logger.warn('Bootstrap.populateNetwork() failed: ' + JSON.stringify(error));
         this.arrayNetwork = [];
