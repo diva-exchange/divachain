@@ -68,14 +68,12 @@ class TestValidation {
   @test
   validateVote() {
     const hash = Util.hash('test');
-    const m = new Vote().create(
-      {
-        origin: TestValidation.wallet.getPublicKey(),
-        hash: hash,
-        sig: TestValidation.wallet.sign(hash),
-      },
-      1
-    );
+    const m = new Vote().create({
+      type: Message.TYPE_VOTE,
+      origin: TestValidation.wallet.getPublicKey(),
+      hash: hash,
+      sig: TestValidation.wallet.sign(hash),
+    });
     expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 }

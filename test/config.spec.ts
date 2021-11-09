@@ -27,9 +27,9 @@ import fs from 'fs';
 class TestConfig {
   @test
   config() {
-    const c = new Config({ network_refresh_interval_ms: 5000, network_size: 100 } as Configuration);
+    const c = new Config({ network_p2p_interval_ms: 5000, network_size: 100 } as Configuration);
     expect(c.ip).is.not.empty;
-    expect(c.network_refresh_interval_ms).is.equal(5000);
+    expect(c.network_p2p_interval_ms).is.equal(5000);
     expect(c.network_size).is.equal(64);
   }
 
@@ -55,8 +55,8 @@ class TestConfig {
 
   @test
   configNetworkRefreshIntervalMs() {
-    const c = new Config({ path_app: __dirname, network_refresh_interval_ms: -1 } as Configuration);
-    expect(c.network_refresh_interval_ms).is.greaterThanOrEqual(1);
-    expect(c.network_refresh_interval_ms).is.equal(3000);
+    const c = new Config({ path_app: __dirname, network_p2p_interval_ms: -1 } as Configuration);
+    expect(c.network_p2p_interval_ms).is.greaterThanOrEqual(1);
+    expect(c.network_p2p_interval_ms).is.equal(3000);
   }
 }

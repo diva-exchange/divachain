@@ -24,12 +24,11 @@ import { VoteStruct } from './vote';
 export class Lock extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_LOCK;
     this.message.broadcast = true;
   }
 
-  create(structLock: VoteStruct, retry: number): Lock {
-    this.message.ident = [this.message.type, retry, structLock.sig].join();
+  create(structLock: VoteStruct): Lock {
+    this.message.ident = [structLock.type, structLock.sig].join();
     this.message.data = structLock;
     return this;
   }
@@ -38,6 +37,7 @@ export class Lock extends Message {
     return this.message.data as VoteStruct;
   }
 
+  // stateful
   static isValid(structLock: VoteStruct): boolean {
     return Util.verifySignature(structLock.origin, structLock.sig, structLock.hash);
   }

@@ -26,6 +26,7 @@ import { VoteStruct } from './message/vote';
 import { Server } from './server';
 import { nanoid } from 'nanoid';
 import { TxProposalStruct } from './message/tx-proposal';
+import { Message } from './message/message';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -58,8 +59,6 @@ export class Pool {
   private mapVotes: Map<string, recordVote> = new Map();
   private stakeVotes: number = 0;
 
-  private timeoutResolveDeadlock: NodeJS.Timeout = {} as NodeJS.Timeout;
-
   static make(server: Server) {
     return new Pool(server);
   }
@@ -84,6 +83,7 @@ export class Pool {
     if (!this.inTransit.height && this.stackTransaction.length) {
       const r: recordStack = this.stackTransaction.shift() as recordStack;
       this.inTransit = {
+        type: Message.TYPE_TX_PROPOSAL,
         height: this.heightCurrent,
         tx: new Transaction(this.server.getWallet(), this.heightCurrent, r.ident, r.commands).get(),
       };
@@ -95,27 +95,16 @@ export class Pool {
     return this.stackTransaction;
   }
 
-  add(p: TxProposalStruct): boolean {
+  add(p: TxProposalStruct) {
     if (p.height !== this.heightCurrent || this.current.has(p.tx.origin)) {
-      return false;
+      return;
     }
 
     this.current.set(p.tx.origin, p.tx);
-    this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
-    this.hashCurrent = Util.hash(this.cacheCurrent.reduce((s, tx) => s + tx.sig, ''));
+    this.cacheCurrent = [...this.current.values()].sort((a, b) => (a.origin > b.origin ? 1 : -1));
+    this.hashCurrent = Util.hash([...this.current.keys()].sort().join(''));
     this.arrayLocks = [];
     this.stakeLocks = 0;
-
-    clearTimeout(this.timeoutResolveDeadlock);
-    this.timeoutResolveDeadlock = setTimeout(() => {
-      this.arrayLocks = [];
-      this.stakeLocks = 0;
-      this.block = {} as BlockStruct;
-      this.mapVotes = new Map();
-      this.stakeVotes = 0;
-    }, this.server.config.pbft_deadlock_ms);
-
-    return true;
   }
 
   getArrayLocks(): Array<string> {
@@ -134,9 +123,9 @@ export class Pool {
     return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
-  lock(lock: VoteStruct): boolean {
-    if (this.hasLock() || lock.hash !== this.hashCurrent || this.arrayLocks.includes(lock.origin)) {
-      return false;
+  lock(lock: VoteStruct) {
+    if (lock.hash !== this.hashCurrent || this.hasLock() || this.arrayLocks.includes(lock.origin)) {
+      return;
     }
 
     this.arrayLocks.push(lock.origin);
@@ -147,8 +136,6 @@ export class Pool {
       this.mapVotes = new Map();
       this.stakeVotes = 0;
     }
-
-    return true;
   }
 
   hasLock(): boolean {
@@ -167,7 +154,6 @@ export class Pool {
     }
 
     if (this.stakeVotes >= this.server.getNetwork().getQuorum()) {
-      clearTimeout(this.timeoutResolveDeadlock);
       this.block.votes = this.getArrayVotes();
     }
 

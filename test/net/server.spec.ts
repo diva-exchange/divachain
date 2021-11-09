@@ -33,8 +33,8 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 13; // total peers in the whole network
-const NETWORK_SIZE = 11; // number of peers a single peer tries to connect to...
+const SIZE_TESTNET = 9; // total peers in the whole network
+const NETWORK_SIZE = 7; // number of peers a single peer tries to connect to...
 const BASE_PORT = 17000;
 const BASE_PORT_FEED = 18000;
 const IP = '127.27.27.1';
@@ -65,10 +65,7 @@ class TestServer {
         network_size: NETWORK_SIZE,
         network_morph_interval_ms: 60000,
         network_verbose_logging: false,
-        blockchain_max_blocks_in_memory: 1000,
-        pbft_lock_ms: 200,
-        pbft_retry_ms: 500,
-        pbft_deadlock_ms: 5000,
+        blockchain_max_blocks_in_memory: 100,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
@@ -101,7 +98,7 @@ class TestServer {
     fs.writeFileSync(path.join(__dirname, '../genesis/block.json'), JSON.stringify(genesis));
 
     return new Promise((resolve) => {
-      setTimeout(resolve, SIZE_TESTNET * 1000);
+      setTimeout(resolve, SIZE_TESTNET * 1200);
 
       for (const pk of TestServer.mapConfigServer.keys()) {
         (async () => {
@@ -175,7 +172,7 @@ class TestServer {
       await TestServer.wait(500);
     }
 
-    console.log('waiting for sync...');
+    console.log('waiting for a possible sync...');
     // wait for a possible sync
     await TestServer.wait(10000);
   }
@@ -203,7 +200,6 @@ class TestServer {
   async peers() {
     const config = [...TestServer.mapConfigServer.values()][0];
     const res = await chai.request(`http://${config.ip}:${config.port}`).get('/peers');
-    console.log(res.body);
     expect(res).to.have.status(200);
   }
 
@@ -293,7 +289,6 @@ class TestServer {
   @test
   async injectObjectAsTransaction() {
     const arrayConfig = [...TestServer.mapConfigServer.values()];
-    console.log(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`);
     const res = await chai
       .request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`)
       .put('/transaction')
@@ -325,7 +320,6 @@ class TestServer {
       const i = Math.floor(Math.random() * (arrayConfig.length - 1));
 
       try {
-        Logger.trace(`${_i}: http://${arrayConfig[i].ip}:${arrayConfig[i].port}`);
         const res = await chai
           .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
           .put('/transaction')
@@ -333,15 +327,18 @@ class TestServer {
         arrayTimestamp.push(new Date().getTime());
         arrayRequests.push(arrayOrigin[i]);
         arrayIdents.push(res.body.ident);
+        Logger.trace(
+          `${_i} http://${arrayConfig[i].ip}:${arrayConfig[i].port}/transaction/${arrayOrigin[i]}/${res.body.ident}`
+        );
       } catch (error) {
         console.error(error);
       }
-      await TestServer.wait(1 + Math.floor(Math.random() * 300));
+      await TestServer.wait(1 + Math.floor(Math.random() * 200));
     }
 
-    Logger.trace('waiting for sync');
+    Logger.trace('waiting for a possible sync');
     // wait for a possible sync
-    await TestServer.wait(20000);
+    await TestServer.wait(30000);
 
     // all blockchains have to be equal
     let arrayBlocks: Array<any> = [];

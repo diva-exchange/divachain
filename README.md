@@ -71,11 +71,11 @@ Minimum: 60000\
 Maximum: 600000\
 Default: Minimum
 
-### NETWORK_REFRESH_INTERVAL_MS
-Interval, in milliseconds, to refresh the network (connect to peers, if needed). 
+### NETWORK_P2P_INTERVAL_MS
+Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
 Minimum: 5000\
-Maximum: 30000\
+Maximum: 10000\
 Default: Minimum
 
 ### NETWORK_AUTH_TIMEOUT_MS
@@ -88,7 +88,7 @@ Default: Minimum
 ### NETWORK_PING_INTERVAL_MS
 Interval, in milliseconds, to ping the peers in the network.
 
-Minimum: 2000\
+Minimum: 5000\
 Maximum: 10000\
 Default: Minimum
 
@@ -117,21 +117,6 @@ Default: Minimum
 Whether to log all network traffic (very verbose). Set to 1 to enable verbose logging.
 
 Default: 0
-
-### PBFT_LOCK_MS
-Minimum: 200\
-Maximum: 2000\
-Default: Minimum
-
-### PBFT_RETRY_MS
-Minimum: 1000\
-Maximum: 5000\
-Default: Minimum
-
-### PBFT_DEADLOCK_MS
-Minimum: 10000\
-Maximum: 30000\
-Default: Minimum
 
 ### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
 Number of blocks kept in memory (cache).

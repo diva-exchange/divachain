@@ -21,6 +21,7 @@ import { Message } from './message';
 import { TransactionStruct } from '../../chain/transaction';
 
 export type TxProposalStruct = {
+  type: number;
   height: number;
   tx: TransactionStruct;
 };
@@ -28,12 +29,11 @@ export type TxProposalStruct = {
 export class TxProposal extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_TX_PROPOSAL;
     this.message.broadcast = true;
   }
 
-  create(structTxProposal: TxProposalStruct, retry: number): TxProposal {
-    this.message.ident = [this.message.type, retry, structTxProposal.height, structTxProposal.tx.sig].join();
+  create(structTxProposal: TxProposalStruct): TxProposal {
+    this.message.ident = [structTxProposal.type, structTxProposal.height, structTxProposal.tx.sig].join();
     this.message.data = structTxProposal;
     return this;
   }

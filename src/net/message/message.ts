@@ -22,7 +22,6 @@ import { nanoid } from 'nanoid';
 
 export type MessageStruct = {
   ident: string;
-  type: number;
   data: any;
   broadcast: boolean;
   trail: Array<string>;
@@ -62,7 +61,7 @@ export class Message {
   }
 
   type(): number {
-    return this.message.type;
+    return this.message.data.type;
   }
 
   setBroadcast(broadcast: boolean) {
@@ -100,7 +99,7 @@ export class Message {
    * @throws {Error}
    */
   pack(version?: number): string {
-    this.message.ident = this.message.ident || [this.message.type, nanoid(16)].join();
+    this.message.ident = this.message.ident || [this.message.data.type, nanoid(16)].join();
     this.message.broadcast = this.message.broadcast || false;
     return this._pack(version);
   }

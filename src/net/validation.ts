@@ -35,6 +35,7 @@ export class Validation {
 
   private constructor() {
     const pathSchema = path.join(__dirname, '../schema/');
+
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
     const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/challenge.json');
@@ -100,7 +101,9 @@ export class Validation {
       case Message.TYPE_VOTE:
       case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
-          Logger.trace('Validation.validateMessage() failed: ' + JSON.stringify(this.message.errors));
+          Logger.trace('Validation.validateMessage() failed');
+          Logger.trace(`${m}`);
+          Logger.trace(`${JSON.stringify(this.message.errors)}`);
           return false;
         }
         return true;
@@ -110,7 +113,7 @@ export class Validation {
     }
   }
 
-  // statefull
+  // stateful
   validateBlock(structBlock: BlockStruct): boolean {
     const { version, previousHash, hash, height, tx, votes } = structBlock;
 

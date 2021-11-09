@@ -21,20 +21,27 @@ import { Message } from './message';
 import { BlockStruct } from '../../chain/block';
 import { Util } from '../../chain/util';
 
+export type SyncStruct = {
+  type: number;
+  blocks: Array<BlockStruct>;
+};
+
 export class Sync extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_SYNC;
     this.message.broadcast = false;
   }
 
-  create(arrayBlocks: Array<BlockStruct>): Sync {
-    this.message.ident = [this.message.type, Util.hash(JSON.stringify(arrayBlocks))].join();
-    this.message.data = arrayBlocks;
+  create(structSync: SyncStruct): Sync {
+    const hashes = structSync.blocks.reduce((s: string, b: BlockStruct) => {
+      return s + b.hash;
+    }, '');
+    this.message.ident = [structSync.type, Util.hash(hashes)].join();
+    this.message.data = structSync;
     return this;
   }
 
-  get(): Array<BlockStruct> {
-    return this.message.data as Array<BlockStruct>;
+  get(): SyncStruct {
+    return this.message.data as SyncStruct;
   }
 }

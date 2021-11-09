@@ -21,6 +21,7 @@ import { Message } from './message';
 import { Util } from '../../chain/util';
 
 export type VoteStruct = {
+  type: number;
   origin: string;
   hash: string;
   sig: string;
@@ -29,12 +30,11 @@ export type VoteStruct = {
 export class Vote extends Message {
   constructor(message?: Buffer | string) {
     super(message);
-    this.message.type = Message.TYPE_VOTE;
     this.message.broadcast = true;
   }
 
-  create(structVote: VoteStruct, retry: number): Vote {
-    this.message.ident = [this.message.type, retry, structVote.sig].join();
+  create(structVote: VoteStruct): Vote {
+    this.message.ident = [structVote.type, structVote.sig].join();
     this.message.data = structVote;
     return this;
   }

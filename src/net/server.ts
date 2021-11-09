@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Config } from '../config';
+import { Config, PBFT_LOCK_MS } from '../config';
 import { Logger } from '../logger';
 import createError from 'http-errors';
 import express, { Express, NextFunction, Request, Response } from 'express';
@@ -57,9 +57,7 @@ export class Server {
 
   private stackSync: Array<BlockStruct> = [];
 
-  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -105,7 +103,7 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
@@ -219,69 +217,53 @@ export class Server {
   }
 
   stackTxProposal(arrayCommand: ArrayCommand, ident: string = ''): string | false {
-    clearTimeout(this.timeoutRelease);
-    this.timeoutRelease = setTimeout(() => {
+    setTimeout(() => {
       this.doReleaseTxProposal();
     }, 0);
 
     return this.pool.stack(ident, arrayCommand);
   }
 
-  private doReleaseTxProposal(retry: number = 0) {
+  private doReleaseTxProposal() {
     const p = this.pool.release();
     if (p) {
-      this.network.processMessage(new TxProposal().create(p, retry).pack());
+      this.network.processMessage(new TxProposal().create(p).pack());
     }
-
-    // retry
-    retry++;
-    this.timeoutRelease = setTimeout(() => {
-      this.doReleaseTxProposal(retry);
-    }, this.config.pbft_retry_ms);
   }
 
   private processTxProposal(proposal: TxProposal): boolean {
     const p: TxProposalStruct = proposal.get();
 
     // accept only valid transaction proposals
+    // stateful
     if (!this.validation.validateTx(p.height, p.tx)) {
       return false;
     }
 
-    if (!this.pool.add(p)) {
-      return false;
-    }
+    this.pool.add(p);
 
     clearTimeout(this.timeoutLock);
     this.timeoutLock = setTimeout(() => {
       this.doLock();
-    }, this.config.pbft_lock_ms);
+    }, PBFT_LOCK_MS);
 
     return true;
   }
 
-  private doLock(retry: number = 0) {
+  private doLock() {
     const hash = this.pool.getHash();
     if (hash) {
       // send out the lock (which is a VoteStruct)
       this.network.processMessage(
         new Lock()
-          .create(
-            {
-              origin: this.wallet.getPublicKey(),
-              hash: hash,
-              sig: this.wallet.sign(hash),
-            },
-            retry
-          )
+          .create({
+            type: Message.TYPE_LOCK,
+            origin: this.wallet.getPublicKey(),
+            hash: hash,
+            sig: this.wallet.sign(hash),
+          })
           .pack()
       );
-
-      // retry
-      retry++;
-      this.timeoutLock = setTimeout(() => {
-        this.doLock(retry);
-      }, this.config.pbft_retry_ms);
     }
   }
 
@@ -289,13 +271,15 @@ export class Server {
     const l: VoteStruct = lock.get();
 
     // process only valid locks
-    if (!Lock.isValid(l) || !this.pool.lock(l)) {
+    // stateful
+    if (!Lock.isValid(l)) {
       return false;
     }
 
+    this.pool.lock(l);
+
     if (this.pool.hasLock()) {
-      clearTimeout(this.timeoutVote);
-      this.timeoutVote = setTimeout(() => {
+      setTimeout(() => {
         this.doVote();
       }, 0);
     }
@@ -303,28 +287,20 @@ export class Server {
     return true;
   }
 
-  private doVote(retry: number = 0) {
+  private doVote() {
     const block = this.pool.getBlock();
     if (block.hash) {
       // send out the vote
       this.network.processMessage(
         new Vote()
-          .create(
-            {
-              origin: this.wallet.getPublicKey(),
-              hash: block.hash,
-              sig: this.wallet.sign(block.hash),
-            },
-            retry
-          )
+          .create({
+            type: Message.TYPE_VOTE,
+            origin: this.wallet.getPublicKey(),
+            hash: block.hash,
+            sig: this.wallet.sign(block.hash),
+          })
           .pack()
       );
-
-      // retry
-      retry++;
-      this.timeoutVote = setTimeout(() => {
-        this.doVote(retry);
-      }, this.config.pbft_retry_ms);
     }
   }
 
@@ -332,18 +308,26 @@ export class Server {
     const v: VoteStruct = vote.get();
 
     // process only valid votes
+    // stateful
     if (!Vote.isValid(v)) {
       return false;
     }
 
     // check the quorum and add the block if reached
-    this.pool.addVote(v) && this.addBlock(this.pool.getBlock());
+    if (this.pool.addVote(v)) {
+      this.network.processMessage(
+        new Sync()
+          .setBroadcast(true)
+          .create({ type: Message.TYPE_SYNC, blocks: [this.pool.getBlock()] })
+          .pack()
+      );
+    }
 
     return true;
   }
 
-  private processSync(sync: Sync): boolean {
-    this.stackSync = this.stackSync.concat(sync.get()).sort((a, b) => (a.height > b.height ? 1 : -1));
+  private processSync(sync: Sync) {
+    this.stackSync = this.stackSync.concat(sync.get().blocks).sort((a, b) => (a.height > b.height ? 1 : -1));
 
     let h = this.blockchain.getHeight();
     let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
@@ -358,14 +342,10 @@ export class Server {
       h = this.blockchain.getHeight();
       b = (this.stackSync.shift() || {}) as BlockStruct;
     }
-
-    return true;
   }
 
   private addBlock(block: BlockStruct) {
-    clearTimeout(this.timeoutRelease);
     clearTimeout(this.timeoutLock);
-    clearTimeout(this.timeoutVote);
 
     if (this.blockchain.add(block)) {
       this.pool.clear(block);
@@ -375,7 +355,7 @@ export class Server {
       }, JSON.stringify(block));
     }
 
-    this.timeoutRelease = setTimeout(() => {
+    setTimeout(() => {
       this.doReleaseTxProposal();
     }, 0);
   }
@@ -389,7 +369,8 @@ export class Server {
       case Message.TYPE_VOTE:
         return this.processVote(new Vote(message));
       case Message.TYPE_SYNC:
-        return this.processSync(new Sync(message));
+        this.processSync(new Sync(message));
+        return true;
       default:
         throw new Error('Invalid message type');
     }

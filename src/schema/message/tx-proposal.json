@@ -4,6 +4,11 @@
 
   "type": "object",
   "properties": {
+    "type": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 3
+    },
     "height": {
       "type": "integer",
       "minimum": 1
@@ -13,6 +18,7 @@
     }
   },
   "required": [
+    "type",
     "height",
     "tx"
   ],

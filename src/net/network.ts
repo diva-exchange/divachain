@@ -53,7 +53,6 @@ export class Network {
   private readonly mapPeer: Map<string, NetworkPeer> = new Map();
   private arrayPeerNetwork: Array<string> = [];
   private arrayBroadcast: Array<string> = [];
-  private arrayGossip: Array<string> = [];
 
   private peersIn: { [publicKey: string]: Peer } = {};
   private peersOut: { [publicKey: string]: Peer } = {};
@@ -62,7 +61,7 @@ export class Network {
   private readonly _onMessage: Function | false;
 
   private timeoutMorph: Timeout = {} as Timeout;
-  private timeoutRefresh: Timeout = {} as Timeout;
+  private timeoutBuildP2P: Timeout = {} as Timeout;
   private timeoutPing: Timeout = {} as Timeout;
   private timeoutClean: Timeout = {} as Timeout;
 
@@ -97,15 +96,15 @@ export class Network {
     setTimeout(() => {
       Logger.info('Starting P2P network');
       this.timeoutMorph = setTimeout(() => this.morphPeerNetwork(), 1);
-      this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
+      this.timeoutBuildP2P = setTimeout(() => this.buildP2P(), this.server.config.network_p2p_interval_ms);
       this.timeoutPing = setTimeout(() => this.ping(), this.server.config.network_ping_interval_ms);
       this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
-    }, this.server.config.network_refresh_interval_ms);
+    }, this.server.config.network_p2p_interval_ms);
   }
 
   shutdown() {
     clearTimeout(this.timeoutMorph);
-    clearTimeout(this.timeoutRefresh);
+    clearTimeout(this.timeoutBuildP2P);
     clearTimeout(this.timeoutPing);
     clearTimeout(this.timeoutClean);
 
@@ -209,8 +208,8 @@ export class Network {
   processMessage(message: Buffer | string, publicKeyPeer: string = '') {
     const m = new Message(message);
     if (this.server.config.network_verbose_logging) {
-      const _l = `Network.processMessage${publicKeyPeer ? ' from ' + publicKeyPeer : ''}: `;
-      Logger.trace(`${_l} Type: ${m.getMessage().type} Ident: ${m.getMessage().ident}`);
+      const _l = `${publicKeyPeer ? ' from ' + publicKeyPeer : ''} -> ${this.server.getWallet().getPublicKey()}:`;
+      Logger.trace(`${_l} ${m.type()} - ${m.ident()}`);
     }
 
     // stateless validation
@@ -218,36 +217,19 @@ export class Network {
       return;
     }
 
-    // prevent duplicate message gossipping
-    if (this.arrayGossip.includes(m.ident())) {
-      return;
-    }
-    this.arrayGossip.push(m.ident());
-
-    // process message handler callback and - if successful - continue with broadcasting
+    // process message
     if (this._onMessage && this._onMessage(m.type(), message) && m.isBroadcast()) {
-      const trail = m.trail();
-      const aBroadcast = this.arrayBroadcast.filter(
-        (_pk) =>
-          !trail.includes(_pk) &&
-          ((this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1) ||
-            (this.peersOut[_pk] && this.peersOut[_pk].ws.readyState === 1))
-      );
+      const aTrail = m.trail();
+      const aBroadcast: Array<string> = this.arrayBroadcast.filter((pk) => !aTrail.includes(pk));
+      m.updateTrail(this.arrayBroadcast.concat([m.origin(), publicKeyPeer, this.server.getWallet().getPublicKey()]));
 
-      if (aBroadcast.length) {
-        // update message trail
-        m.updateTrail(aBroadcast.concat([this.publicKey, m.origin(), publicKeyPeer]));
-
-        // broadcast the message
-        for (const _pk of aBroadcast) {
-          try {
-            Network.send(
-              this.peersIn[_pk] && this.peersIn[_pk].ws.readyState === 1 ? this.peersIn[_pk].ws : this.peersOut[_pk].ws,
-              m.pack()
-            );
-          } catch (error) {
-            Logger.warn('Network.processMessage() broadcast Error: ' + JSON.stringify(error));
-          }
+      // broadcast the message
+      for (const _pk of aBroadcast) {
+        try {
+          const ws = this.peersIn[_pk] ? this.peersIn[_pk].ws : this.peersOut[_pk].ws;
+          this.send(ws, m.pack());
+        } catch (error) {
+          Logger.warn('Network.processMessage() broadcast Error: ' + JSON.stringify(error));
         }
       }
     }
@@ -264,7 +246,7 @@ export class Network {
     }, this.server.config.network_auth_timeout_ms);
 
     const challenge = nanoid(32);
-    Network.send(ws, new Challenge().create(challenge).pack());
+    this.send(ws, new Challenge().create(challenge).pack());
 
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
@@ -306,7 +288,7 @@ export class Network {
     });
   }
 
-  private refresh() {
+  private buildP2P() {
     for (const publicKey of this.arrayPeerNetwork) {
       if (Object.keys(this.peersOut).length + Object.keys(this.stackOut).length >= this.server.config.network_size) {
         break;
@@ -318,14 +300,14 @@ export class Network {
       }
     }
 
-    this.timeoutRefresh = setTimeout(() => this.refresh(), this.server.config.network_refresh_interval_ms);
+    this.timeoutBuildP2P = setTimeout(() => this.buildP2P(), this.server.config.network_p2p_interval_ms);
   }
 
   private connect(publicKeyPeer: string) {
     const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
       headers: {
         'diva-identity': this.publicKey,
       },
@@ -368,10 +350,10 @@ export class Network {
     });
     ws.once('message', (message: Buffer) => {
       const mC = new Challenge(message);
-      if (!this.server.getValidation().validateMessage(mC) || !mC.isValid()) {
+      if (!this.server.getValidation().validateMessage(mC)) {
         return ws.close(4003, 'Challenge Failed');
       }
-      Network.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
+      this.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
@@ -425,11 +407,6 @@ export class Network {
         peer.alive < t && peer.ws.close(4002, 'Timeout');
       });
 
-    //@TODO add thresholds to config
-    if (this.arrayGossip.length > this.mapPeer.size * 1000) {
-      this.arrayGossip.splice(0, this.mapPeer.size * 333);
-    }
-
     this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
@@ -447,10 +424,15 @@ export class Network {
 
   private async doSync(height: number, ws: WebSocket) {
     try {
-      Network.send(
+      this.send(
         ws,
         new Sync()
-          .create(await this.server.getBlockchain().getRange(height + 1, height + this.server.config.network_sync_size))
+          .create({
+            type: Message.TYPE_SYNC,
+            blocks: await this.server
+              .getBlockchain()
+              .getRange(height + 1, height + this.server.config.network_sync_size),
+          })
           .pack()
       );
     } catch (error) {
@@ -475,9 +457,7 @@ export class Network {
     }
   }
 
-  private static send(ws: WebSocket, data: string) {
-    setImmediate(() => {
-      ws.readyState === 1 && ws.send(data, WS_CLIENT_OPTIONS);
-    });
+  private send(ws: WebSocket, data: Buffer | string) {
+    ws.readyState === 1 && ws.send(data, WS_CLIENT_OPTIONS);
   }
 }
