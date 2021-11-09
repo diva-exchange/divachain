@@ -60,7 +60,7 @@ const DEFAULT_PORT = 17468;
 const DEFAULT_PORT_BLOCK_FEED = 17469;
 const DEFAULT_NAME_GENESIS_BLOCK = 'schema.block.v2.block';
 
-export const PBFT_LOCK_MS = 200;
+export const PBFT_RETRY_INTERVAL_MS = 500;
 
 const MIN_NETWORK_SIZE = 7;
 const MAX_NETWORK_SIZE = 64;

@@ -341,7 +341,7 @@ class TestServer {
     await TestServer.wait(30000);
 
     // all blockchains have to be equal
-    let arrayBlocks: Array<any> = [];
+    const arrayBlocks: Array<any> = [];
     for (const config of arrayConfig) {
       const res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/latest');
       arrayBlocks.push(res.body);
@@ -352,15 +352,6 @@ class TestServer {
       console.log(`${i}: ${_b.hash} (${_b.height})`);
       expect(_h).eq(_b.hash);
     });
-
-    // number of transactions must match expectations
-    const res = await chai.request(`http://${arrayConfig[0].ip}:${arrayConfig[0].port}`).get('/blocks/2');
-    arrayBlocks = res.body;
-    let amountTransactions = 0;
-    arrayBlocks.forEach((b: BlockStruct) => {
-      amountTransactions += b.tx.length;
-    });
-    console.log('Transactions check: ' + amountTransactions);
 
     let x = 0;
     while (arrayRequests.length) {

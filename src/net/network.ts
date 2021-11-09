@@ -30,8 +30,8 @@ import Timeout = NodeJS.Timeout;
 import { nanoid } from 'nanoid';
 
 const WS_CLIENT_OPTIONS = {
-  compress: true,
-  binary: true,
+  compress: false,
+  binary: false,
 };
 
 export type NetworkPeer = {
@@ -226,8 +226,7 @@ export class Network {
       // broadcast the message
       for (const _pk of aBroadcast) {
         try {
-          const ws = this.peersIn[_pk] ? this.peersIn[_pk].ws : this.peersOut[_pk].ws;
-          this.send(ws, m.pack());
+          Network.send(this.peersIn[_pk] ? this.peersIn[_pk].ws : this.peersOut[_pk].ws, m.pack());
         } catch (error) {
           Logger.warn('Network.processMessage() broadcast Error: ' + JSON.stringify(error));
         }
@@ -246,7 +245,7 @@ export class Network {
     }, this.server.config.network_auth_timeout_ms);
 
     const challenge = nanoid(32);
-    this.send(ws, new Challenge().create(challenge).pack());
+    Network.send(ws, new Challenge().create(challenge).pack());
 
     ws.once('message', (message: Buffer) => {
       clearTimeout(timeout);
@@ -307,7 +306,7 @@ export class Network {
     const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
       headers: {
         'diva-identity': this.publicKey,
       },
@@ -353,7 +352,7 @@ export class Network {
       if (!this.server.getValidation().validateMessage(mC)) {
         return ws.close(4003, 'Challenge Failed');
       }
-      this.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
+      Network.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
 
       ws.on('message', (message: Buffer) => {
         if (this.peersOut[publicKeyPeer]) {
@@ -424,7 +423,7 @@ export class Network {
 
   private async doSync(height: number, ws: WebSocket) {
     try {
-      this.send(
+      Network.send(
         ws,
         new Sync()
           .create({
@@ -457,7 +456,7 @@ export class Network {
     }
   }
 
-  private send(ws: WebSocket, data: Buffer | string) {
+  private static send(ws: WebSocket, data: Buffer | string) {
     ws.readyState === 1 && ws.send(data, WS_CLIENT_OPTIONS);
   }
 }

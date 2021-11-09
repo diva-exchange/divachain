@@ -95,9 +95,9 @@ export class Pool {
     return this.stackTransaction;
   }
 
-  add(p: TxProposalStruct) {
-    if (p.height !== this.heightCurrent || this.current.has(p.tx.origin)) {
-      return;
+  add(p: TxProposalStruct): boolean {
+    if (p.height !== this.heightCurrent || this.hasLock() || this.current.has(p.tx.origin)) {
+      return false;
     }
 
     this.current.set(p.tx.origin, p.tx);
@@ -105,6 +105,7 @@ export class Pool {
     this.hashCurrent = Util.hash([...this.current.keys()].sort().join(''));
     this.arrayLocks = [];
     this.stakeLocks = 0;
+    return true;
   }
 
   getArrayLocks(): Array<string> {

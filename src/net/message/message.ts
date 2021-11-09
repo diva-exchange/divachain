@@ -64,11 +64,6 @@ export class Message {
     return this.message.data.type;
   }
 
-  setBroadcast(broadcast: boolean) {
-    this.message.broadcast = broadcast;
-    return this;
-  }
-
   isBroadcast(): boolean {
     return this.message.broadcast;
   }

@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Config, PBFT_LOCK_MS } from '../config';
+import { Config, PBFT_RETRY_INTERVAL_MS } from '../config';
 import { Logger } from '../logger';
 import createError from 'http-errors';
 import express, { Express, NextFunction, Request, Response } from 'express';
@@ -57,7 +57,9 @@ export class Server {
 
   private stackSync: Array<BlockStruct> = [];
 
+  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -103,7 +105,8 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
+      skipUTF8Validation: true,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
@@ -217,7 +220,8 @@ export class Server {
   }
 
   stackTxProposal(arrayCommand: ArrayCommand, ident: string = ''): string | false {
-    setTimeout(() => {
+    clearTimeout(this.timeoutRelease);
+    this.timeoutRelease = setTimeout(() => {
       this.doReleaseTxProposal();
     }, 0);
 
@@ -228,6 +232,11 @@ export class Server {
     const p = this.pool.release();
     if (p) {
       this.network.processMessage(new TxProposal().create(p).pack());
+
+      // retry
+      this.timeoutRelease = setTimeout(() => {
+        this.doReleaseTxProposal();
+      }, PBFT_RETRY_INTERVAL_MS);
     }
   }
 
@@ -240,12 +249,12 @@ export class Server {
       return false;
     }
 
-    this.pool.add(p);
-
-    clearTimeout(this.timeoutLock);
-    this.timeoutLock = setTimeout(() => {
-      this.doLock();
-    }, PBFT_LOCK_MS);
+    if (this.pool.add(p)) {
+      clearTimeout(this.timeoutLock);
+      this.timeoutLock = setTimeout(() => {
+        this.doLock();
+      }, 0);
+    }
 
     return true;
   }
@@ -253,7 +262,7 @@ export class Server {
   private doLock() {
     const hash = this.pool.getHash();
     if (hash) {
-      // send out the lock (which is a VoteStruct)
+      // send out the lock
       this.network.processMessage(
         new Lock()
           .create({
@@ -264,6 +273,11 @@ export class Server {
           })
           .pack()
       );
+
+      // retry
+      this.timeoutLock = setTimeout(() => {
+        this.doLock();
+      }, PBFT_RETRY_INTERVAL_MS);
     }
   }
 
@@ -279,7 +293,8 @@ export class Server {
     this.pool.lock(l);
 
     if (this.pool.hasLock()) {
-      setTimeout(() => {
+      clearTimeout(this.timeoutVote);
+      this.timeoutVote = setTimeout(() => {
         this.doVote();
       }, 0);
     }
@@ -301,6 +316,11 @@ export class Server {
           })
           .pack()
       );
+
+      // retry
+      this.timeoutVote = setTimeout(() => {
+        this.doVote();
+      }, PBFT_RETRY_INTERVAL_MS);
     }
   }
 
@@ -315,12 +335,7 @@ export class Server {
 
     // check the quorum and add the block if reached
     if (this.pool.addVote(v)) {
-      this.network.processMessage(
-        new Sync()
-          .setBroadcast(true)
-          .create({ type: Message.TYPE_SYNC, blocks: [this.pool.getBlock()] })
-          .pack()
-      );
+      this.addBlock(this.pool.getBlock());
     }
 
     return true;
@@ -345,17 +360,22 @@ export class Server {
   }
 
   private addBlock(block: BlockStruct) {
+    clearTimeout(this.timeoutRelease);
     clearTimeout(this.timeoutLock);
+    clearTimeout(this.timeoutVote);
 
     if (this.blockchain.add(block)) {
       this.pool.clear(block);
+
+      //@FIXME logging
+      Logger.trace(`Block added: ${block.height}`);
 
       setImmediate((s: string) => {
         this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
       }, JSON.stringify(block));
     }
 
-    setTimeout(() => {
+    this.timeoutRelease = setTimeout(() => {
       this.doReleaseTxProposal();
     }, 0);
   }

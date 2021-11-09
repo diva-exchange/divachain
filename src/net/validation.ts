@@ -102,7 +102,7 @@ export class Validation {
       case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
           Logger.trace('Validation.validateMessage() failed');
-          Logger.trace(`${m}`);
+          Logger.trace(`${JSON.stringify(m)}`);
           Logger.trace(`${JSON.stringify(this.message.errors)}`);
           return false;
         }
