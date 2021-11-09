@@ -103,7 +103,7 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: false,
+      perMessageDeflate: true,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: Error) => {
