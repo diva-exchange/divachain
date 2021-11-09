@@ -19,6 +19,7 @@
 
 import base64url from 'base64url';
 import sodium from 'sodium-native';
+import { Logger } from '../logger';
 
 export class Util {
   /**
@@ -38,11 +39,16 @@ export class Util {
    * @returns {boolean}
    */
   static verifySignature(publicKey: string, sig: string, data: string): boolean {
-    return sodium.crypto_sign_verify_detached(
-      Buffer.from(base64url.decode(sig, 'binary'), 'binary'),
-      Buffer.from(data),
-      Buffer.from(base64url.decode(publicKey, 'binary'), 'binary')
-    );
+    try {
+      return sodium.crypto_sign_verify_detached(
+        Buffer.from(base64url.decode(sig, 'binary'), 'binary'),
+        Buffer.from(data),
+        Buffer.from(base64url.decode(publicKey, 'binary'), 'binary')
+      );
+    } catch (error) {
+      Logger.trace(`Util.verifySignature(): ${JSON.stringify(error)}`);
+      return false;
+    }
   }
 
   /**
