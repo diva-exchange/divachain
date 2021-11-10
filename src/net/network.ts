@@ -30,8 +30,8 @@ import Timeout = NodeJS.Timeout;
 import { nanoid } from 'nanoid';
 
 const WS_CLIENT_OPTIONS = {
-  compress: false,
-  binary: false,
+  compress: true,
+  binary: true,
 };
 
 export type NetworkPeer = {
@@ -306,7 +306,7 @@ export class Network {
     const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: false,
+      perMessageDeflate: true,
       headers: {
         'diva-identity': this.publicKey,
       },

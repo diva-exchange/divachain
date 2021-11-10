@@ -105,7 +105,7 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: false,
+      perMessageDeflate: true,
       skipUTF8Validation: true,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
