@@ -50,7 +50,7 @@ export class Pool {
   private current: Map<string, TransactionStruct> = new Map();
   private cacheCurrent: Array<TransactionStruct> = [];
   private hashCurrent: string = '';
-  private heightCurrent: number;
+  private heightCurrent: number = 0;
 
   private arrayLocks: Array<string> = [];
   private stakeLocks: number = 0;
@@ -65,7 +65,12 @@ export class Pool {
 
   private constructor(server: Server) {
     this.server = server;
-    this.heightCurrent = server.getBlockchain().getHeight() + 1;
+  }
+
+  initHeight() {
+    if (!this.heightCurrent) {
+      this.heightCurrent = this.server.getBlockchain().getHeight() + 1;
+    }
   }
 
   stack(ident: string, commands: ArrayCommand): string | false {

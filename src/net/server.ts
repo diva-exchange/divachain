@@ -154,6 +154,9 @@ export class Server {
     this.validation = Validation.make();
     Logger.info('Validation initialized');
 
+    this.pool = Pool.make(this);
+    Logger.info('Pool initialized');
+
     await this.httpServer.listen(this.config.port, this.config.ip);
 
     if (this.config.bootstrap) {
@@ -167,8 +170,7 @@ export class Server {
       await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
     }
 
-    this.pool = Pool.make(this);
-    Logger.info('Pool initialized');
+    this.pool.initHeight();
 
     return this;
   }
