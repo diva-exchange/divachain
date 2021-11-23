@@ -105,7 +105,7 @@ export class Server {
     this.webSocketServer = new WebSocket.Server({
       server: this.httpServer,
       clientTracking: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
       skipUTF8Validation: true,
     });
     this.webSocketServer.on('connection', (ws: WebSocket) => {
@@ -177,7 +177,6 @@ export class Server {
 
   async shutdown(): Promise<void> {
     this.wallet.close();
-
     this.network.shutdown();
     await this.blockchain.shutdown();
 
@@ -255,7 +254,7 @@ export class Server {
       clearTimeout(this.timeoutLock);
       this.timeoutLock = setTimeout(() => {
         this.doLock();
-      }, 0);
+      }, PBFT_RETRY_INTERVAL_MS);
     }
 
     return true;

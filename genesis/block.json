@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 3,
   "previousHash": "0000000000000000000000000000000000000000000",
   "hash": "0000000000000000000000000000000000000000000",
   "tx": [
@@ -10,8 +10,7 @@
         {
           "seq": 1,
           "command": "addPeer",
-          "host": "127.27.26.201",
-          "port": 17468,
+          "address": "127.27.26.201:17468",
           "publicKey": "Zfef2MB4o2-YMn5_99AdCU0tNmfLehtPvmlaOd1VMd4"
         },
         {
@@ -23,8 +22,7 @@
         {
           "seq": 3,
           "command": "addPeer",
-          "host": "127.27.26.202",
-          "port": 17468,
+          "address": "127.27.26.202:17468",
           "publicKey": "41wPScPyIefJubclRIXGTqR-rPw5Bkk9AZ_Vscisa0M"
         },
         {
@@ -36,8 +34,7 @@
         {
           "seq": 5,
           "command": "addPeer",
-          "host": "127.27.26.203",
-          "port": 17468,
+          "address": "127.27.26.203:17468",
           "publicKey": "jDt5CNNoZvFw2dyskjC8foMEEHsDjXqRVjv8KUU1THg"
         },
         {
@@ -49,8 +46,7 @@
         {
           "seq": 7,
           "command": "addPeer",
-          "host": "127.27.26.204",
-          "port": 17468,
+          "address": "127.27.26.204:17468",
           "publicKey": "ZOzTir2BDHnUm4ZscJJozE5FFhQDJ8mMAgEsn5kYIqg"
         },
         {
@@ -62,8 +58,7 @@
         {
           "seq": 9,
           "command": "addPeer",
-          "host": "127.27.26.205",
-          "port": 17468,
+          "address": "127.27.26.205:17468",
           "publicKey": "YWG64iZFX0btUDV6FoW4APBb81h4fSRFUtBt4hmErH0"
         },
         {
@@ -75,8 +70,7 @@
         {
           "seq": 11,
           "command": "addPeer",
-          "host": "127.27.26.206",
-          "port": 17468,
+          "address": "127.27.26.206:17468",
           "publicKey": "9Hn3TIO-dfVnxNH3YcD1-0eCCVCJxUhypSOhO8vV-ko"
         },
         {
@@ -88,8 +82,7 @@
         {
           "seq": 13,
           "command": "addPeer",
-          "host": "127.27.26.207",
-          "port": 17468,
+          "address": "127.27.26.207:17468",
           "publicKey": "-KvoXDm7WXT40pBq32kTeC-p8zyQZm2nlv_SVM2ZiA0"
         },
         {

@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/block/v3/transaction/data-decision.json",
+
+  "type": "object",
+  "properties": {
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "command": {
+      "type": "string",
+      "pattern": "^data|decision$"
+    },
+    "ns": {
+      "type": "string",
+      "pattern": "^([A-Za-z_-]{4,15}:){1,4}[A-Za-z0-9_-]{1,64}$"
+    },
+    "base64url": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,8192}$"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "seq",
+    "command",
+    "ns",
+    "base64url"
+  ]
+}

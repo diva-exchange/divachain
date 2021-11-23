@@ -18,7 +18,7 @@
  */
 
 import SocksProxyAgent from 'socks-proxy-agent/dist/agent';
-import get from 'simple-get';
+import { get } from 'simple-get';
 import { Logger } from '../logger';
 import { Server } from './server';
 import { Util } from '../chain/util';
@@ -38,7 +38,7 @@ type Options = {
   followRedirects: boolean;
 };
 
-type recordNetwork = { publicKey: string; api: string };
+type recordNetwork = { publicKey: string; address: string };
 
 export class Bootstrap {
   private readonly server: Server;
@@ -61,23 +61,6 @@ export class Bootstrap {
       await this.populateNetwork();
     }
 
-    const i2p_socks_proxy_host = this.server.config.i2p_socks_proxy_host;
-    const i2p_socks_proxy_console_port = this.server.config.i2p_socks_proxy_console_port;
-    const port = this.server.config.port;
-
-    const reI2P = new RegExp(`.b32.i2p:${port}$`, 'g');
-    if (!i2p_socks_proxy_host || !i2p_socks_proxy_console_port || this.server.config.address.match(reI2P)) {
-      return this;
-    }
-
-    const html = await this.fetch(`http://${i2p_socks_proxy_host}:${i2p_socks_proxy_console_port}/?page=i2p_tunnels`);
-    const reB32 = new RegExp(`b32=[^>]*>([^<]+).+?([a-z0-9]+.b32.i2p:${port})`, 'g');
-    const arrayB32 = [...html.matchAll(reB32)];
-    if (arrayB32.length !== 1 || !arrayB32[0][2]) {
-      throw new Error('Local I2P console not available: cannot read b32-address');
-    }
-    this.server.config.address = arrayB32[0][2];
-
     return this;
   }
 
@@ -98,7 +81,6 @@ export class Bootstrap {
       }
     }
   }
-
   async enterNetwork(publicKey: string) {
     await this.fetchFromApi('join/' + this.server.config.address + '/' + publicKey);
   }
@@ -106,13 +88,10 @@ export class Bootstrap {
   join(address: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
     t = Math.floor(t);
     t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
-    const ident = address + '/' + publicKey;
 
-    //@TODO rather simple address check
     if (
-      !/^[A-Za-z0-9][A-Za-z0-9_.]{2,128}[A-Za-z0-9]:[\d]{4,5}$/.test(address) ||
       !/^[A-Za-z0-9_-]{43}$/.test(publicKey) ||
-      this.mapToken.has(ident) ||
+      this.mapToken.has(address) ||
       this.server.getNetwork().hasNetworkAddress(address) ||
       this.server.getNetwork().hasNetworkPeer(publicKey)
     ) {
@@ -120,7 +99,7 @@ export class Bootstrap {
     }
 
     const token = nanoid(LENGTH_TOKEN);
-    this.mapToken.set(ident, token);
+    this.mapToken.set(address, token);
 
     setTimeout(async () => {
       let res: { token: string } = { token: '' };
@@ -131,7 +110,7 @@ export class Bootstrap {
         Logger.warn('Bootstrap.join() failed: ' + JSON.stringify(error));
 
         // retry
-        this.mapToken.delete(ident);
+        this.mapToken.delete(address);
         t = t + MIN_WAIT_JOIN_MS;
         setTimeout(() => {
           this.join(address, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
@@ -148,29 +127,25 @@ export class Bootstrap {
   }
 
   private confirm(address: string, publicKey: string, signedToken: string) {
-    const ident = address + '/' + publicKey;
-    const token = this.mapToken.get(ident) || '';
+    const token = this.mapToken.get(address) || '';
 
     if (!Util.verifySignature(publicKey, signedToken, token)) {
       throw new Error('Bootstrap.confirm() - Util.verifySignature() failed: ' + signedToken + ' / ' + token);
     }
-
-    const [host, port] = address.split(':');
 
     if (
       !this.server.stackTxProposal([
         {
           seq: 1,
           command: 'addPeer',
-          host: host,
-          port: Number(port),
+          address: address,
           publicKey: publicKey,
         } as CommandAddPeer,
       ])
     ) {
       throw new Error('Bootstrap.confirm() - stackTransaction(addPeer) failed');
     }
-    this.mapToken.delete(ident);
+    this.mapToken.delete(address);
   }
 
   private async populateNetwork() {
@@ -195,7 +170,7 @@ export class Bootstrap {
   }
 
   private async fetchFromApi(endpoint: string) {
-    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.api !== this.server.config.address));
+    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.address !== this.server.config.address));
     let urlApi = '';
     do {
       urlApi = 'http://' + aNetwork.pop().api + '/' + endpoint;
@@ -219,8 +194,8 @@ export class Bootstrap {
       followRedirects: false,
     };
 
-    if (config.i2p_socks_proxy_host && config.i2p_socks_proxy_port && /^http:\/\/[a-z0-9.]+\.i2p/.test(options.url)) {
-      options.agent = new SocksProxyAgent(`socks://${config.i2p_socks_proxy_host}:${config.i2p_socks_proxy_port}`);
+    if (config.i2p_socks_host && config.i2p_socks_port && /^http:\/\/[a-z0-9.]+\.i2p/.test(options.url)) {
+      options.agent = new SocksProxyAgent(`socks://${config.i2p_socks_host}:${config.i2p_socks_port}`);
     }
 
     return new Promise((resolve, reject) => {

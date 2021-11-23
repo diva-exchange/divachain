@@ -166,10 +166,6 @@ export class Blockchain {
     }
   }
 
-  /**
-   * @param {number} gte - Greater than or equal than block height
-   * @param {number} lte - Less than or equal than block height
-   */
   async getRange(gte: number, lte: number): Promise<Array<BlockStruct>> {
     if (gte < 1) {
       throw new Error('Blockchain.getRange(): invalid range');
@@ -344,7 +340,7 @@ export class Blockchain {
       return;
     }
 
-    const peer: NetworkPeer = { host: command.host, port: command.port, stake: 0 };
+    const peer: NetworkPeer = { address: command.address, stake: 0 };
     this.mapPeer.set(command.publicKey, peer);
     await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
     this.server.getNetwork().addPeer(command.publicKey, peer);

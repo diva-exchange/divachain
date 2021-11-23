@@ -20,18 +20,17 @@
 import { Server } from './net/server';
 import { Config, Configuration } from './config';
 
-const c: Configuration = {} as Configuration;
-
 class Main {
-  private readonly config: Config;
+  private config: Config = {} as Config;
 
-  constructor(c: Configuration) {
-    this.config = new Config(c);
-    this.start();
+  static async make(c: Configuration) {
+    const self = new Main();
+    self.config = await Config.make(c);
+    self.start();
   }
 
   private start() {
-    new Server(this.config).start().then((server) => {
+    new Server(this.config).start().then((server: Server) => {
       process.once('SIGINT', () => {
         server.shutdown().then(() => {
           process.exit(0);
@@ -46,4 +45,8 @@ class Main {
   }
 }
 
-new Main(c);
+//@FIXME load configuration?
+const c: Configuration = {} as Configuration;
+(async () => {
+  await Main.make(c);
+})();

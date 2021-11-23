@@ -20,120 +20,52 @@
 import { suite, test, slow, timeout } from '@testdeck/mocha';
 import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
-import path from 'path';
 
 import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
-import { BlockStruct } from '../../src/chain/block';
-import { Blockchain } from '../../src/chain/blockchain';
-import { CommandAddPeer, CommandModifyStake } from '../../src/chain/transaction';
-import { Wallet } from '../../src/chain/wallet';
-import fs from 'fs';
 import { Logger } from '../../src/logger';
+import {Genesis} from '../genesis';
 
 chai.use(chaiHttp);
 
-const SIZE_TESTNET = 9; // total peers in the whole network
-const NETWORK_SIZE = 7; // number of peers a single peer tries to connect to...
-const BASE_PORT = 17000;
-const BASE_PORT_FEED = 18000;
-const IP = '127.27.27.1';
-
-@suite
+@suite(timeout(60000))
 class TestServer {
   static mapConfigServer: Map<string, Config> = new Map();
   static mapServer: Map<string, Server> = new Map();
 
-  @timeout(120000)
-  static before(): Promise<void> {
-    // create a genesis block
-    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../../genesis/block.json'));
+  static async before(): Promise<void> {
+    process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
+    process.env.NETWORK_SIZE = process.env.NETWORK_SIZE || '7';
+    process.env.BASE_PORT = process.env.BASE_PORT || '17000';
+    process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
+    process.env.IP = process.env.IP || '127.27.27.1';
+    process.env.HAS_I2P = '0';
+    process.env.DEBUG_PERFORMANCE = '1';
 
-    const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
-    let s = 1;
-    let config = {} as Config;
-    for (let i = 1; i <= SIZE_TESTNET; i++) {
-      config = new Config({
-        no_bootstrapping: 1,
-        ip: IP,
-        port: BASE_PORT + i,
-        port_block_feed: BASE_PORT_FEED + i,
-        path_genesis: path.join(__dirname, '../genesis/block.json'),
-        path_state: path.join(__dirname, '../state'),
-        path_blockstore: path.join(__dirname, '../blockstore'),
-        path_keys: path.join(__dirname, '../keys'),
-        network_size: NETWORK_SIZE,
-        network_morph_interval_ms: 60000,
-        network_verbose_logging: false,
-        blockchain_max_blocks_in_memory: 100,
-      });
+    TestServer.mapConfigServer = await Genesis.create();
 
-      const publicKey = Wallet.make(config).getPublicKey();
-      TestServer.mapConfigServer.set(publicKey, config);
-
-      cmds.push({
-        seq: s,
-        command: 'addPeer',
-        host: IP,
-        port: BASE_PORT + i,
-        publicKey: publicKey,
-      } as CommandAddPeer);
-      s++;
-      cmds.push({
-        seq: s,
-        command: 'modifyStake',
-        publicKey: publicKey,
-        stake: Math.floor((Math.random() * 1000) / Math.sqrt(i)), // i > 7 ? 0 : 1000,
-      } as CommandModifyStake);
-      s++;
+    for (const pk of TestServer.mapConfigServer.keys()) {
+      await TestServer.createServer(pk);
     }
-    genesis.tx = [
-      {
-        ident: 'genesis',
-        origin: '0000000000000000000000000000000000000000000',
-        commands: cmds,
-        sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      },
-    ];
-    fs.writeFileSync(path.join(__dirname, '../genesis/block.json'), JSON.stringify(genesis));
 
+    // give the servers some time to start up
     return new Promise((resolve) => {
-      setTimeout(resolve, SIZE_TESTNET * 1200);
-
-      for (const pk of TestServer.mapConfigServer.keys()) {
-        (async () => {
-          await TestServer.createServer(pk);
-        })();
-      }
+      setTimeout(resolve, 10000);
     });
   }
 
-  @timeout(60000)
-  static after(): Promise<void> {
+  static async after(): Promise<void> {
     return new Promise((resolve) => {
-      let c = TestServer.mapServer.size;
-      TestServer.mapServer.forEach(async (s) => {
-        await s.shutdown();
-        c--;
-        if (!c) {
-          setTimeout(resolve, 500);
-        }
-      });
+      for (const s of TestServer.mapServer.values()) {
+        s.shutdown();
+      }
+      // give the servers some time to shutdown
+      setTimeout(resolve, Number(process.env.SIZE_TESTNET) * 1000);
     });
   }
 
   static async createServer(publicKey: string) {
-    const s = new Server(
-      new Config({
-        ...TestServer.mapConfigServer.get(publicKey),
-        ...{
-          path_genesis: path.join(__dirname, '../genesis/block.json'),
-          path_blockstore: path.join(__dirname, '../blockstore'),
-          path_state: path.join(__dirname, '../state'),
-          path_keys: path.join(__dirname, '../keys'),
-        },
-      })
-    );
+    const s = new Server(TestServer.mapConfigServer.get(publicKey) || {} as Config);
     await s.start();
     TestServer.mapServer.set(publicKey, s);
     return s;
@@ -147,8 +79,8 @@ class TestServer {
   }
 
   @test
-  @slow(150000)
-  @timeout(150000)
+  @slow(120000)
+  @timeout(120000)
   async transactionTestLoad() {
     for (let t = 0; t < 3; t++) {
       const config = [...TestServer.mapConfigServer.values()][t];
@@ -169,12 +101,12 @@ class TestServer {
         .send([{ seq: 1, command: 'decision', ns: 'test:test', base64url: 'abcABC' + t }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('decision' + t);
-      await TestServer.wait(500);
+      await TestServer.wait(1000);
     }
 
     console.log('waiting for a possible sync...');
     // wait for a possible sync
-    await TestServer.wait(10000);
+    await TestServer.wait(30000);
   }
 
   @test
@@ -301,7 +233,7 @@ class TestServer {
   @slow(10000000)
   @timeout(10000000)
   async stressMultiTransaction() {
-    const _outer = 500; // transactions
+    const _outer = Number(process.env.TRANSACTIONS) > 10 ? Number(process.env.TRANSACTIONS) : 100;
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions

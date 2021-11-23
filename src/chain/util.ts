@@ -22,22 +22,12 @@ import sodium from 'sodium-native';
 import { Logger } from '../logger';
 
 export class Util {
-  /**
-   * @param s {string}
-   * @returns {string} - hash, base64url encoded
-   */
   static hash(s: string): string {
     const bufferOutput: Buffer = Buffer.alloc(sodium.crypto_hash_sha256_BYTES);
     sodium.crypto_hash_sha256(bufferOutput, Buffer.from(s));
     return base64url.encode(bufferOutput.toString('binary'), 'binary');
   }
 
-  /**
-   * @param {string} publicKey - base64url encoded
-   * @param {string} sig - base64url encoded
-   * @param {string} data
-   * @returns {boolean}
-   */
   static verifySignature(publicKey: string, sig: string, data: string): boolean {
     try {
       return sodium.crypto_sign_verify_detached(
@@ -46,7 +36,9 @@ export class Util {
         Buffer.from(base64url.decode(publicKey, 'binary'), 'binary')
       );
     } catch (error) {
-      Logger.trace(`Util.verifySignature(): ${JSON.stringify(error)}`);
+      //@FIXME logging
+      Logger.trace('Util.verifySignature() failed');
+      console.trace(`${publicKey} / ${sig} / ${data}`);
       return false;
     }
   }

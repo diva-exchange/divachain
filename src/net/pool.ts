@@ -101,7 +101,7 @@ export class Pool {
   }
 
   add(p: TxProposalStruct): boolean {
-    if (p.height !== this.heightCurrent || this.hasLock() || this.current.has(p.tx.origin)) {
+    if (p.height !== this.heightCurrent || this.current.has(p.tx.origin)) {
       return false;
     }
 

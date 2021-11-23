@@ -42,10 +42,6 @@ export class Message {
 
   protected message: MessageStruct = {} as MessageStruct;
 
-  /**
-   * @param {Buffer|string} message
-   * @throws {Error}
-   */
   constructor(message?: Buffer | string) {
     if (message) {
       this._unpack(message);
@@ -88,11 +84,6 @@ export class Message {
     this.message.trail = [...new Set((this.message.trail || []).concat(arrayTrail))].filter((_pk) => _pk);
   }
 
-  /**
-   * @param {number} version
-   * @return {string}
-   * @throws {Error}
-   */
   pack(version?: number): string {
     this.message.ident = this.message.ident || [this.message.data.type, nanoid(16)].join();
     this.message.broadcast = this.message.broadcast || false;

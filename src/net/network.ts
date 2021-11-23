@@ -35,8 +35,7 @@ const WS_CLIENT_OPTIONS = {
 };
 
 export type NetworkPeer = {
-  host: string;
-  port: number;
+  address: string;
   stake: number;
 };
 
@@ -178,9 +177,9 @@ export class Network {
     return peers;
   }
 
-  network(): Array<{ publicKey: string; api: string; stake: number }> {
+  network(): Array<{ publicKey: string; address: string; stake: number }> {
     return [...this.mapPeer].map((v) => {
-      return { publicKey: v[0], api: v[1].host + ':' + v[1].port, stake: v[1].stake };
+      return { publicKey: v[0], address: v[1].address, stake: v[1].stake };
     });
   }
 
@@ -189,11 +188,9 @@ export class Network {
   }
 
   hasNetworkAddress(address: string): boolean {
-    if (address.indexOf(':') > 0) {
-      for (const v of [...this.mapPeer]) {
-        if (v[1].host + ':' + v[1].port === address) {
-          return true;
-        }
+    for (const v of [...this.mapPeer]) {
+      if (v[1].address === address) {
+        return true;
       }
     }
     return false;
@@ -252,12 +249,12 @@ export class Network {
       const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
       const mA = new Auth(message);
 
-      if (!peer.host || !this.server.getValidation().validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
+      if (!peer.address || !this.server.getValidation().validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
         return ws.close(4003, 'Auth Failed');
       }
 
       this.peersIn[publicKeyPeer] = {
-        address: 'ws://' + peer.host + ':' + peer.port,
+        address: 'ws://' + peer.address,
         alive: Date.now(),
         stale: 0,
         ws: ws,
@@ -293,7 +290,7 @@ export class Network {
         break;
       }
       const peer = (this.mapPeer.get(publicKey) || {}) as NetworkPeer;
-      if (peer.host && !this.peersIn[publicKey] && !this.peersOut[publicKey] && !this.stackOut[publicKey]) {
+      if (peer.address && !this.peersIn[publicKey] && !this.peersOut[publicKey] && !this.stackOut[publicKey]) {
         this.stackOut[publicKey] = peer;
         this.connect(publicKey);
       }
@@ -303,22 +300,22 @@ export class Network {
   }
 
   private connect(publicKeyPeer: string) {
-    const address = 'ws://' + this.stackOut[publicKeyPeer].host + ':' + this.stackOut[publicKeyPeer].port;
+    const address = 'ws://' + this.stackOut[publicKeyPeer].address;
     const options: WebSocket.ClientOptions = {
       followRedirects: false,
-      perMessageDeflate: true,
+      perMessageDeflate: false,
       headers: {
         'diva-identity': this.publicKey,
       },
     };
 
     if (
-      this.server.config.i2p_socks_proxy_host &&
-      this.server.config.i2p_socks_proxy_port > 0 &&
-      /\.i2p$/.test(this.stackOut[publicKeyPeer].host)
+      this.server.config.i2p_socks_host &&
+      this.server.config.i2p_socks_port > 0 &&
+      /\.i2p$/.test(this.stackOut[publicKeyPeer].address)
     ) {
       options.agent = new SocksProxyAgent(
-        `socks://${this.server.config.i2p_socks_proxy_host}:${this.server.config.i2p_socks_proxy_port}`
+        `socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
       );
     }
 

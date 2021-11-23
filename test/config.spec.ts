@@ -26,27 +26,19 @@ import fs from 'fs';
 @suite
 class TestConfig {
   @test
-  config() {
-    const c = new Config({ network_p2p_interval_ms: 5000, network_size: 100 } as Configuration);
+  async config() {
+    const c = await Config.make({ network_p2p_interval_ms: 5000, network_size: 100 } as Configuration);
     expect(c.ip).is.not.empty;
     expect(c.network_p2p_interval_ms).is.equal(5000);
     expect(c.network_size).is.equal(64);
   }
 
   @test
-  configPkg() {
-    process['pkg'] = true;
-    process.execPath = __filename;
-    const c = new Config({} as Configuration);
-    expect(c.ip).is.not.empty;
-  }
-
-  @test
-  configPathExist() {
+  async configPathExist() {
     fs.rmdirSync(__dirname + '/blockstore', { recursive: true });
     fs.rmdirSync(__dirname + '/state', { recursive: true });
     fs.rmdirSync(__dirname + '/keys', { recursive: true });
-    const c = new Config({ path_app: __dirname } as Configuration);
+    const c = await Config.make({ path_app: __dirname } as Configuration);
     expect(c.ip).is.not.empty;
     fs.copyFileSync(__dirname + '/../blockstore/.gitignore', __dirname + '/blockstore/.gitignore');
     fs.copyFileSync(__dirname + '/../state/.gitignore', __dirname + '/state/.gitignore');
@@ -54,8 +46,8 @@ class TestConfig {
   }
 
   @test
-  configNetworkRefreshIntervalMs() {
-    const c = new Config({ path_app: __dirname, network_p2p_interval_ms: -1 } as Configuration);
+  async configNetworkRefreshIntervalMs() {
+    const c = await Config.make({ path_app: __dirname, network_p2p_interval_ms: -1 } as Configuration);
     expect(c.network_p2p_interval_ms).is.greaterThanOrEqual(1);
     expect(c.network_p2p_interval_ms).is.equal(3000);
   }

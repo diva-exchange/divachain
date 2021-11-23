@@ -18,6 +18,9 @@
           },
           {
             "$ref": "/schema/block/v2/block.json"
+          },
+          {
+            "$ref": "/schema/block/v3/block.json"
           }
         ]
       },

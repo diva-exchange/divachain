@@ -6,7 +6,7 @@ This is a fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-ene
 
 The load of the PBFT consensus is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
 
-The peers in the network communicate via websockets. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
+The peers in the network communicate over I2P. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
 
 ## Architecture / Flow
 
@@ -48,13 +48,10 @@ Default: 17468
 ### PORT_BLOCK_FEED
 Default: 17469
 
-### I2P_SOCKS_PROXY_HOST
+### I2P_SAM_HOST
 Default: (empty)
 
-### I2P_SOCKS_PROXY_PORT
-Default: 0
-
-### I2P_SOCKS_PROXY_CONSOLE_PORT
+### I2P_SAM_PORT
 Default: 0
 
 ### NETWORK_SIZE
@@ -67,14 +64,14 @@ Default: Minimum
 ### NETWORK_MORPH_INTERVAL_MS
 Time, in milliseconds, between slight changes in the peer topology. The network morphs over time. 
 
-Minimum: 60000\
+Minimum: 120000\
 Maximum: 600000\
 Default: Minimum
 
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
-Minimum: 5000\
+Minimum: 3000\
 Maximum: 10000\
 Default: Minimum
 
@@ -88,7 +85,7 @@ Default: Minimum
 ### NETWORK_PING_INTERVAL_MS
 Interval, in milliseconds, to ping the peers in the network.
 
-Minimum: 5000\
+Minimum: 3000\
 Maximum: 10000\
 Default: Minimum
 
@@ -226,13 +223,27 @@ Get a well-defined number of blocks starting from {height} (including). See NETW
 
 ## How to Run Unit Tests
 
+If a local I2P test environment is wanted, start the local testnet container:
+```
+docker-compose -f test/local-i2p-testnet.yml up -d
+```
+
 Unit tests can be executed using:
 
 ```
 npm run test
 ```
-Unit tests contain functional tests and will create some blocks within the local storage. The underlying network (like I2P) must be configured properly (the configuration is Work-In-Progress).
+Unit tests contain functional tests and will create some blocks within the local storage.
 
+
+To stop the local I2P test environment (and purge all data):
+```
+docker-compose -f test/local-i2p-testnet.yml down --volumes
+```
+
+
+
+## Linting
 
 To lint the code, use
 ```

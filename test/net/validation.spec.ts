@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { suite, test, slow } from '@testdeck/mocha';
+import { suite, test } from '@testdeck/mocha';
 import { expect } from 'chai';
 import { Validation } from '../../src/net/validation';
 import { Challenge } from '../../src/net/message/challenge';
@@ -36,9 +36,8 @@ class TestValidation {
   private static wallet: Wallet;
   private static validation: Validation;
 
-  @slow(200)
-  static before() {
-    TestValidation.config = new Config({
+  static async before() {
+    TestValidation.config = await Config.make({
       path_genesis: path.join(__dirname, '../genesis/block.json'),
       path_state: path.join(__dirname, '../state'),
       path_blockstore: path.join(__dirname, '../blockstore'),
@@ -48,7 +47,6 @@ class TestValidation {
     TestValidation.validation = Validation.make();
   }
 
-  @slow(100)
   static after() {
     TestValidation.wallet.close();
   }

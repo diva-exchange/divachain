@@ -40,8 +40,10 @@ export class Api {
   private constructor(server: Server) {
     this.server = server;
 
-    const config = this.server.config;
-    this.pathToken = path.join(config.path_keys, config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token');
+    this.pathToken = path.join(
+      this.server.config.path_keys,
+      this.server.config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token'
+    );
     this.createToken();
     this.route();
   }

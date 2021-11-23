@@ -65,6 +65,17 @@ export class Validation {
     const schemaDataDecisionV2: JSONSchemaType<BlockStruct> = require(pathSchema +
       'block/v2/transaction/data-decision.json');
 
+    const schemaBlockV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/block.json');
+    const schemaVotesV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/votes.json');
+    const schemaTxV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/transaction/tx.json');
+    const schemaAddPeerV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/transaction/add-peer.json');
+    const schemaRemovePeerV3: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v3/transaction/remove-peer.json');
+    const schemaModifyStakeV3: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v3/transaction/modify-stake.json');
+    const schemaDataDecisionV3: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v3/transaction/data-decision.json');
+
     this.message = new Ajv({
       schemas: [
         schemaAuth,
@@ -87,6 +98,13 @@ export class Validation {
         schemaRemovePeerV2,
         schemaModifyStakeV2,
         schemaDataDecisionV2,
+        schemaBlockV3,
+        schemaVotesV3,
+        schemaTxV3,
+        schemaAddPeerV3,
+        schemaRemovePeerV3,
+        schemaModifyStakeV3,
+        schemaDataDecisionV3,
       ],
     }).compile(schemaMessage);
   }
