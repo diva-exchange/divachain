@@ -20,15 +20,11 @@
 import { suite, test } from '@testdeck/mocha';
 import { expect } from 'chai';
 import { Validation } from '../../src/net/validation';
-import { Challenge } from '../../src/net/message/challenge';
 import { Message } from '../../src/net/message/message';
-import { Auth } from '../../src/net/message/auth';
 import { Wallet } from '../../src/chain/wallet';
 import { Config } from '../../src/config';
 import path from 'path';
-import { Vote } from '../../src/net/message/vote';
 import { Util } from '../../src/chain/util';
-import { nanoid } from 'nanoid';
 
 @suite
 class TestValidation {
@@ -49,29 +45,5 @@ class TestValidation {
 
   static after() {
     TestValidation.wallet.close();
-  }
-
-  @test
-  validateAuth() {
-    const m = new Auth().create(TestValidation.wallet.sign('test'));
-    expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
-  }
-
-  @test
-  validateChallenge() {
-    const m = new Challenge().create(nanoid(32));
-    expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
-  }
-
-  @test
-  validateVote() {
-    const hash = Util.hash('test');
-    const m = new Vote().create({
-      type: Message.TYPE_VOTE,
-      origin: TestValidation.wallet.getPublicKey(),
-      hash: hash,
-      sig: TestValidation.wallet.sign(hash),
-    });
-    expect(TestValidation.validation.validateMessage(new Message(m.pack()))).to.be.true;
   }
 }

@@ -26,22 +26,20 @@ class Main {
   static async make(c: Configuration) {
     const self = new Main();
     self.config = await Config.make(c);
-    self.start();
+    await self.start();
   }
 
-  private start() {
-    new Server(this.config).start().then((server: Server) => {
-      process.once('SIGINT', () => {
-        server.shutdown().then(() => {
-          process.exit(0);
-        });
-      });
-      process.once('SIGTERM', () => {
-        server.shutdown().then(() => {
-          process.exit(0);
-        });
-      });
+  private async start() {
+    const server = new Server(this.config);
+    process.once('SIGINT', async () => {
+      await server.shutdown();
+      process.exit(0);
     });
+    process.once('SIGTERM', async () => {
+      await server.shutdown();
+      process.exit(0);
+    });
+    await server.start();
   }
 }
 

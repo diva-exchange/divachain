@@ -19,26 +19,24 @@
 
 import base64url from 'base64url';
 import { nanoid } from 'nanoid';
+import * as zlib from 'zlib';
 
 export type MessageStruct = {
   ident: string;
   data: any;
-  broadcast: boolean;
-  trail: Array<string>;
 };
 
 export class Message {
   static readonly VERSION_1 = 1; // string representation of object data
   static readonly VERSION_2 = 2; // base64url encoded object data
+  static readonly VERSION_3 = 3; // base64url encoded, zlib compressed object data
 
   static readonly VERSION = Message.VERSION_2;
 
   static readonly TYPE_CHALLENGE = 1;
   static readonly TYPE_AUTH = 2;
-  static readonly TYPE_TX_PROPOSAL = 3;
-  static readonly TYPE_LOCK = 4;
-  static readonly TYPE_VOTE = 5;
-  static readonly TYPE_SYNC = 6;
+  static readonly TYPE_LOCK = 3;
+  static readonly TYPE_SYNC = 4;
 
   protected message: MessageStruct = {} as MessageStruct;
 
@@ -60,14 +58,6 @@ export class Message {
     return this.message.data.type;
   }
 
-  isBroadcast(): boolean {
-    return this.message.broadcast;
-  }
-
-  trail(): Array<string> {
-    return this.message.trail || [];
-  }
-
   origin(): string {
     return this.message.data.origin || '';
   }
@@ -80,13 +70,8 @@ export class Message {
     return this.message.data.block ? this.message.data.block.hash : '';
   }
 
-  updateTrail(arrayTrail: Array<string>) {
-    this.message.trail = [...new Set((this.message.trail || []).concat(arrayTrail))].filter((_pk) => _pk);
-  }
-
   pack(version?: number): string {
     this.message.ident = this.message.ident || [this.message.data.type, nanoid(16)].join();
-    this.message.broadcast = this.message.broadcast || false;
     return this._pack(version);
   }
 
@@ -96,6 +81,10 @@ export class Message {
         return version + ';' + JSON.stringify(this.message);
       case Message.VERSION_2:
         return version + ';' + base64url.encode(JSON.stringify(this.message));
+      case Message.VERSION_3:
+        return (
+          version + ';' + base64url.encode(zlib.deflateRawSync(Buffer.from(JSON.stringify(this.message), 'binary')))
+        );
     }
     throw new Error('Message.pack(): unsupported data version');
   }
@@ -115,6 +104,9 @@ export class Message {
         break;
       case Message.VERSION_2:
         this.message = JSON.parse(base64url.decode(message));
+        break;
+      case Message.VERSION_3:
+        this.message = JSON.parse(zlib.inflateRawSync(base64url.decode(message)).toString('binary'));
         break;
       default:
         throw new Error(`Message.unpack(): unsupported data version ${version}`);

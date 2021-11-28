@@ -19,24 +19,19 @@
 
 import { Message } from './message';
 import { BlockStruct } from '../../chain/block';
-import { Util } from '../../chain/util';
 
 export type SyncStruct = {
   type: number;
-  blocks: Array<BlockStruct>;
+  block: BlockStruct;
 };
 
 export class Sync extends Message {
-  constructor(message?: Buffer | string) {
-    super(message);
-    this.message.broadcast = false;
-  }
-
-  create(structSync: SyncStruct): Sync {
-    const hashes = structSync.blocks.reduce((s: string, b: BlockStruct) => {
-      return s + b.hash;
-    }, '');
-    this.message.ident = [structSync.type, Util.hash(hashes)].join();
+  create(block: BlockStruct): Sync {
+    const structSync: SyncStruct = {
+      type: Message.TYPE_SYNC,
+      block: block,
+    };
+    this.message.ident = [structSync.type, block.height].join();
     this.message.data = structSync;
     return this;
   }

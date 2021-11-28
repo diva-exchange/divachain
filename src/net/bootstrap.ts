@@ -33,7 +33,7 @@ const MAX_WAIT_JOIN_MS = 60000;
 
 type Options = {
   url: string;
-  agent: boolean | object;
+  agent: SocksProxyAgent | false;
   timeout: number;
   followRedirects: boolean;
 };
@@ -42,6 +42,7 @@ type recordNetwork = { publicKey: string; address: string };
 
 export class Bootstrap {
   private readonly server: Server;
+  private readonly socksProxyAgent: SocksProxyAgent | false;
   private mapToken: Map<string, string>;
   private arrayNetwork: Array<recordNetwork> = [];
 
@@ -52,6 +53,9 @@ export class Bootstrap {
 
   private constructor(server: Server) {
     this.server = server;
+    this.socksProxyAgent = this.server.config.i2p_has_socks
+      ? new SocksProxyAgent(`socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`)
+      : false;
     this.mapToken = new Map();
   }
 
@@ -85,7 +89,7 @@ export class Bootstrap {
     await this.fetchFromApi('join/' + this.server.config.address + '/' + publicKey);
   }
 
-  join(address: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
+  join(address: string, destination: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
     t = Math.floor(t);
     t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
 
@@ -93,6 +97,7 @@ export class Bootstrap {
       !/^[A-Za-z0-9_-]{43}$/.test(publicKey) ||
       this.mapToken.has(address) ||
       this.server.getNetwork().hasNetworkAddress(address) ||
+      this.server.getNetwork().hasNetworkDestination(destination) ||
       this.server.getNetwork().hasNetworkPeer(publicKey)
     ) {
       return false;
@@ -105,7 +110,7 @@ export class Bootstrap {
       let res: { token: string } = { token: '' };
       try {
         res = JSON.parse(await this.fetch('http://' + address + '/challenge/' + token));
-        this.confirm(address, publicKey, res.token);
+        this.confirm(address, destination, publicKey, res.token);
       } catch (error) {
         Logger.warn('Bootstrap.join() failed: ' + JSON.stringify(error));
 
@@ -113,7 +118,7 @@ export class Bootstrap {
         this.mapToken.delete(address);
         t = t + MIN_WAIT_JOIN_MS;
         setTimeout(() => {
-          this.join(address, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
+          this.join(address, destination, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
         }, t);
       }
     }, t);
@@ -126,7 +131,7 @@ export class Bootstrap {
     return token && token.length === LENGTH_TOKEN ? this.server.getWallet().sign(token) : '';
   }
 
-  private confirm(address: string, publicKey: string, signedToken: string) {
+  private confirm(address: string, destination: string, publicKey: string, signedToken: string) {
     const token = this.mapToken.get(address) || '';
 
     if (!Util.verifySignature(publicKey, signedToken, token)) {
@@ -134,11 +139,12 @@ export class Bootstrap {
     }
 
     if (
-      !this.server.stackTxProposal([
+      !this.server.stackTx([
         {
           seq: 1,
           command: 'addPeer',
           address: address,
+          destination: destination,
           publicKey: publicKey,
         } as CommandAddPeer,
       ])
@@ -185,18 +191,12 @@ export class Bootstrap {
   }
 
   private fetch(url: string): Promise<string> {
-    const config = this.server.config;
-
     const options: Options = {
       url: url,
-      agent: false,
+      agent: this.socksProxyAgent,
       timeout: 10000,
       followRedirects: false,
     };
-
-    if (config.i2p_socks_host && config.i2p_socks_port && /^http:\/\/[a-z0-9.]+\.i2p/.test(options.url)) {
-      options.agent = new SocksProxyAgent(`socks://${config.i2p_socks_host}:${config.i2p_socks_port}`);
-    }
 
     return new Promise((resolve, reject) => {
       get.concat(options, (error: Error, res: any, data: Buffer) => {

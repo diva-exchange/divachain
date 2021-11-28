@@ -57,9 +57,11 @@ export class Api {
   }
 
   private route() {
-    this.server.app.get('/join/:address/:publicKey', (req: Request, res: Response) => {
-      return this.server.getBootstrap().join(req.params.address, req.params.publicKey)
-        ? res.status(200).json({ address: req.params.address, publicKey: req.params.publicKey })
+    this.server.app.get('/join/:address/:destination/:publicKey', (req: Request, res: Response) => {
+      return this.server.getBootstrap().join(req.params.address, req.params.destination, req.params.publicKey)
+        ? res
+            .status(200)
+            .json({ address: req.params.address, destination: req.params.destination, publicKey: req.params.publicKey })
         : res.status(403).end();
     });
 
@@ -83,10 +85,6 @@ export class Api {
         license: this.package.license,
         publicKey: this.server.getWallet().getPublicKey(),
       });
-    });
-
-    this.server.app.get('/peers', (req: Request, res: Response) => {
-      return res.json(this.server.getNetwork().peers());
     });
 
     this.server.app.get('/network', (req: Request, res: Response) => {
@@ -113,10 +111,6 @@ export class Api {
 
     this.server.app.get('/pool/locks', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getArrayLocks());
-    });
-
-    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayVotes());
     });
 
     this.server.app.get('/pool/block', (req: Request, res: Response) => {
@@ -178,7 +172,7 @@ export class Api {
 
     //@FIXME API KEY!
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      const ident = this.server.stackTxProposal(req.body, req.params.ident);
+      const ident = this.server.stackTx(req.body, req.params.ident);
       if (ident) {
         return res.json({ ident: ident });
       }

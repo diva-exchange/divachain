@@ -22,10 +22,10 @@ import path from 'path';
 import { BlockStruct } from '../src/chain/block';
 import { Blockchain } from '../src/chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from '../src/chain/transaction';
-import {Config, DEFAULT_NAME_GENESIS_BLOCK} from '../src/config';
+import { Config, DEFAULT_NAME_GENESIS_BLOCK } from '../src/config';
 import { Wallet } from '../src/chain/wallet';
-import * as crypto from 'crypto';
-import {Util} from '../src/chain/util';
+import crypto from 'crypto';
+import { Util } from '../src/chain/util';
 
 export class Genesis {
   static async create(): Promise<Map<string, Config>> {
@@ -37,7 +37,12 @@ export class Genesis {
     const HAS_I2P = Number(process.env.HAS_I2P) > 0 || false;
     const I2P_HOST = HAS_I2P ? process.env.I2P_HOST || '172.19.75.11' : '';
     const I2P_SOCKS_PORT = HAS_I2P ? Number(process.env.I2P_SOCKS_PORT || 4445) : 0;
-    const I2P_SAM_PORT = HAS_I2P ? Number(process.env.I2P_SAM_PORT || 7656) : 0;
+    const I2P_SAM_PORT_TCP = HAS_I2P ? Number(process.env.I2P_SAM_PORT_TCP || 7656) : 0;
+    const I2P_SAM_PORT_UDP = HAS_I2P ? Number(process.env.I2P_SAM_PORT_UDP || 7655) : 0;
+    const I2P_SAM_LISTEN_ADDRESS = process.env.I2P_SAM_LISTEN_ADDRESS || '0.0.0.0';
+    const I2P_SAM_LISTEN_PORT = Number(process.env.I2P_SAM_LISTEN_PORT || 20000);
+    const I2P_SAM_LISTEN_FORWARD_HOST = process.env.I2P_SAM_LISTEN_FORWARD_HOST || '172.19.75.1';
+    const I2P_SAM_LISTEN_FORWARD_PORT = Number(process.env.I2P_SAM_LISTEN_FORWARD_PORT || I2P_SAM_LISTEN_PORT);
 
     const map = new Map();
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../genesis/block.json'));
@@ -64,7 +69,12 @@ export class Genesis {
         i2p_socks_host: I2P_HOST,
         i2p_socks_port: I2P_SOCKS_PORT,
         i2p_sam_host: I2P_HOST,
-        i2p_sam_port: I2P_SAM_PORT,
+        i2p_sam_port_tcp: I2P_SAM_PORT_TCP,
+        i2p_sam_port_udp: I2P_SAM_PORT_UDP,
+        i2p_sam_listen_address: I2P_SAM_LISTEN_ADDRESS,
+        i2p_sam_listen_port: I2P_SAM_LISTEN_PORT + i,
+        i2p_sam_listen_forward_host: I2P_SAM_LISTEN_FORWARD_HOST,
+        i2p_sam_listen_forward_port: I2P_SAM_LISTEN_FORWARD_PORT + i,
         address: HAS_I2P ? '' : `${IP}:${BASE_PORT + i}`,
       });
 
@@ -75,6 +85,7 @@ export class Genesis {
         seq: s,
         command: 'addPeer',
         address: config.address,
+        destination: config.i2p_public_key,
         publicKey: publicKey,
       } as CommandAddPeer);
       s++;

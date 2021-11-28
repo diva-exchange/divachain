@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.17.0",
+  "version": "0.17.1",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "bin": "dist/main.js",
   "keywords": [
@@ -39,7 +39,7 @@
     ]
   },
   "dependencies": {
-    "@diva.exchange/i2p-sam": "^1.2.0",
+    "@diva.exchange/i2p-sam": "^2.0.0",
     "ajv": "^8.8.2",
     "base64url": "^3.0.1",
     "compression": "^1.7.4",
@@ -48,11 +48,11 @@
     "leveldown": "^6.1.0",
     "levelup": "^5.1.1",
     "nanoid": "^3.1.30",
-    "pino": "^7.4.0",
+    "pino": "^7.4.1",
     "simple-get": "^4.0.0",
     "socks-proxy-agent": "^6.1.1",
     "sodium-native": "^3.3.0",
-    "ws": "^8.2.3"
+    "ws": "^8.3.0"
   },
   "devDependencies": {
     "@cspotcode/source-map-support": "^0.7.0",
@@ -67,7 +67,7 @@
     "@types/leveldown": "^4.0.3",
     "@types/levelup": "^4.3.3",
     "@types/mocha": "^9.0.0",
-    "@types/node": "^16.11.9",
+    "@types/node": "^16.11.10",
     "@types/pino": "^7.0.4",
     "@types/sodium-native": "^2.3.5",
     "@types/ws": "^8.2.0",
@@ -82,7 +82,7 @@
     "mocha": "^9.1.3",
     "nyc": "^15.1.0",
     "pino-pretty": "^7.2.0",
-    "prettier": "^2.4.1",
+    "prettier": "^2.5.0",
     "ts-node": "^10.4.0",
     "typescript": "^4.5.2"
   }

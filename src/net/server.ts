@@ -30,14 +30,12 @@ import { Blockchain } from '../chain/blockchain';
 import { Validation } from './validation';
 import { Pool } from './pool';
 import { Wallet } from '../chain/wallet';
-import { Network } from './network';
+import { NetworkSam } from './network-sam';
 import { Message } from './message/message';
 import { Api } from './api';
 import { ArrayCommand } from '../chain/transaction';
 import { Sync } from './message/sync';
-import { TxProposalStruct, TxProposal } from './message/tx-proposal';
-import { Vote, VoteStruct } from './message/vote';
-import { Lock } from './message/lock';
+import { Lock, LockStruct } from './message/lock';
 
 export class Server {
   public readonly config: Config;
@@ -51,15 +49,13 @@ export class Server {
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
-  private network: Network = {} as Network;
+  private network: NetworkSam = {} as NetworkSam;
   private blockchain: Blockchain = {} as Blockchain;
   private validation: Validation = {} as Validation;
 
   private stackSync: Array<BlockStruct> = [];
 
-  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -134,7 +130,7 @@ export class Server {
     });
   }
 
-  async start(): Promise<Server> {
+  async start(): Promise<void> {
     this.bootstrap = await Bootstrap.make(this);
     Logger.info(`Address ${this.config.address}`);
 
@@ -143,16 +139,16 @@ export class Server {
     this.wallet = Wallet.make(this.config);
     Logger.info('Wallet initialized');
 
-    this.network = Network.make(this, (type: number, message: Buffer | string) => {
-      return this.onMessage(type, message);
-    });
-    Logger.info('Network initialized');
-
     this.blockchain = await Blockchain.make(this);
     Logger.info('Blockchain initialized');
 
     this.validation = Validation.make();
     Logger.info('Validation initialized');
+
+    this.network = NetworkSam.make(this, (type: number, message: Buffer | string) => {
+      return this.onMessage(type, message);
+    });
+    Logger.info('Network initialized');
 
     this.pool = Pool.make(this);
     Logger.info('Pool initialized');
@@ -172,7 +168,9 @@ export class Server {
 
     this.pool.initHeight();
 
-    return this;
+    return new Promise((resolve) => {
+      this.network.once('ready', resolve);
+    });
   }
 
   async shutdown(): Promise<void> {
@@ -192,10 +190,6 @@ export class Server {
     }
   }
 
-  getWebSocketServer(): WebSocket.Server {
-    return this.webSocketServer;
-  }
-
   getBootstrap(): Bootstrap {
     return this.bootstrap;
   }
@@ -208,7 +202,7 @@ export class Server {
     return this.wallet;
   }
 
-  getNetwork(): Network {
+  getNetwork(): NetworkSam {
     return this.network;
   }
 
@@ -220,60 +214,16 @@ export class Server {
     return this.validation;
   }
 
-  stackTxProposal(arrayCommand: ArrayCommand, ident: string = ''): string | false {
-    clearTimeout(this.timeoutRelease);
-    this.timeoutRelease = setTimeout(() => {
-      this.doReleaseTxProposal();
-    }, 0);
-
-    return this.pool.stack(ident, arrayCommand);
-  }
-
-  private doReleaseTxProposal() {
-    const p = this.pool.release();
-    if (p) {
-      this.network.processMessage(new TxProposal().create(p).pack());
-
-      // retry
-      this.timeoutRelease = setTimeout(() => {
-        this.doReleaseTxProposal();
-      }, PBFT_RETRY_INTERVAL_MS);
-    }
-  }
-
-  private processTxProposal(proposal: TxProposal): boolean {
-    const p: TxProposalStruct = proposal.get();
-
-    // accept only valid transaction proposals
-    // stateful
-    if (!this.validation.validateTx(p.height, p.tx)) {
-      return false;
-    }
-
-    if (this.pool.add(p)) {
-      clearTimeout(this.timeoutLock);
-      this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, PBFT_RETRY_INTERVAL_MS);
-    }
-
-    return true;
+  stackTx(arrayCommand: ArrayCommand, ident: string = ''): string | false {
+    const s = this.pool.stack(ident, arrayCommand);
+    s && this.pool.release() && this.doLock();
+    return s || false;
   }
 
   private doLock() {
-    const hash = this.pool.getHash();
-    if (hash) {
-      // send out the lock
-      this.network.processMessage(
-        new Lock()
-          .create({
-            type: Message.TYPE_LOCK,
-            origin: this.wallet.getPublicKey(),
-            hash: hash,
-            sig: this.wallet.sign(hash),
-          })
-          .pack()
-      );
+    if (this.pool.hasTransactions()) {
+      // process and distribute the lock
+      this.processLock(this.pool.getLock());
 
       // retry
       this.timeoutLock = setTimeout(() => {
@@ -282,68 +232,36 @@ export class Server {
     }
   }
 
-  private processLock(lock: Lock): boolean {
-    const l: VoteStruct = lock.get();
+  private processLock(lock: Lock) {
+    const l: LockStruct = lock.get();
 
     // process only valid locks
     // stateful
     if (!Lock.isValid(l)) {
-      return false;
+      return;
     }
 
-    this.pool.lock(l);
-
-    if (this.pool.hasLock()) {
-      clearTimeout(this.timeoutVote);
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, 0);
+    if (!this.pool.add(l)) {
+      return;
     }
 
-    return true;
-  }
+    if (this.pool.hasBlock()) {
+      this.network.broadcast(lock);
 
-  private doVote() {
-    const block = this.pool.getBlock();
-    if (block.hash) {
-      // send out the vote
-      this.network.processMessage(
-        new Vote()
-          .create({
-            type: Message.TYPE_VOTE,
-            origin: this.wallet.getPublicKey(),
-            hash: block.hash,
-            sig: this.wallet.sign(block.hash),
-          })
-          .pack()
-      );
+      //@FIXME logging
+      Logger.trace(`LOCKED: ${this.pool.getBlock().height} ${this.pool.getBlock().hash}`);
 
-      // retry
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, PBFT_RETRY_INTERVAL_MS);
+      const sync = new Sync().create(this.pool.getBlock());
+      this.network.broadcast(sync);
+      this.processSync(sync);
+    } else {
+      const _lock = this.pool.getLock();
+      _lock && this.network.broadcast(_lock);
     }
-  }
-
-  private processVote(vote: Vote): boolean {
-    const v: VoteStruct = vote.get();
-
-    // process only valid votes
-    // stateful
-    if (!Vote.isValid(v)) {
-      return false;
-    }
-
-    // check the quorum and add the block if reached
-    if (this.pool.addVote(v)) {
-      this.addBlock(this.pool.getBlock());
-    }
-
-    return true;
   }
 
   private processSync(sync: Sync) {
-    this.stackSync = this.stackSync.concat(sync.get().blocks).sort((a, b) => (a.height > b.height ? 1 : -1));
+    this.stackSync = this.stackSync.concat(sync.get().block).sort((a, b) => (a.height > b.height ? 1 : -1));
 
     let h = this.blockchain.getHeight();
     let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
@@ -361,13 +279,10 @@ export class Server {
   }
 
   private addBlock(block: BlockStruct) {
-    clearTimeout(this.timeoutRelease);
     clearTimeout(this.timeoutLock);
-    clearTimeout(this.timeoutVote);
+    this.pool.clear(block);
 
     if (this.blockchain.add(block)) {
-      this.pool.clear(block);
-
       //@FIXME logging
       Logger.trace(`Block added: ${block.height}`);
 
@@ -376,22 +291,17 @@ export class Server {
       }, JSON.stringify(block));
     }
 
-    this.timeoutRelease = setTimeout(() => {
-      this.doReleaseTxProposal();
-    }, 0);
+    this.pool.release() && this.doLock();
   }
 
-  private onMessage(type: number, message: Buffer | string): boolean {
+  private onMessage(type: number, message: Buffer | string) {
     switch (type) {
-      case Message.TYPE_TX_PROPOSAL:
-        return this.processTxProposal(new TxProposal(message));
       case Message.TYPE_LOCK:
-        return this.processLock(new Lock(message));
-      case Message.TYPE_VOTE:
-        return this.processVote(new Vote(message));
+        this.processLock(new Lock(message));
+        break;
       case Message.TYPE_SYNC:
         this.processSync(new Sync(message));
-        return true;
+        break;
       default:
         throw new Error('Invalid message type');
     }

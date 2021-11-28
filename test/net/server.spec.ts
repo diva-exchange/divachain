@@ -23,8 +23,7 @@ import chaiHttp from 'chai-http';
 
 import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
-import { Logger } from '../../src/logger';
-import {Genesis} from '../genesis';
+import { Genesis } from '../genesis';
 
 chai.use(chaiHttp);
 
@@ -34,6 +33,8 @@ class TestServer {
   static mapServer: Map<string, Server> = new Map();
 
   static async before(): Promise<void> {
+    process.env.I2P_SOCKS_HOST = '';
+    process.env.I2P_SAM_HOST = '';
     process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
     process.env.NETWORK_SIZE = process.env.NETWORK_SIZE || '7';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
@@ -48,26 +49,28 @@ class TestServer {
       await TestServer.createServer(pk);
     }
 
-    // give the servers some time to start up
+    // wait for the servers to get ready
     return new Promise((resolve) => {
-      setTimeout(resolve, 10000);
+      const i = setInterval(() => {
+        if (TestServer.mapConfigServer.size === TestServer.mapServer.size) {
+          clearInterval(i);
+          resolve();
+        }
+      }, 250);
     });
   }
 
   static async after(): Promise<void> {
-    return new Promise((resolve) => {
-      for (const s of TestServer.mapServer.values()) {
-        s.shutdown();
-      }
-      // give the servers some time to shutdown
-      setTimeout(resolve, Number(process.env.SIZE_TESTNET) * 1000);
-    });
+    for (const s of TestServer.mapServer.values()) {
+      await s.shutdown();
+    }
   }
 
   static async createServer(publicKey: string) {
-    const s = new Server(TestServer.mapConfigServer.get(publicKey) || {} as Config);
-    await s.start();
-    TestServer.mapServer.set(publicKey, s);
+    const s = new Server(TestServer.mapConfigServer.get(publicKey) || ({} as Config));
+    s.start().then(() => {
+      TestServer.mapServer.set(publicKey, s);
+    });
     return s;
   }
 
@@ -259,7 +262,7 @@ class TestServer {
         arrayTimestamp.push(new Date().getTime());
         arrayRequests.push(arrayOrigin[i]);
         arrayIdents.push(res.body.ident);
-        Logger.trace(
+        console.debug(
           `${_i} http://${arrayConfig[i].ip}:${arrayConfig[i].port}/transaction/${arrayOrigin[i]}/${res.body.ident}`
         );
       } catch (error) {
@@ -268,7 +271,7 @@ class TestServer {
       await TestServer.wait(1 + Math.floor(Math.random() * 200));
     }
 
-    Logger.trace('waiting for a possible sync');
+    console.debug('waiting for a possible sync');
     // wait for a possible sync
     await TestServer.wait(30000);
 

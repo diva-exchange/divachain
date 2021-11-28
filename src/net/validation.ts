@@ -39,8 +39,7 @@ export class Validation {
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
     const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
     const schemaChallenge: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/challenge.json');
-    const schemaTxProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/tx-proposal.json');
-    const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
+    const schemaLock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/lock.json');
     const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
 
     const schemaBlockV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/block.json');
@@ -80,8 +79,7 @@ export class Validation {
       schemas: [
         schemaAuth,
         schemaChallenge,
-        schemaTxProposal,
-        schemaVote,
+        schemaLock,
         schemaSync,
         schemaBlockV1,
         schemaVotesV1,
@@ -114,9 +112,7 @@ export class Validation {
     switch (m.type()) {
       case Message.TYPE_AUTH:
       case Message.TYPE_CHALLENGE:
-      case Message.TYPE_TX_PROPOSAL:
       case Message.TYPE_LOCK:
-      case Message.TYPE_VOTE:
       case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
           Logger.trace('Validation.validateMessage() failed');
@@ -146,10 +142,13 @@ export class Validation {
       }
       _aOrigin.push(vote.origin);
 
+      //@FIXME vote validation
+      /*
       if (!Util.verifySignature(vote.origin, vote.sig, hash)) {
         Logger.trace(`Validation.validateBlock() - invalid vote: ${height}`);
         return false;
       }
+*/
     }
 
     // transaction validation
