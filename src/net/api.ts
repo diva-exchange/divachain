@@ -85,12 +85,8 @@ export class Api {
       });
     });
 
-    this.server.app.get('/peers', (req: Request, res: Response) => {
-      return res.json(this.server.getNetwork().peers());
-    });
-
     this.server.app.get('/network', (req: Request, res: Response) => {
-      return res.json(this.server.getNetwork().network());
+      return res.json(this.server.getBlockchain().network());
     });
 
     this.server.app.get('/state/:key?', async (req: Request, res: Response) => {
@@ -113,10 +109,6 @@ export class Api {
 
     this.server.app.get('/pool/locks', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getArrayLocks());
-    });
-
-    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayVotes());
     });
 
     this.server.app.get('/pool/block', (req: Request, res: Response) => {
@@ -178,7 +170,7 @@ export class Api {
 
     //@FIXME API KEY!
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      const ident = this.server.stackTxProposal(req.body, req.params.ident);
+      const ident = this.server.stackTx(req.body, req.params.ident);
       if (ident) {
         return res.json({ ident: ident });
       }

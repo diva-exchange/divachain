@@ -36,9 +36,6 @@ URL to a entrypoint in the network, like http://diva.i2p.
 
 Default: (empty)
 
-### NAME_BLOCK_GENESIS
-Default: block
-
 ### IP
 Default: 127.0.0.1
 
@@ -54,20 +51,6 @@ Default: (empty)
 ### I2P_SAM_PORT
 Default: 0
 
-### NETWORK_SIZE
-Number of peers to connect to (outgoing peer connections).
-
-Minimum: 7\
-Maximum: 64\
-Default: Minimum
-
-### NETWORK_MORPH_INTERVAL_MS
-Time, in milliseconds, between slight changes in the peer topology. The network morphs over time. 
-
-Minimum: 120000\
-Maximum: 600000\
-Default: Minimum
-
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
@@ -82,25 +65,11 @@ Minimum: 30000\
 Maximum: 60000\
 Default: Minimum
 
-### NETWORK_PING_INTERVAL_MS
-Interval, in milliseconds, to ping the peers in the network.
-
-Minimum: 3000\
-Maximum: 10000\
-Default: Minimum
-
 ### NETWORK_CLEAN_INTERVAL_MS
 Interval, in milliseconds, to clean up the network environment (like gossiping data).
 
 Minimum: 10000\
 Maximum: 30000\
-Default: Minimum
-
-### NETWORK_STALE_THRESHOLD
-Number of pings from a stale peer until a synchronization message gets sent to the peer.
-
-Minimum: 2\
-Maximum: 5\
 Default: Minimum
 
 ### NETWORK_SYNC_SIZE
@@ -135,8 +104,6 @@ Default: Maximum
 
 #### GET /about
 Returns an object containing the version, the license and the public key of the peer.
-
-#### GET /peers
 
 #### GET /network
 

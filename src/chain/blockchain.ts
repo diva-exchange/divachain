@@ -31,9 +31,14 @@ import {
   TransactionStruct,
 } from './transaction';
 import { Server } from '../net/server';
-import { NetworkPeer } from '../net/network';
 import { Logger } from '../logger';
 import { Util } from './util';
+
+export type Peer = {
+  publicKey: string;
+  address: string;
+  stake: number;
+};
 
 export class Blockchain {
   public static readonly COMMAND_ADD_PEER = 'addPeer';
@@ -54,7 +59,7 @@ export class Blockchain {
   private mapBlocks: Map<number, BlockStruct> = new Map();
   private latestBlock: BlockStruct = {} as BlockStruct;
 
-  private mapPeer: Map<string, NetworkPeer> = new Map();
+  private mapPeer: Map<string, Peer> = new Map();
 
   private quorum: number = 0;
 
@@ -123,7 +128,6 @@ export class Blockchain {
 
   async reset(genesis: BlockStruct) {
     await this.clear();
-    this.server.getNetwork().resetNetwork();
     await this.updateBlockData(String(1).padStart(16, '0'), JSON.stringify(genesis));
     await this.init();
   }
@@ -275,12 +279,52 @@ export class Blockchain {
     return this.height;
   }
 
+  getStake(publicKey: string): number {
+    try {
+      return this.getPeer(publicKey).stake;
+    } catch (error) {
+      return 0;
+    }
+  }
+
   getQuorum(): number {
     if (this.quorum <= 0) {
       throw new Error('Invalid network quorum');
     }
 
-    return this.quorum;
+    return (2 * this.quorum) / 3; // PBFT, PoS
+  }
+
+  getMapPeer(): Map<string, Peer> {
+    return this.mapPeer;
+  }
+
+  hasPeer(publicKey: string): boolean {
+    return this.mapPeer.has(publicKey);
+  }
+
+  getPeer(publicKey: string): Peer {
+    return this.mapPeer.get(publicKey) as Peer;
+  }
+
+  network(): { peers: Array<Peer>; broadcast: Array<string> } {
+    return {
+      peers: [...this.getMapPeer().values()],
+      broadcast: this.server.getNetwork().getArrayBroadcast(),
+    };
+  }
+
+  roundsPBFT(): number {
+    return Math.ceil([...this.getMapPeer().values()].length / 3);
+  }
+
+  hasNetworkAddress(address: string): boolean {
+    for (const v of [...this.mapPeer]) {
+      if (v[1].address === address) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async getPerformance(height: number): Promise<{ timestamp: number }> {
@@ -293,11 +337,6 @@ export class Blockchain {
     return { timestamp: ts };
   }
 
-  /**
-   * Get the genesis block from disk
-   *
-   * @param {string} p - Path
-   */
   static genesis(p: string): BlockStruct {
     if (!fs.existsSync(p)) {
       throw new Error('Genesis Block not found at: ' + p);
@@ -340,26 +379,28 @@ export class Blockchain {
       return;
     }
 
-    const peer: NetworkPeer = { address: command.address, stake: 0 };
+    const peer: Peer = {
+      publicKey: command.publicKey,
+      address: command.address,
+      stake: 0,
+    };
     this.mapPeer.set(command.publicKey, peer);
     await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
-    this.server.getNetwork().addPeer(command.publicKey, peer);
   }
 
   private async removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
-      const peer: NetworkPeer = this.mapPeer.get(command.publicKey) as NetworkPeer;
+      const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
       this.quorum = this.quorum - peer.stake;
 
       this.mapPeer.delete(command.publicKey);
       await this.dbState.del(Blockchain.STATE_PEER_IDENT + command.publicKey);
-      this.server.getNetwork().removePeer(command.publicKey);
     }
   }
 
   private async modifyStake(command: CommandModifyStake) {
     if (this.mapPeer.has(command.publicKey)) {
-      const peer: NetworkPeer = this.mapPeer.get(command.publicKey) as NetworkPeer;
+      const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
       if (peer.stake + command.stake < 0) {
         command.stake = -1 * peer.stake;
       }
@@ -383,7 +424,7 @@ export class Blockchain {
       objOriginStake = {};
     }
     if (!objOriginStake[origin]) {
-      objOriginStake[origin] = this.server.getNetwork().getStake(origin);
+      objOriginStake[origin] = this.getStake(origin);
       await this.updateStateData(key, JSON.stringify(objOriginStake));
       if (this.getQuorum() <= Object.values(objOriginStake).reduce((a, b) => a + b, 0)) {
         await this.updateStateData(key, Blockchain.STATE_DECISION_TAKEN);

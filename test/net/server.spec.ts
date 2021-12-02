@@ -24,7 +24,7 @@ import chaiHttp from 'chai-http';
 import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
 import { Logger } from '../../src/logger';
-import {Genesis} from '../genesis';
+import { Genesis } from '../genesis';
 
 chai.use(chaiHttp);
 
@@ -65,7 +65,7 @@ class TestServer {
   }
 
   static async createServer(publicKey: string) {
-    const s = new Server(TestServer.mapConfigServer.get(publicKey) || {} as Config);
+    const s = new Server(TestServer.mapConfigServer.get(publicKey) || ({} as Config));
     await s.start();
     TestServer.mapServer.set(publicKey, s);
     return s;

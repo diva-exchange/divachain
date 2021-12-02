@@ -29,8 +29,6 @@ class TestConfig {
   async config() {
     const c = await Config.make({ network_p2p_interval_ms: 5000, network_size: 100 } as Configuration);
     expect(c.ip).is.not.empty;
-    expect(c.network_p2p_interval_ms).is.equal(5000);
-    expect(c.network_size).is.equal(64);
   }
 
   @test
@@ -49,6 +47,5 @@ class TestConfig {
   async configNetworkRefreshIntervalMs() {
     const c = await Config.make({ path_app: __dirname, network_p2p_interval_ms: -1 } as Configuration);
     expect(c.network_p2p_interval_ms).is.greaterThanOrEqual(1);
-    expect(c.network_p2p_interval_ms).is.equal(3000);
   }
 }

@@ -6,7 +6,7 @@
   "properties": {
     "ident": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9,_-]{1,128}$"
+      "pattern": "^[A-Za-z0-9,_-]{1,256}$"
     },
     "data": {
       "oneOf": [
@@ -17,33 +17,17 @@
           "$ref": "challenge.json"
         },
         {
-          "$ref": "tx-proposal.json"
-        },
-        {
-          "$ref": "vote.json"
+          "$ref": "lock.json"
         },
         {
           "$ref": "sync.json"
         }
       ]
-    },
-    "broadcast": {
-      "type": "boolean"
-    },
-    "trail": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "pattern": "^[A-Za-z0-9_-]{43}$"
-      },
-      "minItems": 1,
-      "uniqueItems": true
     }
   },
   "required": [
     "ident",
-    "data",
-    "broadcast"
+    "data"
   ],
   "additionalProperties": false
 }

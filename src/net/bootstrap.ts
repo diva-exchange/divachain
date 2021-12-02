@@ -33,7 +33,7 @@ const MAX_WAIT_JOIN_MS = 60000;
 
 type Options = {
   url: string;
-  agent: boolean | object;
+  agent: SocksProxyAgent | false;
   timeout: number;
   followRedirects: boolean;
 };
@@ -42,6 +42,7 @@ type recordNetwork = { publicKey: string; address: string };
 
 export class Bootstrap {
   private readonly server: Server;
+  private readonly socksProxyAgent: SocksProxyAgent | false;
   private mapToken: Map<string, string>;
   private arrayNetwork: Array<recordNetwork> = [];
 
@@ -52,6 +53,9 @@ export class Bootstrap {
 
   private constructor(server: Server) {
     this.server = server;
+    this.socksProxyAgent = this.server.config.i2p_has_socks
+      ? new SocksProxyAgent(`socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`)
+      : false;
     this.mapToken = new Map();
   }
 
@@ -92,8 +96,8 @@ export class Bootstrap {
     if (
       !/^[A-Za-z0-9_-]{43}$/.test(publicKey) ||
       this.mapToken.has(address) ||
-      this.server.getNetwork().hasNetworkAddress(address) ||
-      this.server.getNetwork().hasNetworkPeer(publicKey)
+      this.server.getBlockchain().hasNetworkAddress(address) ||
+      this.server.getBlockchain().hasPeer(publicKey)
     ) {
       return false;
     }
@@ -134,7 +138,7 @@ export class Bootstrap {
     }
 
     if (
-      !this.server.stackTxProposal([
+      !this.server.stackTx([
         {
           seq: 1,
           command: 'addPeer',
@@ -185,18 +189,12 @@ export class Bootstrap {
   }
 
   private fetch(url: string): Promise<string> {
-    const config = this.server.config;
-
     const options: Options = {
       url: url,
-      agent: false,
+      agent: this.socksProxyAgent,
       timeout: 10000,
       followRedirects: false,
     };
-
-    if (config.i2p_socks_host && config.i2p_socks_port && /^http:\/\/[a-z0-9.]+\.i2p/.test(options.url)) {
-      options.agent = new SocksProxyAgent(`socks://${config.i2p_socks_host}:${config.i2p_socks_port}`);
-    }
 
     return new Promise((resolve, reject) => {
       get.concat(options, (error: Error, res: any, data: Buffer) => {

@@ -22,22 +22,25 @@ import path from 'path';
 import { BlockStruct } from '../src/chain/block';
 import { Blockchain } from '../src/chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from '../src/chain/transaction';
-import {Config, DEFAULT_NAME_GENESIS_BLOCK} from '../src/config';
+import { Config, DEFAULT_NAME_GENESIS_BLOCK } from '../src/config';
 import { Wallet } from '../src/chain/wallet';
-import * as crypto from 'crypto';
-import {Util} from '../src/chain/util';
+import crypto from 'crypto';
+import { Util } from '../src/chain/util';
 
 export class Genesis {
   static async create(): Promise<Map<string, Config>> {
-    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 9); // total peers in the whole network
-    const NETWORK_SIZE = Number(process.env.NETWORK_SIZE || 7); // number of peers a single peer tries to connect to...
+    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 9);
     const BASE_PORT = Number(process.env.BASE_PORT || 17000);
     const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || 18000);
     const IP = process.env.IP || '127.27.27.1';
     const HAS_I2P = Number(process.env.HAS_I2P) > 0 || false;
     const I2P_HOST = HAS_I2P ? process.env.I2P_HOST || '172.19.75.11' : '';
     const I2P_SOCKS_PORT = HAS_I2P ? Number(process.env.I2P_SOCKS_PORT || 4445) : 0;
-    const I2P_SAM_PORT = HAS_I2P ? Number(process.env.I2P_SAM_PORT || 7656) : 0;
+    const I2P_SAM_PORT_TCP = HAS_I2P ? Number(process.env.I2P_SAM_PORT_TCP || 7656) : 0;
+    const I2P_SAM_FORWARD_HOST = process.env.I2P_SAM_FORWARD_HOST || '172.19.75.1';
+    const I2P_SAM_FORWARD_PORT = Number(process.env.I2P_SAM_FORWARD_PORT || 19000);
+    const TCP_SERVER_IP = process.env.TCP_SERVER_IP || '0.0.0.0';
+    const TCP_SERVER_PORT = Number(process.env.TCP_SERVER_PORT || I2P_SAM_FORWARD_PORT);
 
     const map = new Map();
     const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../genesis/block.json'));
@@ -57,14 +60,15 @@ export class Genesis {
         path_state: path.join(__dirname, './state'),
         path_blockstore: path.join(__dirname, './blockstore'),
         path_keys: path.join(__dirname, './keys'),
-        network_size: NETWORK_SIZE,
-        network_morph_interval_ms: 60000,
-        network_verbose_logging: false,
         blockchain_max_blocks_in_memory: 100,
         i2p_socks_host: I2P_HOST,
         i2p_socks_port: I2P_SOCKS_PORT,
         i2p_sam_host: I2P_HOST,
-        i2p_sam_port: I2P_SAM_PORT,
+        i2p_sam_port_tcp: I2P_SAM_PORT_TCP,
+        i2p_sam_forward_host: I2P_SAM_FORWARD_HOST,
+        i2p_sam_forward_port: I2P_SAM_FORWARD_PORT + i,
+        tcp_server_ip: TCP_SERVER_IP,
+        tcp_server_port: TCP_SERVER_PORT + i,
         address: HAS_I2P ? '' : `${IP}:${BASE_PORT + i}`,
       });
 
@@ -101,10 +105,3 @@ export class Genesis {
     return Promise.resolve(map);
   }
 }
-
-/*
-(async () => {
-  await Genesis.create();
-  process.exit(0);
-})();
-*/

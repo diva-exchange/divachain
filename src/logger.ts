@@ -31,6 +31,6 @@ process.on('uncaughtException', (err) => {
 });
 
 process.on('unhandledRejection', (err) => {
-  Logger.fatal(err, 'unhandledRejection');
+  Logger.fatal(err, 'unhandledRejection / LOGGER / LAST RESORT');
   process.env.NODE_ENV !== 'test' && process.exit(1);
 });

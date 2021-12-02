@@ -27,16 +27,12 @@ export type SyncStruct = {
 };
 
 export class Sync extends Message {
-  constructor(message?: Buffer | string) {
-    super(message);
-    this.message.broadcast = false;
-  }
-
-  create(structSync: SyncStruct): Sync {
-    const hashes = structSync.blocks.reduce((s: string, b: BlockStruct) => {
-      return s + b.hash;
-    }, '');
-    this.message.ident = [structSync.type, Util.hash(hashes)].join();
+  create(blocks: Array<BlockStruct>): Sync {
+    const structSync: SyncStruct = {
+      type: Message.TYPE_SYNC,
+      blocks: blocks,
+    };
+    this.message.ident = [structSync.type, Util.hash(blocks.reduce((s, b) => s + b.hash, ''))].join();
     this.message.data = structSync;
     return this;
   }

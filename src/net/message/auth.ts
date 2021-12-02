@@ -20,18 +20,25 @@
 import { Message } from './message';
 import { Util } from '../../chain/util';
 
-export class Auth extends Message {
-  constructor(message?: Buffer | string) {
-    super(message);
-    this.message.broadcast = false;
-  }
+export type AuthStruct = {
+  type: number;
+  origin: string;
+  sig: string;
+};
 
-  create(sig: string): Auth {
-    this.message.data = { type: Message.TYPE_AUTH, sig: sig };
+export class Auth extends Message {
+  create(origin: string, sig: string): Auth {
+    const structAuth: AuthStruct = {
+      type: Message.TYPE_AUTH,
+      origin: origin,
+      sig: sig,
+    };
+    this.message.ident = [structAuth.type, structAuth.sig].join();
+    this.message.data = structAuth;
     return this;
   }
 
-  isValid(challenge: string, publicKey: string): boolean {
-    return Util.verifySignature(publicKey, this.message.data.sig, challenge);
+  isValid(challenge: string): boolean {
+    return Util.verifySignature(this.message.data.origin, this.message.data.sig, challenge);
   }
 }

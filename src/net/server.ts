@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Config, PBFT_RETRY_INTERVAL_MS } from '../config';
+import { Config } from '../config';
 import { Logger } from '../logger';
 import createError from 'http-errors';
 import express, { Express, NextFunction, Request, Response } from 'express';
@@ -35,16 +35,13 @@ import { Message } from './message/message';
 import { Api } from './api';
 import { ArrayCommand } from '../chain/transaction';
 import { Sync } from './message/sync';
-import { TxProposalStruct, TxProposal } from './message/tx-proposal';
-import { Vote, VoteStruct } from './message/vote';
-import { Lock } from './message/lock';
+import { Lock, LockStruct } from './message/lock';
 
 export class Server {
   public readonly config: Config;
   public readonly app: Express;
 
   private readonly httpServer: http.Server;
-  private readonly webSocketServer: WebSocket.Server;
   private readonly webSocketServerBlockFeed: WebSocket.Server;
 
   private pool: Pool = {} as Pool;
@@ -56,10 +53,6 @@ export class Server {
   private validation: Validation = {} as Validation;
 
   private stackSync: Array<BlockStruct> = [];
-
-  private timeoutRelease: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutLock: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -102,30 +95,14 @@ export class Server {
       Logger.info(`HttpServer closing on ${this.config.ip}:${this.config.port}`);
     });
 
-    this.webSocketServer = new WebSocket.Server({
-      server: this.httpServer,
-      clientTracking: false,
-      perMessageDeflate: false,
-      skipUTF8Validation: true,
-    });
-    this.webSocketServer.on('connection', (ws: WebSocket) => {
-      ws.on('error', (error: Error) => {
-        Logger.warn('Server webSocketServer.error: ' + JSON.stringify(error));
-        ws.terminate();
-      });
-    });
-    this.webSocketServer.on('close', () => {
-      Logger.info('WebSocketServer closing');
-    });
-
     // standalone Websocket Server to feed block updates
     this.webSocketServerBlockFeed = new WebSocket.Server({
       host: this.config.ip,
       port: this.config.port_block_feed,
     });
     this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
-      ws.on('error', (error: Error) => {
-        Logger.warn('Server webSocketServerBlockFeed.error: ' + JSON.stringify(error));
+      ws.on('error', (error: any) => {
+        Logger.warn('Server webSocketServerBlockFeed.error: ' + error.toString());
         ws.terminate();
       });
     });
@@ -143,11 +120,6 @@ export class Server {
     this.wallet = Wallet.make(this.config);
     Logger.info('Wallet initialized');
 
-    this.network = Network.make(this, (type: number, message: Buffer | string) => {
-      return this.onMessage(type, message);
-    });
-    Logger.info('Network initialized');
-
     this.blockchain = await Blockchain.make(this);
     Logger.info('Blockchain initialized');
 
@@ -157,11 +129,16 @@ export class Server {
     this.pool = Pool.make(this);
     Logger.info('Pool initialized');
 
+    this.network = Network.make(this, (m: Message) => {
+      return this.onMessage(m);
+    });
+    Logger.info('Network initialized');
+
     await this.httpServer.listen(this.config.port, this.config.ip);
 
     if (this.config.bootstrap) {
       await this.bootstrap.syncWithNetwork();
-      if (!this.network.hasNetworkAddress(this.config.address)) {
+      if (!this.blockchain.hasNetworkAddress(this.config.address)) {
         await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
       }
     }
@@ -172,28 +149,24 @@ export class Server {
 
     this.pool.initHeight();
 
-    return this;
+    return new Promise((resolve) => {
+      this.network.once('ready', resolve);
+    });
   }
 
   async shutdown(): Promise<void> {
-    this.wallet.close();
     this.network.shutdown();
+    this.wallet.close();
     await this.blockchain.shutdown();
 
-    if (this.webSocketServer) {
-      await new Promise((resolve) => {
-        this.webSocketServer.close(resolve);
-      });
-    }
     if (this.httpServer) {
-      await new Promise((resolve) => {
-        this.httpServer.close(resolve);
+      return await new Promise((resolve) => {
+        this.httpServer.close(() => {
+          resolve();
+        });
       });
     }
-  }
-
-  getWebSocketServer(): WebSocket.Server {
-    return this.webSocketServer;
+    return Promise.resolve();
   }
 
   getBootstrap(): Bootstrap {
@@ -208,10 +181,6 @@ export class Server {
     return this.wallet;
   }
 
-  getNetwork(): Network {
-    return this.network;
-  }
-
   getBlockchain(): Blockchain {
     return this.blockchain;
   }
@@ -220,132 +189,41 @@ export class Server {
     return this.validation;
   }
 
-  stackTxProposal(arrayCommand: ArrayCommand, ident: string = ''): string | false {
-    clearTimeout(this.timeoutRelease);
-    this.timeoutRelease = setTimeout(() => {
-      this.doReleaseTxProposal();
-    }, 0);
-
-    return this.pool.stack(ident, arrayCommand);
+  getNetwork(): Network {
+    return this.network;
   }
 
-  private doReleaseTxProposal() {
-    const p = this.pool.release();
-    if (p) {
-      this.network.processMessage(new TxProposal().create(p).pack());
-
-      // retry
-      this.timeoutRelease = setTimeout(() => {
-        this.doReleaseTxProposal();
-      }, PBFT_RETRY_INTERVAL_MS);
-    }
+  stackTx(arrayCommand: ArrayCommand, ident: string = ''): string | false {
+    const s = this.pool.stack(ident, arrayCommand);
+    s && this.pool.release() && this.processLock(this.pool.getLock());
+    return s || false;
   }
 
-  private processTxProposal(proposal: TxProposal): boolean {
-    const p: TxProposalStruct = proposal.get();
-
-    // accept only valid transaction proposals
-    // stateful
-    if (!this.validation.validateTx(p.height, p.tx)) {
-      return false;
-    }
-
-    if (this.pool.add(p)) {
-      clearTimeout(this.timeoutLock);
-      this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, PBFT_RETRY_INTERVAL_MS);
-    }
-
-    return true;
-  }
-
-  private doLock() {
-    const hash = this.pool.getHash();
-    if (hash) {
-      // send out the lock
-      this.network.processMessage(
-        new Lock()
-          .create({
-            type: Message.TYPE_LOCK,
-            origin: this.wallet.getPublicKey(),
-            hash: hash,
-            sig: this.wallet.sign(hash),
-          })
-          .pack()
-      );
-
-      // retry
-      this.timeoutLock = setTimeout(() => {
-        this.doLock();
-      }, PBFT_RETRY_INTERVAL_MS);
-    }
-  }
-
-  private processLock(lock: Lock): boolean {
-    const l: VoteStruct = lock.get();
+  private processLock(lock: Lock) {
+    const l: LockStruct = lock.get();
 
     // process only valid locks
     // stateful
     if (!Lock.isValid(l)) {
-      return false;
+      return;
     }
 
-    this.pool.lock(l);
-
-    if (this.pool.hasLock()) {
-      clearTimeout(this.timeoutVote);
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, 0);
+    if (this.pool.add(l) && this.pool.hasBlock()) {
+      this.processSync(new Sync().create([this.pool.getBlock()]));
+      return;
     }
 
-    return true;
-  }
-
-  private doVote() {
-    const block = this.pool.getBlock();
-    if (block.hash) {
-      // send out the vote
-      this.network.processMessage(
-        new Vote()
-          .create({
-            type: Message.TYPE_VOTE,
-            origin: this.wallet.getPublicKey(),
-            hash: block.hash,
-            sig: this.wallet.sign(block.hash),
-          })
-          .pack()
-      );
-
-      // retry
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, PBFT_RETRY_INTERVAL_MS);
-    }
-  }
-
-  private processVote(vote: Vote): boolean {
-    const v: VoteStruct = vote.get();
-
-    // process only valid votes
-    // stateful
-    if (!Vote.isValid(v)) {
-      return false;
-    }
-
-    // check the quorum and add the block if reached
-    if (this.pool.addVote(v)) {
-      this.addBlock(this.pool.getBlock());
-    }
-
-    return true;
+    this.pool.hasTransactions() && this.network.broadcast(this.pool.getLock());
   }
 
   private processSync(sync: Sync) {
-    this.stackSync = this.stackSync.concat(sync.get().blocks).sort((a, b) => (a.height > b.height ? 1 : -1));
+    this.network.broadcast(sync);
 
     let h = this.blockchain.getHeight();
+    this.stackSync = this.stackSync.concat(sync.get().blocks)
+      .filter((b) => b.height >= h + 1)
+      .sort((a, b) => (a.height > b.height ? 1 : -1));
+
     let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
 
     while (b.height) {
@@ -361,37 +239,31 @@ export class Server {
   }
 
   private addBlock(block: BlockStruct) {
-    clearTimeout(this.timeoutRelease);
-    clearTimeout(this.timeoutLock);
-    clearTimeout(this.timeoutVote);
-
-    if (this.blockchain.add(block)) {
-      this.pool.clear(block);
-
-      //@FIXME logging
-      Logger.trace(`Block added: ${block.height}`);
-
-      setImmediate((s: string) => {
-        this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
-      }, JSON.stringify(block));
+    if (!this.blockchain.add(block)) {
+      return;
     }
+    //@FIXME logging
+    Logger.trace(`${this.getWallet().getPublicKey()} - block ${block.height} added (${block.hash})`);
 
-    this.timeoutRelease = setTimeout(() => {
-      this.doReleaseTxProposal();
+    this.pool.clear(block);
+
+    setImmediate((s: string) => {
+      this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
+    }, JSON.stringify(block));
+
+    setTimeout(() => {
+      this.pool.release() && this.processLock(this.pool.getLock());
     }, 0);
   }
 
-  private onMessage(type: number, message: Buffer | string): boolean {
-    switch (type) {
-      case Message.TYPE_TX_PROPOSAL:
-        return this.processTxProposal(new TxProposal(message));
+  private onMessage(m: Message) {
+    switch (m.type()) {
       case Message.TYPE_LOCK:
-        return this.processLock(new Lock(message));
-      case Message.TYPE_VOTE:
-        return this.processVote(new Vote(message));
+        this.processLock(new Lock(m.pack()));
+        break;
       case Message.TYPE_SYNC:
-        this.processSync(new Sync(message));
-        return true;
+        this.processSync(new Sync(m.pack()));
+        break;
       default:
         throw new Error('Invalid message type');
     }

@@ -19,26 +19,40 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { VoteStruct } from './vote';
+import { TransactionStruct } from '../../chain/transaction';
+
+export type LockStruct = {
+  type: number;
+  origin: string;
+  height: number;
+  tx: Array<TransactionStruct>;
+  sig: string;
+};
 
 export class Lock extends Message {
-  constructor(message?: Buffer | string) {
-    super(message);
-    this.message.broadcast = true;
-  }
-
-  create(structLock: VoteStruct): Lock {
-    this.message.ident = [structLock.type, structLock.sig].join();
+  create(round: number, origin: string, height: number, tx: Array<TransactionStruct>, sig: string): Lock {
+    const structLock: LockStruct = {
+      type: Lock.TYPE_LOCK,
+      origin: origin,
+      height: height,
+      tx: tx,
+      sig: sig,
+    };
+    this.message.ident = [structLock.type, round, sig].join();
     this.message.data = structLock;
     return this;
   }
 
-  get(): VoteStruct {
-    return this.message.data as VoteStruct;
+  get(): LockStruct {
+    return this.message.data as LockStruct;
   }
 
   // stateful
-  static isValid(structLock: VoteStruct): boolean {
-    return Util.verifySignature(structLock.origin, structLock.sig, structLock.hash);
+  static isValid(structLock: LockStruct): boolean {
+    return Util.verifySignature(
+      structLock.origin,
+      structLock.sig,
+      Util.hash([structLock.height, structLock.tx.reduce((s, t) => s + t.sig, '')].join())
+    );
   }
 }

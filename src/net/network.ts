@@ -18,196 +18,236 @@
  */
 
 import { Logger } from '../logger';
-import { Auth } from './message/auth';
-import { Challenge } from './message/challenge';
 import { Message } from './message/message';
-import { SocksProxyAgent } from 'socks-proxy-agent';
-import WebSocket from 'ws';
-import { Util } from '../chain/util';
 import { Server } from './server';
-import { Sync } from './message/sync';
-import Timeout = NodeJS.Timeout;
+import EventEmitter from 'events';
+import { createForward, I2pSamStream } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import net from 'net';
+import { Challenge } from './message/challenge';
 import { nanoid } from 'nanoid';
+import { Auth } from './message/auth';
+import { SocksClient, SocksClientOptions } from 'socks';
+import { Util } from '../chain/util';
+import { CHALLENGE_LENGTH } from '../config';
 
-const WS_CLIENT_OPTIONS = {
-  compress: true,
-  binary: true,
-};
-
-export type NetworkPeer = {
-  address: string;
-  stake: number;
-};
-
-interface Peer {
-  address: string;
-  alive: number;
-  stale: number;
-  ws: WebSocket;
-}
-
-export class Network {
+export class Network extends EventEmitter {
   private readonly server: Server;
-  private readonly publicKey: string;
-  private readonly mapPeer: Map<string, NetworkPeer> = new Map();
-  private arrayPeerNetwork: Array<string> = [];
-  private arrayBroadcast: Array<string> = [];
+  private readonly peer: net.Server;
 
-  private peersIn: { [publicKey: string]: Peer } = {};
-  private peersOut: { [publicKey: string]: Peer } = {};
-  private stackOut: { [publicKey: string]: NetworkPeer } = {};
+  private samInbound: I2pSamStream = {} as I2pSamStream;
+
+  private readonly publicKey: string;
+  private mapBroadcast: Map<string, net.Socket> = new Map();
+  private arrayStackConnect: Array<string> = [];
+  private arrayProcessed: Array<string> = [];
+  private arrayBroadcasted: Array<string> = [];
 
   private readonly _onMessage: Function | false;
 
-  private timeoutMorph: Timeout = {} as Timeout;
-  private timeoutBuildP2P: Timeout = {} as Timeout;
-  private timeoutPing: Timeout = {} as Timeout;
-  private timeoutClean: Timeout = {} as Timeout;
+  private timeoutP2P: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutClean: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   static make(server: Server, onMessage: Function) {
     return new Network(server, onMessage);
   }
 
   private constructor(server: Server, onMessage: Function) {
+    super();
+
     this.server = server;
     this._onMessage = onMessage || false;
 
     this.publicKey = this.server.getWallet().getPublicKey();
     Logger.info(`Network, public key: ${this.publicKey}`);
 
-    // incoming connection
-    this.server.getWebSocketServer().on('connection', (ws, request) => {
-      const publicKey = request.headers['diva-identity']?.toString() || '';
-
-      if (publicKey && publicKey !== this.publicKey && this.mapPeer.has(publicKey)) {
-        this.auth(ws, publicKey);
-      } else {
-        ws.close(4003, 'Auth Failed');
-      }
+    // TCP endpoint
+    this.peer = net.createServer((client: net.Socket) => {
+      this.inbound(client);
     });
 
-    this.server.getWebSocketServer().on('error', (error: Error) => {
-      Logger.warn('WebsocketServer error: ' + JSON.stringify(error));
+    this.peer.listen(this.server.config.tcp_server_port, this.server.config.tcp_server_ip, () => {
+      Logger.info(
+        `TCP server listening on ${this.server.config.tcp_server_ip}:${this.server.config.i2p_sam_forward_port}`
+      );
     });
 
-    //@FIXME might go wrong, if the P2P network starts too early... (look at flow)
-    // initial timeout
-    setTimeout(() => {
-      Logger.info('Starting P2P network');
-      this.timeoutMorph = setTimeout(() => this.morphPeerNetwork(), 1);
-      this.timeoutBuildP2P = setTimeout(() => this.buildP2P(), this.server.config.network_p2p_interval_ms);
-      this.timeoutPing = setTimeout(() => this.ping(), this.server.config.network_ping_interval_ms);
-      this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
-    }, this.server.config.network_p2p_interval_ms);
+    this.init();
+
+    this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
   shutdown() {
-    clearTimeout(this.timeoutMorph);
-    clearTimeout(this.timeoutBuildP2P);
-    clearTimeout(this.timeoutPing);
+    clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
 
-    if (this.server.getWebSocketServer()) {
-      Object.values(this.peersOut)
-        .concat(Object.values(this.peersIn))
-        .forEach((peer) => {
-          peer.ws.close(1000, 'Bye');
+    for (const socket of this.mapBroadcast.values()) {
+      socket.destroy();
+    }
+    this.peer.close();
+  }
+
+  private init() {
+    let started = false;
+    const i = setInterval(async () => {
+      if (!started && [...this.server.getBlockchain().getMapPeer().keys()].length > 0) {
+        started = true;
+        Logger.info(`P2P starting on ${this.server.config.address}`);
+
+        //incoming
+        this.samInbound = await createForward({
+          sam: {
+            host: this.server.config.i2p_sam_host,
+            portTCP: this.server.config.i2p_sam_port_tcp,
+            publicKey: this.server.config.i2p_public_key,
+            privateKey: this.server.config.i2p_private_key,
+          },
+          forward: {
+            host: this.server.config.i2p_sam_forward_host,
+            port: this.server.config.i2p_sam_forward_port,
+            silent: true,
+          },
         });
-    }
-  }
+        Logger.info(`Inbound SAM connection available ${this.server.config.i2p_sam_host}`);
 
-  addPeer(publicKey: string, peer: NetworkPeer): Network {
-    if (!this.mapPeer.has(publicKey)) {
-      this.mapPeer.set(publicKey, peer);
-    }
-    return this;
-  }
-
-  removePeer(publicKey: string): Network {
-    if (this.mapPeer.has(publicKey)) {
-      this.peersIn[publicKey] && this.peersIn[publicKey].ws.close(1000, 'Bye');
-      this.peersOut[publicKey] && this.peersOut[publicKey].ws.close(1000, 'Bye');
-      this.mapPeer.delete(publicKey);
-    }
-    return this;
-  }
-
-  resetNetwork() {
-    [...this.mapPeer.keys()].map((publicKey) => {
-      this.removePeer(publicKey);
-    });
-  }
-
-  getQuorum(): number {
-    return (2 * this.server.getBlockchain().getQuorum()) / 3; // PBFT, PoS
-  }
-
-  getStake(publicKey: string): number {
-    return this.mapPeer.has(publicKey) ? (this.mapPeer.get(publicKey) as NetworkPeer).stake : 0;
-  }
-
-  peers() {
-    const peers: {
-      net: Array<string>;
-      broadcast: Array<string>;
-      in: Array<object>;
-      out: Array<object>;
-    } = {
-      net: this.arrayPeerNetwork,
-      broadcast: this.arrayBroadcast,
-      in: [],
-      out: [],
-    };
-    Object.keys(this.peersIn).forEach((p) => {
-      peers.in.push({
-        publicKey: p,
-        address: this.peersIn[p].address,
-        stale: this.peersIn[p].stale,
-        alive: this.peersIn[p].alive,
-      });
-    });
-    Object.keys(this.peersOut).forEach((p) => {
-      peers.out.push({
-        publicKey: p,
-        address: this.peersOut[p].address,
-        stale: this.peersOut[p].stale,
-        alive: this.peersOut[p].alive,
-      });
-    });
-    return peers;
-  }
-
-  network(): Array<{ publicKey: string; address: string; stake: number }> {
-    return [...this.mapPeer].map((v) => {
-      return { publicKey: v[0], address: v[1].address, stake: v[1].stake };
-    });
-  }
-
-  hasNetworkPeer(publicKey: string): boolean {
-    return this.mapPeer.has(publicKey);
-  }
-
-  hasNetworkAddress(address: string): boolean {
-    for (const v of [...this.mapPeer]) {
-      if (v[1].address === address) {
-        return true;
+        await this.p2pNetwork();
       }
-    }
-    return false;
+
+      if (started) {
+        const nq = [...this.mapBroadcast.keys()].reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
+        if (nq * 0.9 >= this.server.getBlockchain().getQuorum()) {
+          Logger.info(`P2P ready on ${this.server.config.address}`);
+          this.emit('ready');
+          clearInterval(i);
+        }
+      }
+    }, 10000);
   }
 
-  /**
-   * Process an incoming message
-   *
-   * @param {Buffer|string} message - Incoming message
-   * @param {string} publicKeyPeer - Sender of the message
-   */
-  processMessage(message: Buffer | string, publicKeyPeer: string = '') {
-    const m = new Message(message);
-    if (this.server.config.network_verbose_logging) {
-      const _l = `${publicKeyPeer ? ' from ' + publicKeyPeer : ''} -> ${this.server.getWallet().getPublicKey()}:`;
-      Logger.trace(`${_l} ${m.type()} - ${m.ident()}`);
+  private inbound(socket: net.Socket) {
+    const challenge = nanoid(CHALLENGE_LENGTH);
+
+    const authTimeout: NodeJS.Timeout = setTimeout(() => {
+      socket.destroy();
+    }, this.server.config.network_auth_timeout_ms);
+
+    socket.write(new Challenge().create(challenge).pack());
+    socket.once('data', (data: Buffer) => {
+      let auth: Auth = {} as Auth;
+      try {
+        clearTimeout(authTimeout);
+        auth = new Auth(data);
+      } catch (error: any) {
+        Logger.warn('Invalid Auth message');
+        socket.destroy();
+        return;
+      }
+
+      if (!auth.isValid(challenge) || this.mapBroadcast.has(auth.origin())) {
+        socket.destroy();
+        return;
+      }
+
+      this.handleIncomingData(socket, auth.origin());
+    });
+  }
+
+  private outbound(publicKey: string) {
+    if (this.arrayStackConnect.includes(publicKey)) {
+      return;
     }
+    this.arrayStackConnect.push(publicKey);
+
+    (async () => {
+      try {
+        const options: SocksClientOptions = {
+          proxy: {
+            host: this.server.config.i2p_socks_host,
+            port: this.server.config.i2p_socks_port,
+            type: 5,
+          },
+          command: 'connect',
+          destination: {
+            host: this.server.getBlockchain().getPeer(publicKey).address,
+            port: this.server.config.i2p_sam_forward_port,
+          },
+          timeout: this.server.config.network_p2p_interval_ms,
+        };
+
+        const socket = (await SocksClient.createConnection(options)).socket;
+        socket.once('data', (data: Buffer) => {
+          // challenge
+          try {
+            const challenge = new Challenge(data);
+            socket.write(
+              new Auth().create(this.publicKey, this.server.getWallet().sign(challenge.getChallenge())).pack()
+            );
+          } catch (error: any) {
+            Logger.warn('Invalid Challenge message');
+            socket.destroy();
+            return;
+          }
+
+          this.handleIncomingData(socket, publicKey);
+        });
+      } catch (error: any) {
+        Logger.trace(`Network.outbound(): ${this.server.getBlockchain().getPeer(publicKey).address} - ${error.toString()}`);
+      }
+
+      this.arrayStackConnect.splice(this.arrayStackConnect.indexOf(publicKey), 1);
+    })();
+  }
+
+  private handleIncomingData(socket: net.Socket, pk: string) {
+    if (this.mapBroadcast.has(pk)) {
+      return socket.destroy();
+    }
+
+    let incomingData = '';
+    socket.on('data', (data: Buffer) => {
+      incomingData += data.toString();
+      while (incomingData.indexOf('#') > -1) {
+        try {
+          this.processMessage(new Message(incomingData.slice(0, incomingData.indexOf('#'))));
+        } catch (error: any) {
+          Logger.trace(`Network.handleIncomingData(): ${error.toString()}`);
+        }
+        incomingData = incomingData.slice(incomingData.indexOf('#') + 1);
+      }
+    });
+    socket.on('close', () => {
+      socket.destroy();
+      this.mapBroadcast.delete(pk);
+    });
+    socket.on('error', () => {
+      socket.destroy();
+      this.mapBroadcast.delete(pk);
+    });
+
+    this.mapBroadcast.set(pk, socket);
+  }
+
+  private async p2pNetwork() {
+    const net: Array<string> = Util.shuffleArray([...this.server.getBlockchain().getMapPeer().keys()]).filter((pk) => {
+      return !this.mapBroadcast.has(pk);
+    });
+
+    if (net.length && net.indexOf(this.publicKey) > -1) {
+      net.splice(net.indexOf(this.publicKey), 1);
+      net.forEach((pk) => {
+        this.outbound(pk);
+      });
+    }
+
+    this.timeoutP2P = setTimeout(async () => {
+      await this.p2pNetwork();
+    }, this.server.config.network_p2p_interval_ms);
+  }
+
+  private processMessage(m: Message) {
+    if (this.arrayProcessed.includes(m.ident())) {
+      return;
+    }
+    this.arrayProcessed.push(m.ident());
 
     // stateless validation
     if (!this.server.getValidation().validateMessage(m)) {
@@ -215,245 +255,36 @@ export class Network {
     }
 
     // process message
-    if (this._onMessage && this._onMessage(m.type(), message) && m.isBroadcast()) {
-      const aTrail = m.trail();
-      const aBroadcast: Array<string> = this.arrayBroadcast.filter((pk) => !aTrail.includes(pk));
-      m.updateTrail(this.arrayBroadcast.concat([m.origin(), publicKeyPeer, this.server.getWallet().getPublicKey()]));
-
-      // broadcast the message
-      for (const _pk of aBroadcast) {
-        try {
-          Network.send(this.peersIn[_pk] ? this.peersIn[_pk].ws : this.peersOut[_pk].ws, m.pack());
-        } catch (error) {
-          Logger.warn('Network.processMessage() broadcast Error: ' + JSON.stringify(error));
-        }
-      }
-    }
-  }
-
-  private auth(ws: WebSocket, publicKeyPeer: string) {
-    if (this.peersIn[publicKeyPeer]) {
-      this.peersIn[publicKeyPeer].ws.close(4005, 'Rebuilding');
-      delete this.peersIn[publicKeyPeer];
-    }
-
-    const timeout = setTimeout(() => {
-      ws.close(4005, 'Auth Timeout');
-    }, this.server.config.network_auth_timeout_ms);
-
-    const challenge = nanoid(32);
-    Network.send(ws, new Challenge().create(challenge).pack());
-
-    ws.once('message', (message: Buffer) => {
-      clearTimeout(timeout);
-      const peer = this.mapPeer.get(publicKeyPeer) || ({} as NetworkPeer);
-      const mA = new Auth(message);
-
-      if (!peer.address || !this.server.getValidation().validateMessage(mA) || !mA.isValid(challenge, publicKeyPeer)) {
-        return ws.close(4003, 'Auth Failed');
-      }
-
-      this.peersIn[publicKeyPeer] = {
-        address: 'ws://' + peer.address,
-        alive: Date.now(),
-        stale: 0,
-        ws: ws,
-      };
-      this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
-
-      ws.on('error', (error: Error) => {
-        ws.close();
-        Logger.trace('Network.Auth() ws.error: ' + JSON.stringify(error));
-      });
-      ws.on('close', () => {
-        delete this.peersIn[publicKeyPeer];
-        this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
-      });
-      ws.on('message', (message: Buffer) => {
-        if (this.peersIn[publicKeyPeer]) {
-          this.peersIn[publicKeyPeer].alive = Date.now();
-          this.processMessage(message, publicKeyPeer);
-        }
-      });
-      ws.on('ping', (data) => {
-        this.peersIn[publicKeyPeer] && this.processPing(data, this.peersIn[publicKeyPeer], ws);
-      });
-      ws.on('pong', () => {
-        this.peersIn[publicKeyPeer] && (this.peersIn[publicKeyPeer].alive = Date.now());
-      });
-    });
-  }
-
-  private buildP2P() {
-    for (const publicKey of this.arrayPeerNetwork) {
-      if (Object.keys(this.peersOut).length + Object.keys(this.stackOut).length >= this.server.config.network_size) {
-        break;
-      }
-      const peer = (this.mapPeer.get(publicKey) || {}) as NetworkPeer;
-      if (peer.address && !this.peersIn[publicKey] && !this.peersOut[publicKey] && !this.stackOut[publicKey]) {
-        this.stackOut[publicKey] = peer;
-        this.connect(publicKey);
-      }
-    }
-
-    this.timeoutBuildP2P = setTimeout(() => this.buildP2P(), this.server.config.network_p2p_interval_ms);
-  }
-
-  private connect(publicKeyPeer: string) {
-    const address = 'ws://' + this.stackOut[publicKeyPeer].address;
-    const options: WebSocket.ClientOptions = {
-      followRedirects: false,
-      perMessageDeflate: false,
-      headers: {
-        'diva-identity': this.publicKey,
-      },
-    };
-
-    if (
-      this.server.config.i2p_socks_host &&
-      this.server.config.i2p_socks_port > 0 &&
-      /\.i2p$/.test(this.stackOut[publicKeyPeer].address)
-    ) {
-      options.agent = new SocksProxyAgent(
-        `socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
-      );
-    }
-
-    const ws = new WebSocket(address, options);
-
-    ws.on('open', () => {
-      delete this.stackOut[publicKeyPeer];
-      this.peersOut[publicKeyPeer] = {
-        address: address,
-        alive: Date.now(),
-        stale: 0,
-        ws: ws,
-      };
-      this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
-    });
-    ws.on('close', () => {
-      if (this.stackOut[publicKeyPeer]) {
-        delete this.stackOut[publicKeyPeer];
-        const i = this.arrayPeerNetwork.indexOf(publicKeyPeer);
-        i > -1 && this.arrayPeerNetwork.splice(i, 1);
-      }
-      delete this.peersOut[publicKeyPeer];
-      this.arrayBroadcast = [...new Set(Object.keys(this.peersOut).concat(Object.keys(this.peersIn)))];
-    });
-    ws.on('error', (error: Error) => {
-      ws.close();
-      Logger.trace('Network.connect() ws.error: ' + JSON.stringify(error));
-    });
-    ws.once('message', (message: Buffer) => {
-      const mC = new Challenge(message);
-      if (!this.server.getValidation().validateMessage(mC)) {
-        return ws.close(4003, 'Challenge Failed');
-      }
-      Network.send(ws, new Auth().create(this.server.getWallet().sign(mC.getChallenge())).pack());
-
-      ws.on('message', (message: Buffer) => {
-        if (this.peersOut[publicKeyPeer]) {
-          this.peersOut[publicKeyPeer].alive = Date.now();
-          this.processMessage(message, publicKeyPeer);
-        }
-      });
-      ws.on('ping', async (data) => {
-        this.peersOut[publicKeyPeer] && (await this.processPing(data, this.peersOut[publicKeyPeer], ws));
-      });
-      ws.on('pong', () => {
-        this.peersOut[publicKeyPeer] && (this.peersOut[publicKeyPeer].alive = Date.now());
-      });
-    });
-  }
-
-  private morphPeerNetwork() {
-    const net: Array<string> = [...this.mapPeer.keys()];
-    if (net.length && net.indexOf(this.publicKey) > -1) {
-      net.splice(net.indexOf(this.publicKey), 1);
-
-      if (net.length <= this.server.config.network_size) {
-        this.arrayPeerNetwork = net;
-      } else {
-        this.arrayPeerNetwork = this.mapPeer.size < 1 ? [] : Util.shuffleArray(net);
-
-        if (Object.keys(this.peersOut).length > Math.floor(this.server.config.network_size / 2)) {
-          let x = 0;
-          for (const pk of Object.keys(this.peersOut)) {
-            if (this.peersIn[pk]) {
-              this.peersOut[pk].ws.close(1000, 'Bye');
-              if (x++ >= this.server.config.network_size / 10) {
-                break;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    this.timeoutMorph = setTimeout(() => {
-      this.morphPeerNetwork();
-    }, this.server.config.network_morph_interval_ms);
+    this._onMessage && this._onMessage(m);
   }
 
   private clean() {
-    const t = Date.now() - this.server.config.network_clean_interval_ms * 2; // timeout
-    Object.values(this.peersOut)
-      .concat(Object.values(this.peersIn))
-      .forEach((peer) => {
-        peer.alive < t && peer.ws.close(4002, 'Timeout');
-      });
+    this.arrayProcessed.splice(0, Math.floor(this.arrayProcessed.length / 2));
+    this.arrayBroadcasted.splice(0, Math.floor(this.arrayBroadcasted.length / 2));
 
-    this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
+    this.timeoutClean = setTimeout(() => {
+      this.clean();
+    }, this.server.config.network_clean_interval_ms);
   }
 
-  private ping(): void {
-    let t = this.server.config.network_ping_interval_ms;
-    Util.shuffleArray(Object.values(this.peersOut).concat(Object.values(this.peersIn))).forEach((peer) => {
-      setTimeout(() => {
-        peer.ws.readyState === 1 && peer.ws.ping(this.server.getBlockchain().getHeight());
-      }, t);
-      t = t + 5;
+  getArrayBroadcast(): Array<string> {
+    return [...this.mapBroadcast.keys()];
+  }
+
+  broadcast(m: Message) {
+    const buf: Buffer = Buffer.from(m.pack());
+    const ident = m.ident();
+    const aBroadcast: Array<string> = [...this.mapBroadcast.keys()].filter((pk) => {
+      return !this.arrayBroadcasted.includes(pk + ident);
     });
-
-    this.timeoutPing = setTimeout(() => this.ping(), t);
-  }
-
-  private async doSync(height: number, ws: WebSocket) {
-    try {
-      Network.send(
-        ws,
-        new Sync()
-          .create({
-            type: Message.TYPE_SYNC,
-            blocks: await this.server
-              .getBlockchain()
-              .getRange(height + 1, height + this.server.config.network_sync_size),
-          })
-          .pack()
-      );
-    } catch (error) {
-      Logger.trace('Network.doSync() Error' + JSON.stringify(error));
-    }
-  }
-
-  private processPing(data: Buffer, peer: Peer, ws: WebSocket) {
-    const height = Number(data);
-    if (height) {
-      if (height < this.server.getBlockchain().getHeight()) {
-        peer.stale++;
-        if (peer.stale >= this.server.config.network_stale_threshold) {
-          peer.stale = 0;
-          (async () => {
-            await this.doSync(height, ws);
-          })();
-        }
-      } else {
-        peer.stale = 0;
+    aBroadcast.forEach((pk) => {
+      try {
+        const socket = this.mapBroadcast.get(pk);
+        socket && socket.write(buf);
+        this.arrayBroadcasted.push(pk + ident);
+      } catch (error: any) {
+        Logger.warn('Network.broadcast() Error: ' + error.toString());
       }
-    }
-  }
-
-  private static send(ws: WebSocket, data: Buffer | string) {
-    ws.readyState === 1 && ws.send(data, WS_CLIENT_OPTIONS);
+    });
   }
 }

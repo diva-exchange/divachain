@@ -19,7 +19,8 @@
 
 import path from 'path';
 import fs from 'fs';
-import {createLocalDestination} from '@diva.exchange/i2p-sam/dist';
+import { createLocalDestination } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import net from 'net';
 
 export type Configuration = {
   no_bootstrapping?: number;
@@ -29,6 +30,8 @@ export type Configuration = {
   ip?: string;
   port?: number;
   port_block_feed?: number;
+  tcp_server_ip?: string;
+  tcp_server_port?: number;
   path_genesis?: string;
   path_blockstore?: string;
   path_state?: string;
@@ -37,21 +40,19 @@ export type Configuration = {
   i2p_socks_host?: string;
   i2p_socks_port?: number;
   i2p_sam_host?: string;
-  i2p_sam_port?: number;
+  i2p_sam_port_tcp?: number;
+  i2p_sam_forward_host?: string;
+  i2p_sam_forward_port?: number;
   i2p_b32_address?: string;
-  i2p_destination?: string;
+  i2p_public_key?: string;
+  i2p_private_key?: string;
 
   address?: string;
 
-  network_size?: number;
-  network_morph_interval_ms?: number;
   network_p2p_interval_ms?: number;
   network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
-  network_ping_interval_ms?: number;
-  network_stale_threshold?: number;
   network_sync_size?: number;
-  network_verbose_logging?: boolean;
 
   blockchain_max_blocks_in_memory?: number;
 
@@ -59,28 +60,26 @@ export type Configuration = {
 };
 
 export const BLOCK_VERSION = 3;
+export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
+export const CHALLENGE_LENGTH = 16;
 
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
-const DEFAULT_PORT_BLOCK_FEED = 17469;
-export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
+const DEFAULT_BLOCK_FEED_PORT = 17469;
 
-export const PBFT_RETRY_INTERVAL_MS = 500;
+const DEFAULT_TCP_SERVER_IP = '127.0.0.1';
+const DEFAULT_TCP_SERVER_PORT = 17470;
 
-const MIN_NETWORK_SIZE = 7;
-const MAX_NETWORK_SIZE = 64;
-const MIN_NETWORK_MORPH_INTERVAL_MS = 120000;
-const MAX_NETWORK_MORPH_INTERVAL_MS = 600000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 3000;
-const MAX_NETWORK_P2P_INTERVAL_MS = 10000;
+const DEFAULT_I2P_SOCKS_PORT = 4445;
+const DEFAULT_I2P_SAM_TCP_PORT = 7656;
+const DEFAULT_I2P_SAM_FORWARD_PORT = 17470;
+
+const MIN_NETWORK_P2P_INTERVAL_MS = 30000;
+const MAX_NETWORK_P2P_INTERVAL_MS = 120000;
 const MIN_NETWORK_AUTH_TIMEOUT_MS = 30000;
 const MAX_NETWORK_AUTH_TIMEOUT_MS = 60000;
-const MIN_NETWORK_PING_INTERVAL_MS = 3000;
-const MAX_NETWORK_PING_INTERVAL_MS = 10000;
-const MIN_NETWORK_CLEAN_INTERVAL_MS = 10000;
-const MAX_NETWORK_CLEAN_INTERVAL_MS = 30000;
-const MIN_NETWORK_STALE_THRESHOLD = 2;
-const MAX_NETWORK_STALE_THRESHOLD = 5;
+const MIN_NETWORK_CLEAN_INTERVAL_MS = 60000;
+const MAX_NETWORK_CLEAN_INTERVAL_MS = 120000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
 
@@ -97,6 +96,8 @@ export class Config {
   public VERSION: string = '';
   public ip: string = '';
   public port: number = 0;
+  public tcp_server_ip: string = '';
+  public tcp_server_port: number = 0;
   public port_block_feed: number = 0;
   public path_genesis: string = '';
   public path_blockstore: string = '';
@@ -104,20 +105,20 @@ export class Config {
   public path_keys: string = '';
   public i2p_socks_host: string = '';
   public i2p_socks_port: number = 0;
+  public i2p_has_socks: boolean = false;
   public i2p_sam_host: string = '';
-  public i2p_sam_port: number = 0;
+  public i2p_sam_port_tcp: number = 0;
+  public i2p_sam_forward_host: string = '';
+  public i2p_sam_forward_port: number = 0;
+  public i2p_has_sam: boolean = false;
   public i2p_b32_address: string = '';
-  public i2p_destination: string = '';
+  public i2p_public_key: string = '';
+  public i2p_private_key: string = '';
   public address: string = '';
-  public network_size: number = MIN_NETWORK_SIZE;
-  public network_morph_interval_ms: number = MIN_NETWORK_MORPH_INTERVAL_MS;
   public network_p2p_interval_ms: number = MIN_NETWORK_P2P_INTERVAL_MS;
   public network_auth_timeout_ms: number = MIN_NETWORK_AUTH_TIMEOUT_MS;
   public network_clean_interval_ms: number = MIN_NETWORK_CLEAN_INTERVAL_MS;
-  public network_ping_interval_ms: number = MIN_NETWORK_PING_INTERVAL_MS;
-  public network_stale_threshold: number = MIN_NETWORK_STALE_THRESHOLD;
   public network_sync_size: number = MIN_NETWORK_SYNC_SIZE;
-  public network_verbose_logging: boolean = false;
 
   public blockchain_max_blocks_in_memory: number = MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY;
 
@@ -127,15 +128,14 @@ export class Config {
     const self = new Config();
     self.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
 
-    const nameBlockGenesis = process.env.NAME_BLOCK_GENESIS ? process.env.NAME_BLOCK_GENESIS.replace(
-      /[^a-z0-9._-]|^[._-]+|[._-]+$/gi,
-      ''
-    ) : DEFAULT_NAME_GENESIS_BLOCK;
-
     self.bootstrap =
       (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
-    self.path_app = c.path_app || path.join(__dirname, '/../');
+    if (!c.path_app || !fs.existsSync(c.path_app)) {
+      self.path_app = path.join(__dirname, '/../');
+    } else {
+      self.path_app = c.path_app;
+    }
 
     try {
       self.VERSION = fs.readFileSync(path.join(__dirname, 'version')).toString();
@@ -148,74 +148,80 @@ export class Config {
 
     self.ip = c.ip || process.env.IP || DEFAULT_IP;
     self.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
-    self.port_block_feed = Config.port(c.port_block_feed || process.env.PORT_BLOCK_FEED || DEFAULT_PORT_BLOCK_FEED);
+    self.port_block_feed = Config.port(c.port_block_feed || process.env.BLOCK_FEED_PORT || DEFAULT_BLOCK_FEED_PORT);
+    self.tcp_server_ip = c.tcp_server_ip || process.env.TCP_SERVER_IP || DEFAULT_TCP_SERVER_IP;
+    self.tcp_server_port = Config.port(c.tcp_server_port || process.env.TCP_SERVER_PORT || DEFAULT_TCP_SERVER_PORT);
 
-    self.path_genesis = c.path_genesis || path.join(self.path_app, 'genesis/');
-    if (!fs.existsSync(self.path_genesis) && !/\.json$/.test(self.path_genesis)) {
-      try {
-        fs.mkdirSync(self.path_genesis, { mode: '755', recursive: true });
-      } catch (error) {
-        self.path_genesis = path.join(process.cwd(), 'genesis/');
-        fs.mkdirSync(self.path_genesis, { mode: '755', recursive: true });
-      }
-      self.path_genesis = self.path_genesis + nameBlockGenesis + '.json';
+    if (!c.path_genesis || !fs.existsSync(c.path_genesis)) {
+      self.path_genesis = path.join(self.path_app, 'genesis/');
+    } else {
+      self.path_genesis = c.path_genesis;
+    }
+    if (!/\.json$/.test(self.path_genesis)) {
+      self.path_genesis = self.path_genesis + DEFAULT_NAME_GENESIS_BLOCK + '.json';
     }
     if (!fs.existsSync(self.path_genesis)) {
       throw new Error(`Path to genesis block not found: ${self.path_genesis}`);
     }
 
-    self.path_blockstore = c.path_blockstore || path.join(self.path_app, 'blockstore/');
-    if (!fs.existsSync(self.path_blockstore)) {
-      try {
-        fs.mkdirSync(self.path_blockstore, { mode: '755', recursive: true });
-      } catch (error) {
-        self.path_blockstore = path.join(process.cwd(), 'blockstore/');
-        fs.mkdirSync(self.path_blockstore, { mode: '755', recursive: true });
-      }
+    if (!c.path_blockstore || !fs.existsSync(c.path_blockstore)) {
+      self.path_blockstore = path.join(self.path_app, 'blockstore/');
+    } else {
+      self.path_blockstore = c.path_blockstore;
     }
 
-    self.path_state = c.path_state || path.join(self.path_app, 'state/');
-    if (!fs.existsSync(self.path_state)) {
-      try {
-        fs.mkdirSync(self.path_state, { mode: '755', recursive: true });
-      } catch (error) {
-        self.path_state = path.join(process.cwd(), 'state/');
-        fs.mkdirSync(self.path_state, { mode: '755', recursive: true });
-      }
+    if (!c.path_state || !fs.existsSync(c.path_state)) {
+      self.path_state = path.join(self.path_app, 'state/');
+    } else {
+      self.path_state = c.path_state;
     }
 
-    self.path_keys = c.path_keys || path.join(self.path_app, 'keys/');
-    if (!fs.existsSync(self.path_keys)) {
-      try {
-        fs.mkdirSync(self.path_keys, { mode: '755', recursive: true });
-      } catch (error) {
-        self.path_keys = path.join(process.cwd(), 'keys/');
-        fs.mkdirSync(self.path_keys, { mode: '755', recursive: true });
-      }
+    if (!c.path_keys || !fs.existsSync(c.path_keys)) {
+      self.path_keys = path.join(self.path_app, 'keys/');
+    } else {
+      self.path_keys = c.path_keys;
     }
 
     self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || '';
-    self.i2p_socks_port = Config.port(c.i2p_sam_port || process.env.I2P_SOCKS_PORT);
+    self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
+    self.i2p_has_socks =
+      !!self.i2p_socks_host &&
+      self.i2p_socks_port > 0 &&
+      (await Config.isTCPAvailable(self.i2p_socks_host, self.i2p_socks_port));
+    self.i2p_has_socks || (self.i2p_socks_host = '');
+
     self.i2p_sam_host = c.i2p_sam_host || process.env.I2P_SAM_HOST || '';
-    self.i2p_sam_port = Config.port(c.i2p_sam_port || process.env.I2P_SAM_PORT);
+    self.i2p_sam_port_tcp = Config.port(c.i2p_sam_port_tcp || process.env.I2P_SAM_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
+    self.i2p_sam_forward_host = c.i2p_sam_forward_host || process.env.I2P_SAM_FORWARD_HOST || '';
+    self.i2p_sam_forward_port =
+      Config.port(c.i2p_sam_forward_port || process.env.I2P_SAM_FORWARD_PORT) || DEFAULT_I2P_SAM_FORWARD_PORT;
+
+    self.i2p_has_sam =
+      !!self.i2p_sam_host &&
+      self.i2p_sam_port_tcp > 0 &&
+      (await Config.isTCPAvailable(self.i2p_sam_host, self.i2p_sam_port_tcp));
+    self.i2p_has_sam || (self.i2p_sam_host = '');
 
     self.address = c.address || process.env.ADDRESS || '';
-    if (self.i2p_sam_host && self.i2p_sam_port) {
+    if (self.i2p_has_sam) {
       const pathDestination = path.join(self.path_keys, self.address);
-      if (!self.address || !fs.existsSync(pathDestination)) {
+      if (!self.address) {
         const obj = await createLocalDestination({
           sam: {
             host: self.i2p_sam_host,
-            portTCP: self.i2p_sam_port,
+            portTCP: self.i2p_sam_port_tcp,
           },
         });
-        self.i2p_destination = obj.public;
+        self.i2p_private_key = obj.private;
+        self.i2p_public_key = obj.public;
         self.i2p_b32_address = obj.address;
         self.address = self.i2p_b32_address;
-        fs.writeFileSync(path.join(self.path_keys, self.address), self.i2p_destination);
-      } else if (/\.b32\.i2p$/.test(self.address)) {
+        fs.writeFileSync(path.join(self.path_keys, self.address) + '.public', self.i2p_public_key);
+        fs.writeFileSync(path.join(self.path_keys, self.address) + '.private', self.i2p_private_key);
+      } else if (/\.b32\.i2p$/.test(self.address) && fs.existsSync(pathDestination)) {
         self.i2p_b32_address = self.address;
-        self.i2p_destination = fs.readFileSync(pathDestination).toString('binary');
+        self.i2p_public_key = fs.readFileSync(pathDestination + '.public').toString();
+        self.i2p_private_key = fs.readFileSync(pathDestination + '.private').toString();
       } else {
         throw new Error(`Fatal: invalid I2P address (${self.address})`);
       }
@@ -223,46 +229,27 @@ export class Config {
       throw new Error(`Fatal: invalid address (${self.address})`);
     }
 
-    self.network_size = Config.b(c.network_size || process.env.NETWORK_SIZE, MIN_NETWORK_SIZE, MAX_NETWORK_SIZE);
-    self.network_morph_interval_ms = Config.b(
-      c.network_morph_interval_ms || process.env.NETWORK_MORPH_INTERVAL_MS,
-      MIN_NETWORK_MORPH_INTERVAL_MS,
-      MAX_NETWORK_MORPH_INTERVAL_MS
-    );
-
     self.network_p2p_interval_ms = Config.b(
       c.network_p2p_interval_ms || process.env.NETWORK_P2P_INTERVAL_MS,
       MIN_NETWORK_P2P_INTERVAL_MS,
       MAX_NETWORK_P2P_INTERVAL_MS
     );
+
     self.network_auth_timeout_ms = Config.b(
       c.network_auth_timeout_ms || process.env.NETWORK_AUTH_TIMEOUT_MS,
       MIN_NETWORK_AUTH_TIMEOUT_MS,
       MAX_NETWORK_AUTH_TIMEOUT_MS
-    );
-    self.network_ping_interval_ms = Config.b(
-      c.network_ping_interval_ms || process.env.NETWORK_PING_INTERVAL_MS,
-      MIN_NETWORK_PING_INTERVAL_MS,
-      MAX_NETWORK_PING_INTERVAL_MS
     );
     self.network_clean_interval_ms = Config.b(
       c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS,
       MIN_NETWORK_CLEAN_INTERVAL_MS,
       MAX_NETWORK_CLEAN_INTERVAL_MS
     );
-
-    self.network_stale_threshold = Config.b(
-      c.network_stale_threshold || process.env.NETWORK_STALE_THRESHOLD,
-      MIN_NETWORK_STALE_THRESHOLD,
-      MAX_NETWORK_STALE_THRESHOLD
-    );
     self.network_sync_size = Config.b(
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
       MIN_NETWORK_SYNC_SIZE,
       MAX_NETWORK_SYNC_SIZE
     );
-
-    self.network_verbose_logging = Config.tf(c.network_verbose_logging || process.env.NETWORK_VERBOSE_LOGGING);
 
     self.blockchain_max_blocks_in_memory = Config.b(
       c.blockchain_max_blocks_in_memory ||
@@ -295,5 +282,18 @@ export class Config {
 
   private static port(n: any): number {
     return Number(n) ? Config.b(Number(n), 1025, 65535) : 0;
+  }
+
+  private static async isTCPAvailable(host: string, port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const tcp = new net.Socket();
+      tcp.on('error', () => {
+        resolve(false);
+      });
+      tcp.connect(port, host, () => {
+        tcp.destroy();
+        resolve(true);
+      });
+    });
   }
 }
