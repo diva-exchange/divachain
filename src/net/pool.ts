@@ -25,7 +25,7 @@ import { Server } from './server';
 import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
 import { Vote, VoteStruct } from './message/vote';
-import { ProposalStruct } from './message/proposal';
+import { Proposal, ProposalStruct } from './message/proposal';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -93,9 +93,9 @@ export class Pool {
     return false;
   }
 
-  release(): recordTx | false {
+  release() {
     if (this.hasBlock() || this.ownTx.height || !this.stackTransaction.length) {
-      return false;
+      return;
     }
 
     const r: recordStack = this.stackTransaction.shift() as recordStack;
@@ -110,11 +110,21 @@ export class Pool {
       tx: new Transaction(this.server.getWallet(), this.heightCurrent, r.ident, r.commands).get(),
       hash: Util.hash([this.heightCurrent, JSON.stringify(tx)].join()),
     };
-    return this.ownTx;
   }
 
   getStack() {
     return this.stackTransaction;
+  }
+
+  getProposal(): Proposal | false {
+    return this.ownTx.height
+      ? new Proposal().create(
+          this.server.getWallet().getPublicKey(),
+          this.ownTx.height,
+          this.ownTx.tx,
+          this.server.getWallet().sign(this.ownTx.hash)
+        )
+      : false;
   }
 
   propose(structProposal: ProposalStruct): boolean {
@@ -139,10 +149,6 @@ export class Pool {
     this.mapVote = new Map();
 
     return true;
-  }
-
-  hasTransaction(): boolean {
-    return this.currentHash.length > 0;
   }
 
   getArrayTransaction(): Array<TransactionStruct> {
@@ -192,14 +198,16 @@ export class Pool {
     return [...this.mapVote.keys()];
   }
 
-  getVote(): Vote {
-    return new Vote().create(
-      this.server.getWallet().getPublicKey(),
-      this.heightCurrent,
-      this.roundVote,
-      this.currentHash,
-      this.server.getWallet().sign(Util.hash([this.heightCurrent, this.roundVote, this.currentHash].join()))
-    );
+  getVote(): Vote | false {
+    return this.currentHash.length > 0
+      ? new Vote().create(
+          this.server.getWallet().getPublicKey(),
+          this.heightCurrent,
+          this.roundVote,
+          this.currentHash,
+          this.server.getWallet().sign(Util.hash([this.heightCurrent, this.roundVote, this.currentHash].join()))
+        )
+      : false;
   }
 
   hasBlock(): boolean {

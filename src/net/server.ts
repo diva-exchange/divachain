@@ -55,7 +55,8 @@ export class Server {
 
   private stackSync: Array<BlockStruct> = [];
 
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private intervalPropose: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private intervalVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -152,12 +153,22 @@ export class Server {
 
     this.pool.initHeight();
 
+    this.intervalPropose = setInterval(() => {
+      this.doPropose();
+    }, 700);
+    this.intervalVote = setInterval(() => {
+      this.doVote();
+    }, 500);
+
     return new Promise((resolve) => {
       this.network.once('ready', resolve);
     });
   }
 
   async shutdown(): Promise<void> {
+    clearInterval(this.intervalPropose);
+    clearInterval(this.intervalVote);
+
     this.network.shutdown();
     this.wallet.close();
     await this.blockchain.shutdown();
@@ -198,10 +209,17 @@ export class Server {
 
   stackTx(arrayCommand: ArrayCommand, ident: string = ''): string | false {
     const s = this.pool.stack(ident, arrayCommand);
-    const r = this.pool.release();
-    !!r &&
-      this.processProposal(new Proposal().create(this.wallet.getPublicKey(), r.height, r.tx, this.wallet.sign(r.hash)));
     return s || false;
+  }
+
+  private doPropose() {
+    this.pool.release();
+    const p = this.pool.getProposal();
+    if (p) {
+      this.processProposal(p);
+      // distribute the own proposal
+      this.network.broadcast(p);
+    }
   }
 
   private processProposal(proposal: Proposal) {
@@ -218,26 +236,20 @@ export class Server {
       return;
     }
 
-    // send out the proposal
+    // re-distribute the proposal
     this.network.broadcast(proposal);
-
-    // vote for the current pool
-    clearTimeout(this.timeoutVote);
-    this.timeoutVote = setTimeout(() => {
-      this.doVote();
-    }, 250);
   }
 
   private doVote() {
-    this.pool.hasTransaction() && this.processVote(this.pool.getVote());
+    const v = this.pool.getVote();
+    if (v) {
+      this.processVote(v);
+      // distribute the own vote
+      this.network.broadcast(v);
+    }
   }
 
   private processVote(vote: Vote) {
-    clearTimeout(this.timeoutVote);
-    this.timeoutVote = setTimeout(() => {
-      this.doVote();
-    }, 250);
-
     const v: VoteStruct = vote.get();
 
     // process only valid votes
@@ -251,15 +263,13 @@ export class Server {
       return;
     }
 
-    // if a block is available, send out the sync
+    // re-distribute the vote
+    this.network.broadcast(vote);
+
+    // if a block is available, send out a sync
     if (this.pool.hasBlock()) {
       this.processSync(new Sync().create([this.pool.getBlock()]));
-      return;
     }
-
-    // distribute the votes
-    this.pool.hasTransaction() && this.network.broadcast(this.pool.getVote());
-    this.network.broadcast(vote);
   }
 
   private processSync(sync: Sync) {
@@ -298,14 +308,6 @@ export class Server {
     setImmediate((s: string) => {
       this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
     }, JSON.stringify(block));
-
-    setTimeout(() => {
-      const r = this.pool.release();
-      !!r &&
-        this.processProposal(
-          new Proposal().create(this.wallet.getPublicKey(), r.height, r.tx, this.wallet.sign(r.hash))
-        );
-    }, 0);
   }
 
   private onMessage(m: Message) {

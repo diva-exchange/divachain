@@ -160,9 +160,9 @@ class TestServerI2P {
       await TestServerI2P.wait(Math.ceil(Math.random() * 2000));
     }
 
-    console.debug('waiting 180s to sync');
+    console.debug('waiting 60s to sync');
     // wait for a possible sync
-    await TestServerI2P.wait(180000);
+    await TestServerI2P.wait(60000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];
