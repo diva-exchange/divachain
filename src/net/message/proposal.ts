@@ -19,26 +19,40 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
+import { TransactionStruct } from '../../chain/transaction';
 
-export type AuthStruct = {
+export type ProposalStruct = {
   type: number;
   origin: string;
+  height: number;
+  tx: TransactionStruct;
   sig: string;
 };
 
-export class Auth extends Message {
-  create(origin: string, sig: string): Auth {
-    const structAuth: AuthStruct = {
-      type: Message.TYPE_AUTH,
+export class Proposal extends Message {
+  create(origin: string, height: number, tx: TransactionStruct, sig: string): Proposal {
+    const structProposal: ProposalStruct = {
+      type: Message.TYPE_PROPOSAL,
       origin: origin,
+      height: height,
+      tx: tx,
       sig: sig,
     };
-    this.message.ident = [structAuth.type, structAuth.sig].join();
-    this.message.data = structAuth;
+    this.message.ident = [structProposal.type, sig].join();
+    this.message.data = structProposal;
     return this;
   }
 
-  isValid(challenge: string): boolean {
-    return Util.verifySignature(this.message.data.origin, this.message.data.sig, challenge);
+  get(): ProposalStruct {
+    return this.message.data as ProposalStruct;
+  }
+
+  // stateful
+  static isValid(structProposal: ProposalStruct): boolean {
+    return Util.verifySignature(
+      structProposal.origin,
+      structProposal.sig,
+      Util.hash([structProposal.height, JSON.stringify(structProposal.tx)].join())
+    );
   }
 }

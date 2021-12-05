@@ -21,24 +21,17 @@ import { Logger } from '../logger';
 import { Message } from './message/message';
 import { Server } from './server';
 import EventEmitter from 'events';
-import { createForward, I2pSamStream } from '@diva.exchange/i2p-sam/dist/i2p-sam';
-import net from 'net';
-import { Challenge } from './message/challenge';
-import { nanoid } from 'nanoid';
-import { Auth } from './message/auth';
-import { SocksClient, SocksClientOptions } from 'socks';
+import { createDatagram, I2pSamDatagram } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import { Util } from '../chain/util';
-import { CHALLENGE_LENGTH } from '../config';
+import crypto from 'crypto';
+import { Sync } from './message/sync';
 
 export class Network extends EventEmitter {
   private readonly server: Server;
-  private readonly peer: net.Server;
-
-  private samInbound: I2pSamStream = {} as I2pSamStream;
+  private sam: I2pSamDatagram = {} as I2pSamDatagram;
 
   private readonly publicKey: string;
-  private mapBroadcast: Map<string, net.Socket> = new Map();
-  private arrayStackConnect: Array<string> = [];
+  private arrayBroadcast: Array<string> = [];
   private arrayProcessed: Array<string> = [];
   private arrayBroadcasted: Array<string> = [];
 
@@ -60,17 +53,6 @@ export class Network extends EventEmitter {
     this.publicKey = this.server.getWallet().getPublicKey();
     Logger.info(`Network, public key: ${this.publicKey}`);
 
-    // TCP endpoint
-    this.peer = net.createServer((client: net.Socket) => {
-      this.inbound(client);
-    });
-
-    this.peer.listen(this.server.config.tcp_server_port, this.server.config.tcp_server_ip, () => {
-      Logger.info(
-        `TCP server listening on ${this.server.config.tcp_server_ip}:${this.server.config.i2p_sam_forward_port}`
-      );
-    });
-
     this.init();
 
     this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
@@ -80,10 +62,7 @@ export class Network extends EventEmitter {
     clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
 
-    for (const socket of this.mapBroadcast.values()) {
-      socket.destroy();
-    }
-    this.peer.close();
+    this.sam.close();
   }
 
   private init() {
@@ -93,154 +72,83 @@ export class Network extends EventEmitter {
         started = true;
         Logger.info(`P2P starting on ${this.server.config.address}`);
 
-        //incoming
-        this.samInbound = await createForward({
-          sam: {
-            host: this.server.config.i2p_sam_host,
-            portTCP: this.server.config.i2p_sam_port_tcp,
-            publicKey: this.server.config.i2p_public_key,
-            privateKey: this.server.config.i2p_private_key,
-          },
-          forward: {
-            host: this.server.config.i2p_sam_forward_host,
-            port: this.server.config.i2p_sam_forward_port,
-            silent: true,
-          },
+        this.sam = (
+          await createDatagram({
+            sam: {
+              host: this.server.config.i2p_sam_host,
+              portTCP: this.server.config.i2p_sam_port_tcp,
+              publicKey: this.server.config.i2p_public_key,
+              privateKey: this.server.config.i2p_private_key,
+            },
+            listen: {
+              address: '0.0.0.0',
+              port: this.server.config.i2p_sam_forward_port,
+              hostForward: this.server.config.i2p_sam_forward_host,
+              portForward: this.server.config.i2p_sam_forward_port,
+            },
+          })
+        ).on('data', (data: Buffer, from: string) => {
+          const msg = data.toString().trim();
+          if (!msg || !from) {
+            return;
+          }
+          if (/^[\d]+$/.test(msg)) {
+            // ping, including height
+            if (Number(msg) < this.server.getBlockchain().getHeight()) {
+              setImmediate(async () => {
+                const m = new Sync().create(
+                  await this.server.getBlockchain().getRange(Number(msg) + 1, this.server.getBlockchain().getHeight())
+                );
+                const buf: Buffer = Buffer.from(m.pack());
+                this.sam.send(from, buf);
+              });
+            }
+          } else {
+            try {
+              this.processMessage(new Message(msg));
+            } catch (error: any) {
+              Logger.trace(`Network.handleIncomingData(): ${error.toString()}`);
+            }
+          }
         });
         Logger.info(`Inbound SAM connection available ${this.server.config.i2p_sam_host}`);
 
-        await this.p2pNetwork();
+        this.p2pNetwork();
       }
 
       if (started) {
-        const nq = [...this.mapBroadcast.keys()].reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
+        const nq = this.arrayBroadcast.reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
         if (nq * 0.9 >= this.server.getBlockchain().getQuorum()) {
           Logger.info(`P2P ready on ${this.server.config.address}`);
           this.emit('ready');
           clearInterval(i);
         }
       }
-    }, 10000);
+    }, 2000);
   }
 
-  private inbound(socket: net.Socket) {
-    const challenge = nanoid(CHALLENGE_LENGTH);
-
-    const authTimeout: NodeJS.Timeout = setTimeout(() => {
-      socket.destroy();
-    }, this.server.config.network_auth_timeout_ms);
-
-    socket.write(new Challenge().create(challenge).pack());
-    socket.once('data', (data: Buffer) => {
-      let auth: Auth = {} as Auth;
-      try {
-        clearTimeout(authTimeout);
-        auth = new Auth(data);
-      } catch (error: any) {
-        Logger.warn('Invalid Auth message');
-        socket.destroy();
-        return;
-      }
-
-      if (!auth.isValid(challenge) || this.mapBroadcast.has(auth.origin())) {
-        socket.destroy();
-        return;
-      }
-
-      this.handleIncomingData(socket, auth.origin());
-    });
-  }
-
-  private outbound(publicKey: string) {
-    if (this.arrayStackConnect.includes(publicKey)) {
-      return;
-    }
-    this.arrayStackConnect.push(publicKey);
-
-    (async () => {
-      try {
-        const options: SocksClientOptions = {
-          proxy: {
-            host: this.server.config.i2p_socks_host,
-            port: this.server.config.i2p_socks_port,
-            type: 5,
-          },
-          command: 'connect',
-          destination: {
-            host: this.server.getBlockchain().getPeer(publicKey).address,
-            port: this.server.config.i2p_sam_forward_port,
-          },
-          timeout: this.server.config.network_p2p_interval_ms,
-        };
-
-        const socket = (await SocksClient.createConnection(options)).socket;
-        socket.once('data', (data: Buffer) => {
-          // challenge
-          try {
-            const challenge = new Challenge(data);
-            socket.write(
-              new Auth().create(this.publicKey, this.server.getWallet().sign(challenge.getChallenge())).pack()
-            );
-          } catch (error: any) {
-            Logger.warn('Invalid Challenge message');
-            socket.destroy();
-            return;
-          }
-
-          this.handleIncomingData(socket, publicKey);
-        });
-      } catch (error: any) {
-        Logger.trace(`Network.outbound(): ${this.server.getBlockchain().getPeer(publicKey).address} - ${error.toString()}`);
-      }
-
-      this.arrayStackConnect.splice(this.arrayStackConnect.indexOf(publicKey), 1);
-    })();
-  }
-
-  private handleIncomingData(socket: net.Socket, pk: string) {
-    if (this.mapBroadcast.has(pk)) {
-      return socket.destroy();
-    }
-
-    let incomingData = '';
-    socket.on('data', (data: Buffer) => {
-      incomingData += data.toString();
-      while (incomingData.indexOf('#') > -1) {
-        try {
-          this.processMessage(new Message(incomingData.slice(0, incomingData.indexOf('#'))));
-        } catch (error: any) {
-          Logger.trace(`Network.handleIncomingData(): ${error.toString()}`);
-        }
-        incomingData = incomingData.slice(incomingData.indexOf('#') + 1);
-      }
-    });
-    socket.on('close', () => {
-      socket.destroy();
-      this.mapBroadcast.delete(pk);
-    });
-    socket.on('error', () => {
-      socket.destroy();
-      this.mapBroadcast.delete(pk);
-    });
-
-    this.mapBroadcast.set(pk, socket);
-  }
-
-  private async p2pNetwork() {
-    const net: Array<string> = Util.shuffleArray([...this.server.getBlockchain().getMapPeer().keys()]).filter((pk) => {
-      return !this.mapBroadcast.has(pk);
-    });
-
-    if (net.length && net.indexOf(this.publicKey) > -1) {
-      net.splice(net.indexOf(this.publicKey), 1);
-      net.forEach((pk) => {
-        this.outbound(pk);
-      });
-    }
-
+  private p2pNetwork() {
     this.timeoutP2P = setTimeout(async () => {
-      await this.p2pNetwork();
+      this.p2pNetwork();
     }, this.server.config.network_p2p_interval_ms);
+
+    this.arrayBroadcast = Util.shuffleArray([...this.server.getBlockchain().getMapPeer().keys()]).filter((pk) => {
+      return pk !== this.publicKey;
+    });
+
+    const step = Math.floor(this.server.config.network_p2p_interval_ms / (this.arrayBroadcast.length + 2));
+    let int = crypto.randomInt(step) + 1;
+    const buf = Buffer.from(this.server.getBlockchain().getHeight() + '\n');
+    this.arrayBroadcast.forEach((pk) => {
+      setTimeout(() => {
+        try {
+          this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
+        } catch (error: any) {
+          Logger.warn('Network.p2pNetwork() ping error: ' + error.toString());
+        }
+      }, int);
+      int = int + step;
+    });
   }
 
   private processMessage(m: Message) {
@@ -268,23 +176,23 @@ export class Network extends EventEmitter {
   }
 
   getArrayBroadcast(): Array<string> {
-    return [...this.mapBroadcast.keys()];
+    return this.arrayBroadcast;
   }
 
   broadcast(m: Message) {
+    const ident: string = m.ident();
     const buf: Buffer = Buffer.from(m.pack());
-    const ident = m.ident();
-    const aBroadcast: Array<string> = [...this.mapBroadcast.keys()].filter((pk) => {
-      return !this.arrayBroadcasted.includes(pk + ident);
-    });
-    aBroadcast.forEach((pk) => {
-      try {
-        const socket = this.mapBroadcast.get(pk);
-        socket && socket.write(buf);
-        this.arrayBroadcasted.push(pk + ident);
-      } catch (error: any) {
-        Logger.warn('Network.broadcast() Error: ' + error.toString());
-      }
-    });
+    this.arrayBroadcast
+      .filter((pk) => {
+        return !this.arrayBroadcasted.includes(pk + ident);
+      })
+      .forEach((pk) => {
+        try {
+          this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
+          this.arrayBroadcasted.push(pk + ident);
+        } catch (error: any) {
+          Logger.warn('Network.broadcast() Error: ' + error.toString());
+        }
+      });
   }
 }

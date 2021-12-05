@@ -42,11 +42,22 @@ export class Genesis {
     const TCP_SERVER_IP = process.env.TCP_SERVER_IP || '0.0.0.0';
     const TCP_SERVER_PORT = Number(process.env.TCP_SERVER_PORT || I2P_SAM_FORWARD_PORT);
 
-    const map = new Map();
-    const genesis: BlockStruct = Blockchain.genesis(path.join(__dirname, '../genesis/block.json'));
     const pathGenesis = path.join(__dirname, './genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
-    fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
+    let genesis: BlockStruct;
+    if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
+      genesis = Blockchain.genesis(path.join(__dirname, '../genesis/block.json'));
+      fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
+    } else {
+      fs.rmdirSync(__dirname + '/blockstore', { recursive: true });
+      fs.rmdirSync(__dirname + '/state', { recursive: true });
+      fs.mkdirSync(__dirname + '/blockstore');
+      fs.mkdirSync(__dirname + '/state');
+      fs.copyFileSync(__dirname + '/../blockstore/.gitignore', __dirname + '/blockstore/.gitignore');
+      fs.copyFileSync(__dirname + '/../state/.gitignore', __dirname + '/state/.gitignore');
+      return Promise.resolve(new Map(JSON.parse(fs.readFileSync(pathGenesis + '.config').toString())));
+    }
 
+    const map = new Map();
     const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
     let s = 1;
     let config = {} as Config;
@@ -79,6 +90,7 @@ export class Genesis {
         seq: s,
         command: 'addPeer',
         address: config.address,
+        destination: config.i2p_public_key,
         publicKey: publicKey,
       } as CommandAddPeer);
       s++;
@@ -101,6 +113,7 @@ export class Genesis {
     genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
 
     fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
+    fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...map]));
 
     return Promise.resolve(map);
   }

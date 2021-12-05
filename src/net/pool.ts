@@ -24,8 +24,8 @@ import { Block, BlockStruct } from '../chain/block';
 import { Server } from './server';
 import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
-import { Lock, LockStruct } from './message/lock';
-import { Logger } from '../logger';
+import { Vote, VoteStruct } from './message/vote';
+import { ProposalStruct } from './message/proposal';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -38,6 +38,14 @@ type recordStack = {
 export type recordTx = {
   height: number;
   tx: TransactionStruct;
+  hash: string;
+};
+
+type recordVote = {
+  round: number;
+  origin: string;
+  sig: string;
+  stake: number;
 };
 
 export class Pool {
@@ -51,11 +59,10 @@ export class Pool {
   private arrayTransaction: Array<TransactionStruct> = [];
   private heightCurrent: number = 0;
 
-  private stakeLock: number = 0;
-  private roundLock: number = 0;
+  private roundVote: number = 1;
   private block: BlockStruct = {} as BlockStruct;
 
-  private mapVote: Map<string, string> = new Map();
+  private mapVote: Map<string, recordVote> = new Map();
 
   static make(server: Server) {
     return new Pool(server);
@@ -86,101 +93,121 @@ export class Pool {
     return false;
   }
 
-  release(): boolean {
+  release(): recordTx | false {
     if (this.hasBlock() || this.ownTx.height || !this.stackTransaction.length) {
       return false;
     }
 
     const r: recordStack = this.stackTransaction.shift() as recordStack;
+    const tx: TransactionStruct = new Transaction(
+      this.server.getWallet(),
+      this.heightCurrent,
+      r.ident,
+      r.commands
+    ).get();
     this.ownTx = {
       height: this.heightCurrent,
       tx: new Transaction(this.server.getWallet(), this.heightCurrent, r.ident, r.commands).get(),
+      hash: Util.hash([this.heightCurrent, JSON.stringify(tx)].join()),
     };
-    this.current.set(this.server.getWallet().getPublicKey(), this.ownTx.tx);
-    this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.origin > b.origin ? 1 : -1));
-    this.currentHash = Util.hash([this.heightCurrent, this.arrayTransaction.reduce((s, t) => s + t.sig, '')].join());
-    return true;
-  }
-
-  hasTransactions(): boolean {
-    return this.current.size > 0;
+    return this.ownTx;
   }
 
   getStack() {
     return this.stackTransaction;
   }
 
-  getArrayLocks(): Array<string> {
-    return [...this.current.keys()];
-  }
-
-  add(structLock: LockStruct): boolean {
-    if (structLock.height !== this.heightCurrent || this.hasBlock()) {
+  propose(structProposal: ProposalStruct): boolean {
+    if (structProposal.height !== this.heightCurrent || this.hasBlock()) {
       return false;
     }
 
-    // valid Tx's
-    let aTx = structLock.tx.filter((_tx) => {
-      return this.server.getValidation().validateTx(structLock.height, _tx);
+    // pool already contains a tx from this origin
+    if (this.current.has(structProposal.origin)) {
+      return false;
+    }
+
+    // check Tx validity
+    if (!this.server.getValidation().validateTx(structProposal.height, structProposal.tx)) {
+      return false;
+    }
+
+    this.current.set(structProposal.origin, structProposal.tx);
+    this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
+    this.currentHash = Util.hash(this.arrayTransaction.reduce((s, t) => s + t.origin, ''));
+    this.roundVote = 1;
+    this.mapVote = new Map();
+
+    return true;
+  }
+
+  hasTransaction(): boolean {
+    return this.currentHash.length > 0;
+  }
+
+  getArrayTransaction(): Array<TransactionStruct> {
+    return this.arrayTransaction;
+  }
+
+  vote(structVote: VoteStruct): boolean {
+    if (structVote.height !== this.heightCurrent || this.hasBlock()) {
+      return false;
+    }
+
+    // hashes have to match
+    if (this.currentHash !== structVote.hash) {
+      return false;
+    }
+
+    // vote only once per round
+    const ident = [structVote.round, structVote.origin].join();
+    if (this.mapVote.has(ident)) {
+      return false;
+    }
+
+    this.mapVote.set(ident, {
+      round: structVote.round,
+      origin: structVote.origin,
+      sig: structVote.sig,
+      stake: this.server.getBlockchain().getStake(structVote.origin),
     });
 
-    const hash: string = Util.hash([this.heightCurrent, aTx.reduce((s, t) => s + t.sig, '')].join());
-    if (hash !== this.currentHash) {
-      aTx = aTx.filter((_tx) => {
-        return !this.current.has(_tx.origin);
-      });
-      if (!aTx.length) {
-        return true;
-      }
-      aTx.forEach((tx: TransactionStruct) => {
-        this.current.set(tx.origin, tx);
-      });
-      this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.origin > b.origin ? 1 : -1));
-      this.currentHash = Util.hash([this.heightCurrent, this.arrayTransaction.reduce((s, t) => s + t.sig, '')].join());
-      this.stakeLock = this.server.getBlockchain().getStake(structLock.origin);
-      this.mapVote = new Map();
-      this.mapVote.set(structLock.origin, structLock.sig);
-      this.roundLock = 0;
-    } else if (!this.mapVote.has(structLock.origin)) {
-      this.stakeLock += this.server.getBlockchain().getStake(structLock.origin);
-      this.mapVote.set(structLock.origin, structLock.sig);
-      if (this.stakeLock >= this.server.getBlockchain().getQuorum()) {
-        if (this.roundLock++ >= this.server.getBlockchain().roundsPBFT()) {
-          //@FIXME logging
-          Logger.trace(
-            `${this.server.getWallet().getPublicKey()} - block on round ${this.roundLock}: ${this.currentHash}`
-          );
-
-          this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayTransaction);
-          this.mapVote.forEach((sig, origin) => {
-            this.block.votes.push({ origin: origin, sig: sig });
-          });
-        } else {
-          this.stakeLock = 0;
-          this.mapVote = new Map();
-        }
+    const arrayVotes = [...this.mapVote.values()].filter((r) => r.round === this.roundVote);
+    const stake = arrayVotes.reduce((sum, r) => sum + r.stake, 0);
+    if (stake >= this.server.getBlockchain().getQuorum()) {
+      if (this.roundVote >= this.server.getBlockchain().roundsPBFT()) {
+        this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayTransaction);
+        this.block.votes = arrayVotes.map((r) => {
+          return { origin: r.origin, sig: r.sig };
+        });
+      } else {
+        this.roundVote++;
       }
     }
 
     return true;
   }
 
-  getBlock(): BlockStruct {
-    return this.block.hash ? this.block : ({} as BlockStruct);
+  getArrayVote(): Array<string> {
+    return [...this.mapVote.keys()];
   }
 
-  getLock(): Lock {
-    return new Lock().create(
-      this.roundLock,
+  getVote(): Vote {
+    return new Vote().create(
       this.server.getWallet().getPublicKey(),
       this.heightCurrent,
-      this.arrayTransaction,
-      this.server.getWallet().sign(this.currentHash)
+      this.roundVote,
+      this.currentHash,
+      this.server.getWallet().sign(Util.hash([this.heightCurrent, this.roundVote, this.currentHash].join()))
     );
   }
 
   hasBlock(): boolean {
     return !!this.block.hash;
+  }
+
+  getBlock(): BlockStruct {
+    return this.block.hash ? this.block : ({} as BlockStruct);
   }
 
   clear(block: BlockStruct) {
@@ -199,7 +226,6 @@ export class Pool {
     this.currentHash = '';
     this.block = {} as BlockStruct;
     this.mapVote = new Map();
-    this.stakeLock = 0;
-    this.roundLock = 0;
+    this.roundVote = 1;
   }
 }

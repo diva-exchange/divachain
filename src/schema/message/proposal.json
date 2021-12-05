@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/message/lock.json",
+  "$id": "/schema/message/proposal.json",
 
   "type": "object",
   "properties": {
     "type": {
       "type": "integer",
-      "minimum": 3,
-      "maximum": 3
+      "minimum": 1,
+      "maximum": 1
     },
     "origin": {
       "type": "string",
@@ -18,12 +18,7 @@
       "minimum": 1
     },
     "tx": {
-      "type": "array",
-      "items": {
-        "$ref": "/schema/block/v3/transaction/tx.json"
-      },
-      "minItems": 1,
-      "uniqueItems": true
+      "$ref": "/schema/block/v3/transaction/tx.json"
     },
     "sig": {
       "type": "string",

@@ -37,6 +37,7 @@ import { Util } from './util';
 export type Peer = {
   publicKey: string;
   address: string;
+  destination: string;
   stake: number;
 };
 
@@ -382,6 +383,7 @@ export class Blockchain {
     const peer: Peer = {
       publicKey: command.publicKey,
       address: command.address,
+      destination: command.destination,
       stake: 0,
     };
     this.mapPeer.set(command.publicKey, peer);

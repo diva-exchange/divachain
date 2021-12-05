@@ -24,7 +24,8 @@
     "lint": "prettier -w \"**/*.ts\" && eslint --fix src/ test/ --ext .ts",
     "start": "NODE_ENV=production node dist/main.js | pino-pretty -t -i pid,hostname",
     "start-dev": "NODE_ENV=development ts-node --files src/main.ts | pino-pretty -t -i pid,hostname",
-    "test": "test/bin/clean-testenv.sh ; TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace DEBUG_PERFORMANCE=1 nyc mocha"
+    "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace DEBUG_PERFORMANCE=1 nyc mocha",
+    "clean-test": "test/bin/clean-testenv.sh"
   },
   "pkg": {
     "scripts": "dist/**/*.js",
@@ -39,7 +40,7 @@
     ]
   },
   "dependencies": {
-    "@diva.exchange/i2p-sam": "^3.1.0",
+    "@diva.exchange/i2p-sam": "^4.0.0",
     "ajv": "^8.8.2",
     "base64url": "^3.0.1",
     "compression": "^1.7.4",
@@ -48,7 +49,7 @@
     "leveldown": "^6.1.0",
     "levelup": "^5.1.1",
     "nanoid": "^3.1.30",
-    "pino": "^7.5.0",
+    "pino": "^7.5.1",
     "simple-get": "^4.0.0",
     "socks": "^2.6.1",
     "socks-proxy-agent": "^6.1.1",
@@ -57,7 +58,7 @@
   },
   "devDependencies": {
     "@cspotcode/source-map-support": "^0.7.0",
-    "@istanbuljs/nyc-config-typescript": "^1.0.1",
+    "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@testdeck/mocha": "^0.2.0",
     "@tsconfig/node14": "^1.0.1",
     "@types/chai": "^4.2.22",
@@ -77,13 +78,13 @@
     "ajv-cli": "^5.0.0",
     "chai": "^4.3.4",
     "chai-http": "^4.3.0",
-    "eslint": "^8.3.0",
+    "eslint": "^8.4.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-prettier": "^4.0.0",
     "mocha": "^9.1.3",
     "nyc": "^15.1.0",
     "pino-pretty": "^7.2.0",
-    "prettier": "^2.5.0",
+    "prettier": "^2.5.1",
     "ts-node": "^10.4.0",
     "typescript": "^4.5.2"
   }

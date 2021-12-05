@@ -107,12 +107,12 @@ export class Api {
       return res.json(this.server.getPool().getStack());
     });
 
-    this.server.app.get('/pool/locks', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayLocks());
+    this.server.app.get('/pool/tx', (req: Request, res: Response) => {
+      return res.json(this.server.getPool().getArrayTransaction());
     });
 
-    this.server.app.get('/pool/block', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getBlock());
+    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
+      return res.json(this.server.getPool().getArrayVote());
     });
 
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {

@@ -19,40 +19,41 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { TransactionStruct } from '../../chain/transaction';
 
-export type LockStruct = {
+export type VoteStruct = {
   type: number;
   origin: string;
   height: number;
-  tx: Array<TransactionStruct>;
+  round: number;
+  hash: string;
   sig: string;
 };
 
-export class Lock extends Message {
-  create(round: number, origin: string, height: number, tx: Array<TransactionStruct>, sig: string): Lock {
-    const structLock: LockStruct = {
-      type: Lock.TYPE_LOCK,
+export class Vote extends Message {
+  create(origin: string, height: number, round: number, hash: string, sig: string): Vote {
+    const structVote: VoteStruct = {
+      type: Message.TYPE_VOTE,
       origin: origin,
       height: height,
-      tx: tx,
+      round: round,
+      hash: hash,
       sig: sig,
     };
-    this.message.ident = [structLock.type, round, sig].join();
-    this.message.data = structLock;
+    this.message.ident = [structVote.type, sig].join();
+    this.message.data = structVote;
     return this;
   }
 
-  get(): LockStruct {
-    return this.message.data as LockStruct;
+  get(): VoteStruct {
+    return this.message.data as VoteStruct;
   }
 
   // stateful
-  static isValid(structLock: LockStruct): boolean {
+  static isValid(structVote: VoteStruct): boolean {
     return Util.verifySignature(
-      structLock.origin,
-      structLock.sig,
-      Util.hash([structLock.height, structLock.tx.reduce((s, t) => s + t.sig, '')].join())
+      structVote.origin,
+      structVote.sig,
+      Util.hash([structVote.height, structVote.round, structVote.hash].join())
     );
   }
 }

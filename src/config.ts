@@ -41,6 +41,7 @@ export type Configuration = {
   i2p_socks_port?: number;
   i2p_sam_host?: string;
   i2p_sam_port_tcp?: number;
+  i2p_sam_port_udp?: number;
   i2p_sam_forward_host?: string;
   i2p_sam_forward_port?: number;
   i2p_b32_address?: string;
@@ -50,7 +51,6 @@ export type Configuration = {
   address?: string;
 
   network_p2p_interval_ms?: number;
-  network_auth_timeout_ms?: number;
   network_clean_interval_ms?: number;
   network_sync_size?: number;
 
@@ -61,25 +61,20 @@ export type Configuration = {
 
 export const BLOCK_VERSION = 3;
 export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
-export const CHALLENGE_LENGTH = 16;
 
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
 const DEFAULT_BLOCK_FEED_PORT = 17469;
 
-const DEFAULT_TCP_SERVER_IP = '127.0.0.1';
-const DEFAULT_TCP_SERVER_PORT = 17470;
-
 const DEFAULT_I2P_SOCKS_PORT = 4445;
 const DEFAULT_I2P_SAM_TCP_PORT = 7656;
+const DEFAULT_I2P_SAM_UDP_PORT = 7655;
 const DEFAULT_I2P_SAM_FORWARD_PORT = 17470;
 
-const MIN_NETWORK_P2P_INTERVAL_MS = 30000;
-const MAX_NETWORK_P2P_INTERVAL_MS = 120000;
-const MIN_NETWORK_AUTH_TIMEOUT_MS = 30000;
-const MAX_NETWORK_AUTH_TIMEOUT_MS = 60000;
-const MIN_NETWORK_CLEAN_INTERVAL_MS = 60000;
-const MAX_NETWORK_CLEAN_INTERVAL_MS = 120000;
+const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
+const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
+const MIN_NETWORK_CLEAN_INTERVAL_MS = 30000;
+const MAX_NETWORK_CLEAN_INTERVAL_MS = 60000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
 
@@ -96,8 +91,6 @@ export class Config {
   public VERSION: string = '';
   public ip: string = '';
   public port: number = 0;
-  public tcp_server_ip: string = '';
-  public tcp_server_port: number = 0;
   public port_block_feed: number = 0;
   public path_genesis: string = '';
   public path_blockstore: string = '';
@@ -108,6 +101,7 @@ export class Config {
   public i2p_has_socks: boolean = false;
   public i2p_sam_host: string = '';
   public i2p_sam_port_tcp: number = 0;
+  public i2p_sam_port_udp: number = 0;
   public i2p_sam_forward_host: string = '';
   public i2p_sam_forward_port: number = 0;
   public i2p_has_sam: boolean = false;
@@ -116,7 +110,6 @@ export class Config {
   public i2p_private_key: string = '';
   public address: string = '';
   public network_p2p_interval_ms: number = MIN_NETWORK_P2P_INTERVAL_MS;
-  public network_auth_timeout_ms: number = MIN_NETWORK_AUTH_TIMEOUT_MS;
   public network_clean_interval_ms: number = MIN_NETWORK_CLEAN_INTERVAL_MS;
   public network_sync_size: number = MIN_NETWORK_SYNC_SIZE;
 
@@ -149,8 +142,6 @@ export class Config {
     self.ip = c.ip || process.env.IP || DEFAULT_IP;
     self.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
     self.port_block_feed = Config.port(c.port_block_feed || process.env.BLOCK_FEED_PORT || DEFAULT_BLOCK_FEED_PORT);
-    self.tcp_server_ip = c.tcp_server_ip || process.env.TCP_SERVER_IP || DEFAULT_TCP_SERVER_IP;
-    self.tcp_server_port = Config.port(c.tcp_server_port || process.env.TCP_SERVER_PORT || DEFAULT_TCP_SERVER_PORT);
 
     if (!c.path_genesis || !fs.existsSync(c.path_genesis)) {
       self.path_genesis = path.join(self.path_app, 'genesis/');
@@ -192,6 +183,7 @@ export class Config {
 
     self.i2p_sam_host = c.i2p_sam_host || process.env.I2P_SAM_HOST || '';
     self.i2p_sam_port_tcp = Config.port(c.i2p_sam_port_tcp || process.env.I2P_SAM_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
+    self.i2p_sam_port_udp = Config.port(c.i2p_sam_port_udp || process.env.I2P_SAM_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT;
     self.i2p_sam_forward_host = c.i2p_sam_forward_host || process.env.I2P_SAM_FORWARD_HOST || '';
     self.i2p_sam_forward_port =
       Config.port(c.i2p_sam_forward_port || process.env.I2P_SAM_FORWARD_PORT) || DEFAULT_I2P_SAM_FORWARD_PORT;
@@ -204,7 +196,8 @@ export class Config {
 
     self.address = c.address || process.env.ADDRESS || '';
     if (self.i2p_has_sam) {
-      const pathDestination = path.join(self.path_keys, self.address);
+      let ident = 'sam-' + self.address.replace(/[^a-z0-9_-]+/gi, '-');
+      let pathDestination = path.join(self.path_keys, ident);
       if (!self.address) {
         const obj = await createLocalDestination({
           sam: {
@@ -216,8 +209,10 @@ export class Config {
         self.i2p_public_key = obj.public;
         self.i2p_b32_address = obj.address;
         self.address = self.i2p_b32_address;
-        fs.writeFileSync(path.join(self.path_keys, self.address) + '.public', self.i2p_public_key);
-        fs.writeFileSync(path.join(self.path_keys, self.address) + '.private', self.i2p_private_key);
+        ident = 'sam-' + self.address.replace(/[^a-z0-9_-]+/gi, '-');
+        pathDestination = path.join(self.path_keys, ident);
+        fs.writeFileSync(pathDestination + '.public', self.i2p_public_key);
+        fs.writeFileSync(pathDestination + '.private', self.i2p_private_key);
       } else if (/\.b32\.i2p$/.test(self.address) && fs.existsSync(pathDestination)) {
         self.i2p_b32_address = self.address;
         self.i2p_public_key = fs.readFileSync(pathDestination + '.public').toString();
@@ -235,11 +230,6 @@ export class Config {
       MAX_NETWORK_P2P_INTERVAL_MS
     );
 
-    self.network_auth_timeout_ms = Config.b(
-      c.network_auth_timeout_ms || process.env.NETWORK_AUTH_TIMEOUT_MS,
-      MIN_NETWORK_AUTH_TIMEOUT_MS,
-      MAX_NETWORK_AUTH_TIMEOUT_MS
-    );
     self.network_clean_interval_ms = Config.b(
       c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS,
       MIN_NETWORK_CLEAN_INTERVAL_MS,

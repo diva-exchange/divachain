@@ -37,9 +37,8 @@ export class Validation {
     const pathSchema = path.join(__dirname, '../schema/');
 
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
-    const schemaAuth: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/auth.json');
-    const schemaChallenge: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/challenge.json');
-    const schemaLock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/lock.json');
+    const schemaProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/proposal.json');
+    const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
     const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
 
     const schemaBlockV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/block.json');
@@ -77,9 +76,8 @@ export class Validation {
 
     this.message = new Ajv({
       schemas: [
-        schemaAuth,
-        schemaChallenge,
-        schemaLock,
+        schemaProposal,
+        schemaVote,
         schemaSync,
         schemaBlockV1,
         schemaVotesV1,
@@ -110,9 +108,8 @@ export class Validation {
   // stateless
   validateMessage(m: Message): boolean {
     switch (m.type()) {
-      case Message.TYPE_AUTH:
-      case Message.TYPE_CHALLENGE:
-      case Message.TYPE_LOCK:
+      case Message.TYPE_PROPOSAL:
+      case Message.TYPE_VOTE:
       case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
           Logger.trace('Validation.validateMessage() failed');

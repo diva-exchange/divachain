@@ -35,7 +35,8 @@ import { Message } from './message/message';
 import { Api } from './api';
 import { ArrayCommand } from '../chain/transaction';
 import { Sync } from './message/sync';
-import { Lock, LockStruct } from './message/lock';
+import { Vote, VoteStruct } from './message/vote';
+import { Proposal, ProposalStruct } from './message/proposal';
 
 export class Server {
   public readonly config: Config;
@@ -53,6 +54,8 @@ export class Server {
   private validation: Validation = {} as Validation;
 
   private stackSync: Array<BlockStruct> = [];
+
+  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -195,32 +198,77 @@ export class Server {
 
   stackTx(arrayCommand: ArrayCommand, ident: string = ''): string | false {
     const s = this.pool.stack(ident, arrayCommand);
-    s && this.pool.release() && this.processLock(this.pool.getLock());
+    const r = this.pool.release();
+    !!r &&
+      this.processProposal(new Proposal().create(this.wallet.getPublicKey(), r.height, r.tx, this.wallet.sign(r.hash)));
     return s || false;
   }
 
-  private processLock(lock: Lock) {
-    const l: LockStruct = lock.get();
+  private processProposal(proposal: Proposal) {
+    const p: ProposalStruct = proposal.get();
 
-    // process only valid locks
+    // process only valid proposals
     // stateful
-    if (!Lock.isValid(l)) {
+    if (!Proposal.isValid(p)) {
       return;
     }
 
-    if (this.pool.add(l) && this.pool.hasBlock()) {
+    // add proposal to pool
+    if (!this.pool.propose(p)) {
+      return;
+    }
+
+    // send out the proposal
+    this.network.broadcast(proposal);
+
+    // vote for the current pool
+    clearTimeout(this.timeoutVote);
+    this.timeoutVote = setTimeout(() => {
+      this.doVote();
+    }, 250);
+  }
+
+  private doVote() {
+    this.pool.hasTransaction() && this.processVote(this.pool.getVote());
+  }
+
+  private processVote(vote: Vote) {
+    clearTimeout(this.timeoutVote);
+    this.timeoutVote = setTimeout(() => {
+      this.doVote();
+    }, 250);
+
+    const v: VoteStruct = vote.get();
+
+    // process only valid votes
+    // stateful
+    if (!Vote.isValid(v)) {
+      return;
+    }
+
+    // add vote to pool
+    if (!this.pool.vote(v)) {
+      return;
+    }
+
+    // if a block is available, send out the sync
+    if (this.pool.hasBlock()) {
       this.processSync(new Sync().create([this.pool.getBlock()]));
       return;
     }
 
-    this.pool.hasTransactions() && this.network.broadcast(this.pool.getLock());
+    // distribute the votes
+    this.pool.hasTransaction() && this.network.broadcast(this.pool.getVote());
+    this.network.broadcast(vote);
   }
 
   private processSync(sync: Sync) {
+    //@FIXME validity checks (and alike)?
     this.network.broadcast(sync);
 
     let h = this.blockchain.getHeight();
-    this.stackSync = this.stackSync.concat(sync.get().blocks)
+    this.stackSync = this.stackSync
+      .concat(sync.get().blocks)
       .filter((b) => b.height >= h + 1)
       .sort((a, b) => (a.height > b.height ? 1 : -1));
 
@@ -252,14 +300,21 @@ export class Server {
     }, JSON.stringify(block));
 
     setTimeout(() => {
-      this.pool.release() && this.processLock(this.pool.getLock());
+      const r = this.pool.release();
+      !!r &&
+        this.processProposal(
+          new Proposal().create(this.wallet.getPublicKey(), r.height, r.tx, this.wallet.sign(r.hash))
+        );
     }, 0);
   }
 
   private onMessage(m: Message) {
     switch (m.type()) {
-      case Message.TYPE_LOCK:
-        this.processLock(new Lock(m.pack()));
+      case Message.TYPE_PROPOSAL:
+        this.processProposal(new Proposal(m.pack()));
+        break;
+      case Message.TYPE_VOTE:
+        this.processVote(new Vote(m.pack()));
         break;
       case Message.TYPE_SYNC:
         this.processSync(new Sync(m.pack()));

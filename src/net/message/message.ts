@@ -32,10 +32,9 @@ export class Message {
 
   static readonly VERSION = Message.VERSION_3;
 
-  static readonly TYPE_CHALLENGE = 1;
-  static readonly TYPE_AUTH = 2;
-  static readonly TYPE_LOCK = 3;
-  static readonly TYPE_SYNC = 4;
+  static readonly TYPE_PROPOSAL = 1;
+  static readonly TYPE_VOTE = 2;
+  static readonly TYPE_SYNC = 3;
 
   protected message: MessageStruct = {} as MessageStruct;
 
@@ -77,9 +76,9 @@ export class Message {
   protected _pack(version: number = Message.VERSION): string {
     switch (version) {
       case Message.VERSION_2:
-        return version + ';' + base64url.encode(JSON.stringify(this.message)) + '#';
+        return version + ';' + base64url.encode(JSON.stringify(this.message)) + '\n';
       case Message.VERSION_3:
-        return version + ';' + zlib.deflateRawSync(JSON.stringify(this.message)).toString('base64') + '#';
+        return version + ';' + zlib.deflateRawSync(JSON.stringify(this.message)).toString('base64') + '\n';
     }
     throw new Error('Message.pack(): unsupported data version');
   }
@@ -87,7 +86,10 @@ export class Message {
   protected _unpack(input: Buffer | string): void {
     let version: number = 0;
     let message: string = '';
-    const m = input.toString().match(/^([0-9]+);(.+)$/);
+    const m = input
+      .toString()
+      .trim()
+      .match(/^([0-9]+);(.+)$/);
     if (m && m.length > 2) {
       version = Number(m[1]);
       message = m[2];

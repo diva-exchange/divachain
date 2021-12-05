@@ -25,6 +25,7 @@ import { Genesis } from '../genesis';
 import { Server } from '../../src/net/server';
 import { Config } from '../../src/config';
 import crypto from 'crypto';
+import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
@@ -34,7 +35,7 @@ class TestServerI2P {
   static mapServer: Map<string, Server> = new Map();
 
   static async before(): Promise<void> {
-    process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '13';
+    process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
     process.env.IP = process.env.IP || '127.27.27.1';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
@@ -86,9 +87,12 @@ class TestServerI2P {
   @test
   @timeout(90000)
   async transactionTestLoad() {
+    Logger.trace('waiting 30s to integrate');
+    await TestServerI2P.wait(30000);
+
     for (let t = 0; t < 3; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      console.debug(`Sending tx to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/data' + t)
@@ -100,7 +104,7 @@ class TestServerI2P {
 
     for (let t = 0; t < 3; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      console.debug(`Sending tx to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t)
@@ -110,7 +114,7 @@ class TestServerI2P {
       await TestServerI2P.wait(1000);
     }
 
-    console.log('waiting for a possible sync...');
+    Logger.trace('waiting for a possible sync...');
     // wait for a possible sync
     await TestServerI2P.wait(30000);
   }
@@ -118,6 +122,9 @@ class TestServerI2P {
   @test
   @timeout(10000000)
   async stressMultiTransaction() {
+    console.debug('waiting 30s to integrate');
+    await TestServerI2P.wait(30000);
+
     const _outer = Number(process.env.TRANSACTIONS) > 10 ? Number(process.env.TRANSACTIONS) : 100;
     const _inner = 4; // commands
 
@@ -153,9 +160,9 @@ class TestServerI2P {
       await TestServerI2P.wait(Math.ceil(Math.random() * 2000));
     }
 
-    console.debug('waiting 120s to sync');
+    console.debug('waiting 180s to sync');
     // wait for a possible sync
-    await TestServerI2P.wait(120000);
+    await TestServerI2P.wait(180000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];

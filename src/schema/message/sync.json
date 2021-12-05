@@ -6,8 +6,8 @@
   "properties": {
     "type": {
       "type": "integer",
-      "minimum": 4,
-      "maximum": 4
+      "minimum": 3,
+      "maximum": 3
     },
     "blocks": {
       "type": "array",

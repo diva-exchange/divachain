@@ -17,6 +17,10 @@
       "minLength": 1,
       "maxLength": 64
     },
+    "destination": {
+      "type": "string",
+      "maxLength": 1024
+    },
     "publicKey": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"

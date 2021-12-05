@@ -48,28 +48,24 @@ Default: 17469
 ### I2P_SAM_HOST
 Default: (empty)
 
-### I2P_SAM_PORT
-Default: 0
+### I2P_SAM_PORT_TCP
+Default: 7656
+
+### I2P_SAM_PORT_UDP
+Default: 7655
 
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
-Minimum: 3000\
-Maximum: 10000\
-Default: Minimum
-
-### NETWORK_AUTH_TIMEOUT_MS
-Timeout, in milliseconds, after authorisation fails.
-
-Minimum: 30000\
+Minimum: 10000\
 Maximum: 60000\
 Default: Minimum
 
 ### NETWORK_CLEAN_INTERVAL_MS
 Interval, in milliseconds, to clean up the network environment (like gossiping data).
 
-Minimum: 10000\
-Maximum: 30000\
+Minimum: 30000\
+Maximum: 60000\
 Default: Minimum
 
 ### NETWORK_SYNC_SIZE
@@ -78,11 +74,6 @@ Maximum number of blocks of synchronization message might contain. Must not exce
 Minimum: 10\
 Maximum: 100\
 Default: Minimum
-
-### NETWORK_VERBOSE_LOGGING
-Whether to log all network traffic (very verbose). Set to 1 to enable verbose logging.
-
-Default: 0
 
 ### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
 Number of blocks kept in memory (cache).
@@ -115,14 +106,11 @@ _Example:_ `http://url-divachain-api/state/?filter=^DivaExchange:` will return t
 #### GET /stack
 Get the stack (queue) of local transactions.
 
-#### GET /pool/locks
-Get the current locks on the transaction pool. 
+#### GET /pool/tx
+Get the current transactions in the pool. 
 
 #### GET /pool/votes
-Get the current votes on the transaction pool. 
-
-#### GET /pool/block
-Get the block which might be committed, if the consensus gets reached.
+Get the current votes in the pool. 
 
 #### GET /block/genesis
 Get the genesis block.

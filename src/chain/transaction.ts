@@ -26,6 +26,7 @@ interface Command {
 
 export interface CommandAddPeer extends Command {
   address: string;
+  destination: string;
   publicKey: string;
 }
 

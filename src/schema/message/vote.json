@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/message/auth.json",
+  "$id": "/schema/message/vote.json",
 
   "type": "object",
   "properties": {
@@ -13,6 +13,18 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
     "sig": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
@@ -21,6 +33,9 @@
   "required": [
     "type",
     "origin",
+    "height",
+    "round",
+    "hash",
     "sig"
   ],
   "additionalProperties": false
