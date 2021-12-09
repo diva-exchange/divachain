@@ -19,7 +19,9 @@
 
 import base64url from 'base64url';
 import { nanoid } from 'nanoid';
-import * as zlib from 'zlib';
+import zlib from 'zlib';
+
+const DEFAULT_NANOID_LENGTH = 10;
 
 export type MessageStruct = {
   ident: string;
@@ -69,7 +71,7 @@ export class Message {
   }
 
   pack(version?: number): string {
-    this.message.ident = this.message.ident || [this.message.data.type, nanoid(16)].join();
+    this.message.ident = this.message.ident || [this.message.data.type, nanoid(DEFAULT_NANOID_LENGTH)].join();
     return this._pack(version);
   }
 

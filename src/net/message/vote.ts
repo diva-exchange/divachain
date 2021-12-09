@@ -24,22 +24,20 @@ export type VoteStruct = {
   type: number;
   origin: string;
   height: number;
-  round: number;
   hash: string;
   sig: string;
 };
 
 export class Vote extends Message {
-  create(origin: string, height: number, round: number, hash: string, sig: string): Vote {
+  create(voteHash: string, origin: string, height: number, hash: string, sig: string): Vote {
     const structVote: VoteStruct = {
       type: Message.TYPE_VOTE,
       origin: origin,
       height: height,
-      round: round,
       hash: hash,
       sig: sig,
     };
-    this.message.ident = [structVote.type, sig].join();
+    this.message.ident = [structVote.type, origin, voteHash].join();
     this.message.data = structVote;
     return this;
   }
@@ -53,7 +51,7 @@ export class Vote extends Message {
     return Util.verifySignature(
       structVote.origin,
       structVote.sig,
-      Util.hash([structVote.height, structVote.round, structVote.hash].join())
+      Util.hash([structVote.height, structVote.hash].join())
     );
   }
 }

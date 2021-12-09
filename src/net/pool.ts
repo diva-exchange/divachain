@@ -42,7 +42,6 @@ export type recordTx = {
 };
 
 type recordVote = {
-  round: number;
   origin: string;
   sig: string;
   stake: number;
@@ -59,10 +58,9 @@ export class Pool {
   private arrayTransaction: Array<TransactionStruct> = [];
   private heightCurrent: number = 0;
 
-  private roundVote: number = 1;
   private block: BlockStruct = {} as BlockStruct;
 
-  private mapVote: Map<string, recordVote> = new Map();
+  private mapVote: Map<string, Array<recordVote>> = new Map();
 
   static make(server: Server) {
     return new Pool(server);
@@ -145,7 +143,6 @@ export class Pool {
     this.current.set(structProposal.origin, structProposal.tx);
     this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
     this.currentHash = Util.hash(this.arrayTransaction.reduce((s, t) => s + t.origin, ''));
-    this.roundVote = 1;
     this.mapVote = new Map();
 
     return true;
@@ -165,47 +162,42 @@ export class Pool {
       return false;
     }
 
-    // vote only once per round
-    const ident = [structVote.round, structVote.origin].join();
-    if (this.mapVote.has(ident)) {
-      return false;
-    }
+    const arrayVotes = this.mapVote.get(structVote.origin) || [];
+    //@FIXME rounds hardcoded
+    const rounds = 2; //this.server.getBlockchain().roundsPBFT();
+    if (arrayVotes.length < rounds) {
+      arrayVotes.push({
+        origin: structVote.origin,
+        sig: structVote.sig,
+        stake: this.server.getBlockchain().getStake(structVote.origin),
+      });
+      this.mapVote.set(structVote.origin, arrayVotes);
 
-    this.mapVote.set(ident, {
-      round: structVote.round,
-      origin: structVote.origin,
-      sig: structVote.sig,
-      stake: this.server.getBlockchain().getStake(structVote.origin),
-    });
-
-    const arrayVotes = [...this.mapVote.values()].filter((r) => r.round === this.roundVote);
-    const stake = arrayVotes.reduce((sum, r) => sum + r.stake, 0);
-    if (stake >= this.server.getBlockchain().getQuorum()) {
-      if (this.roundVote >= this.server.getBlockchain().roundsPBFT()) {
+      const aVotes = [...this.mapVote.values()].filter((a) => a.length === rounds);
+      const stake = aVotes.reduce((sum, a) => sum + a[rounds - 1].stake, 0);
+      if (stake >= this.server.getBlockchain().getQuorum()) {
         this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayTransaction);
-        this.block.votes = arrayVotes.map((r) => {
-          return { origin: r.origin, sig: r.sig };
+        this.block.votes = aVotes.map((a) => {
+          return { origin: a[rounds - 1].origin, sig: a[rounds - 1].sig };
         });
-      } else {
-        this.roundVote++;
       }
     }
 
     return true;
   }
 
-  getArrayVote(): Array<string> {
-    return [...this.mapVote.keys()];
+  getArrayVote(): Array<any> {
+    return [...this.mapVote];
   }
 
   getVote(): Vote | false {
     return this.currentHash.length > 0
       ? new Vote().create(
+          Util.hash(JSON.stringify([...this.mapVote])),
           this.server.getWallet().getPublicKey(),
           this.heightCurrent,
-          this.roundVote,
           this.currentHash,
-          this.server.getWallet().sign(Util.hash([this.heightCurrent, this.roundVote, this.currentHash].join()))
+          this.server.getWallet().sign(Util.hash([this.heightCurrent, this.currentHash].join()))
         )
       : false;
   }
@@ -234,6 +226,5 @@ export class Pool {
     this.currentHash = '';
     this.block = {} as BlockStruct;
     this.mapVote = new Map();
-    this.roundVote = 1;
   }
 }

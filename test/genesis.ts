@@ -29,7 +29,7 @@ import { Util } from '../src/chain/util';
 
 export class Genesis {
   static async create(): Promise<Map<string, Config>> {
-    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 9);
+    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 14);
     const BASE_PORT = Number(process.env.BASE_PORT || 17000);
     const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || 18000);
     const IP = process.env.IP || '127.27.27.1';

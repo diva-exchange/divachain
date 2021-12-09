@@ -87,44 +87,55 @@ export class Network extends EventEmitter {
               portForward: this.server.config.i2p_sam_forward_port,
             },
           })
-        ).on('data', (data: Buffer, from: string) => {
-          const msg = data.toString().trim();
-          if (!msg || !from) {
-            return;
-          }
-          if (/^[\d]+$/.test(msg)) {
-            // ping, including height
-            if (Number(msg) < this.server.getBlockchain().getHeight()) {
-              setImmediate(async () => {
-                const m = new Sync().create(
-                  await this.server.getBlockchain().getRange(Number(msg) + 1, this.server.getBlockchain().getHeight())
-                );
-                const buf: Buffer = Buffer.from(m.pack());
-                this.sam.send(from, buf);
-              });
-            }
-          } else {
-            try {
-              this.processMessage(new Message(msg));
-            } catch (error: any) {
-              Logger.trace(`Network.handleIncomingData(): ${error.toString()}`);
-            }
-          }
-        });
+        )
+          .on('data', (data: Buffer, from: string) => {
+            this.incomingData(data, from);
+          })
+          .on('error', (error: any) => {
+            Logger.warn('SAM Error: ' + error.toString());
+          });
         Logger.info(`Inbound SAM connection available ${this.server.config.i2p_sam_host}`);
 
         this.p2pNetwork();
       }
 
       if (started) {
-        const nq = this.arrayBroadcast.reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
-        if (nq * 0.9 >= this.server.getBlockchain().getQuorum()) {
+        const nq =
+          this.server.getBlockchain().getStake(this.publicKey) +
+          this.arrayBroadcast.reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
+        if (nq >= this.server.getBlockchain().getQuorum()) {
           Logger.info(`P2P ready on ${this.server.config.address}`);
           this.emit('ready');
           clearInterval(i);
         }
       }
     }, 2000);
+  }
+
+  private incomingData(data: Buffer, from: string) {
+    const msg = data.toString().trim();
+    if (!msg || !from) {
+      return;
+    }
+
+    if (/^[\d]+$/.test(msg)) {
+      // incoming ping, including height
+      if (Number(msg) < this.server.getBlockchain().getHeight()) {
+        setImmediate(async () => {
+          const m = new Sync().create(
+            await this.server.getBlockchain().getRange(Number(msg) + 1, this.server.getBlockchain().getHeight())
+          );
+          const buf: Buffer = Buffer.from(m.pack());
+          this.sam.send(from, buf);
+        });
+      }
+    } else {
+      try {
+        this.processMessage(new Message(msg));
+      } catch (error: any) {
+        Logger.trace(`Network.incomingData(): ${error.toString()}`);
+      }
+    }
   }
 
   private p2pNetwork() {
@@ -141,11 +152,7 @@ export class Network extends EventEmitter {
     const buf = Buffer.from(this.server.getBlockchain().getHeight() + '\n');
     this.arrayBroadcast.forEach((pk) => {
       setTimeout(() => {
-        try {
-          this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
-        } catch (error: any) {
-          Logger.warn('Network.p2pNetwork() ping error: ' + error.toString());
-        }
+        this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
       }, int);
       int = int + step;
     });
@@ -167,7 +174,7 @@ export class Network extends EventEmitter {
   }
 
   private clean() {
-    this.arrayProcessed.splice(0, Math.floor(this.arrayProcessed.length / 2));
+    this.arrayProcessed.splice(0, Math.floor(this.arrayProcessed.length / 10));
     this.arrayBroadcasted.splice(0, Math.floor(this.arrayBroadcasted.length / 2));
 
     this.timeoutClean = setTimeout(() => {
@@ -184,15 +191,11 @@ export class Network extends EventEmitter {
     const buf: Buffer = Buffer.from(m.pack());
     this.arrayBroadcast
       .filter((pk) => {
-        return !this.arrayBroadcasted.includes(pk + ident);
+        return !this.arrayBroadcasted.includes(pk + ident) && pk !== m.origin();
       })
       .forEach((pk) => {
-        try {
-          this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
-          this.arrayBroadcasted.push(pk + ident);
-        } catch (error: any) {
-          Logger.warn('Network.broadcast() Error: ' + error.toString());
-        }
+        this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
+        this.arrayBroadcasted.push(pk + ident);
       });
   }
 }

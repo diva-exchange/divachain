@@ -55,8 +55,7 @@ export class Server {
 
   private stackSync: Array<BlockStruct> = [];
 
-  private intervalPropose: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private intervalVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private interval: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -153,12 +152,17 @@ export class Server {
 
     this.pool.initHeight();
 
-    this.intervalPropose = setInterval(() => {
-      this.doPropose();
-    }, 700);
-    this.intervalVote = setInterval(() => {
-      this.doVote();
-    }, 500);
+    this.interval = setInterval(() => {
+      // if a block is available, send out a sync
+      if (this.pool.hasBlock()) {
+        const sync = new Sync().create([this.pool.getBlock()]);
+        this.network.broadcast(sync);
+        this.processSync(sync);
+      } else {
+        this.doPropose();
+        this.doVote();
+      }
+    }, 1000); //this.config.network_clean_interval_ms);
 
     return new Promise((resolve) => {
       this.network.once('ready', resolve);
@@ -166,8 +170,7 @@ export class Server {
   }
 
   async shutdown(): Promise<void> {
-    clearInterval(this.intervalPropose);
-    clearInterval(this.intervalVote);
+    clearInterval(this.interval);
 
     this.network.shutdown();
     this.wallet.close();
@@ -209,6 +212,7 @@ export class Server {
 
   stackTx(arrayCommand: ArrayCommand, ident: string = ''): string | false {
     const s = this.pool.stack(ident, arrayCommand);
+    this.doPropose();
     return s || false;
   }
 
@@ -217,7 +221,7 @@ export class Server {
     const p = this.pool.getProposal();
     if (p) {
       this.processProposal(p);
-      // distribute the own proposal
+      // distribute own proposal
       this.network.broadcast(p);
     }
   }
@@ -244,7 +248,7 @@ export class Server {
     const v = this.pool.getVote();
     if (v) {
       this.processVote(v);
-      // distribute the own vote
+      // distribute own vote
       this.network.broadcast(v);
     }
   }
@@ -263,18 +267,19 @@ export class Server {
       return;
     }
 
-    // re-distribute the vote
-    this.network.broadcast(vote);
-
     // if a block is available, send out a sync
     if (this.pool.hasBlock()) {
-      this.processSync(new Sync().create([this.pool.getBlock()]));
+      const sync = new Sync().create([this.pool.getBlock()]);
+      this.network.broadcast(sync);
+      this.processSync(sync);
+    } else {
+      // re-distribute
+      this.network.broadcast(vote);
     }
   }
 
   private processSync(sync: Sync) {
     //@FIXME validity checks (and alike)?
-    this.network.broadcast(sync);
 
     let h = this.blockchain.getHeight();
     this.stackSync = this.stackSync
@@ -300,6 +305,7 @@ export class Server {
     if (!this.blockchain.add(block)) {
       return;
     }
+
     //@FIXME logging
     Logger.trace(`${this.getWallet().getPublicKey()} - block ${block.height} added (${block.hash})`);
 
