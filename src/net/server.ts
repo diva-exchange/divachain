@@ -55,7 +55,8 @@ export class Server {
 
   private stackSync: Array<BlockStruct> = [];
 
-  private interval: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private intervalProposal: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -152,17 +153,14 @@ export class Server {
 
     this.pool.initHeight();
 
-    this.interval = setInterval(() => {
-      // if a block is available, send out a sync
-      if (this.pool.hasBlock()) {
-        const sync = new Sync().create([this.pool.getBlock()]);
-        this.network.broadcast(sync);
-        this.processSync(sync);
-      } else {
-        this.doPropose();
+    this.intervalProposal = setInterval(() => {
+      this.doPropose();
+
+      clearTimeout(this.timeoutVote);
+      this.timeoutVote = setTimeout(() => {
         this.doVote();
-      }
-    }, 1000); //this.config.network_clean_interval_ms);
+      }, Math.ceil(this.config.network_clean_interval_ms / 2));
+    }, this.config.network_clean_interval_ms);
 
     return new Promise((resolve) => {
       this.network.once('ready', resolve);
@@ -170,7 +168,8 @@ export class Server {
   }
 
   async shutdown(): Promise<void> {
-    clearInterval(this.interval);
+    clearInterval(this.intervalProposal);
+    clearTimeout(this.timeoutVote);
 
     this.network.shutdown();
     this.wallet.close();
@@ -245,7 +244,8 @@ export class Server {
   }
 
   private doVote() {
-    const v = this.pool.getVote();
+    const v = this.pool.lock();
+
     if (v) {
       this.processVote(v);
       // distribute own vote
@@ -267,19 +267,24 @@ export class Server {
       return;
     }
 
+    // re-distribute
+    this.network.broadcast(vote);
+
     // if a block is available, send out a sync
     if (this.pool.hasBlock()) {
       const sync = new Sync().create([this.pool.getBlock()]);
-      this.network.broadcast(sync);
       this.processSync(sync);
-    } else {
-      // re-distribute
-      this.network.broadcast(vote);
     }
   }
 
   private processSync(sync: Sync) {
-    //@FIXME validity checks (and alike)?
+    for (const b of sync.get().blocks) {
+      if (!this.validation.validateBlock(b)) {
+        return;
+      }
+    }
+
+    this.network.broadcast(sync);
 
     let h = this.blockchain.getHeight();
     this.stackSync = this.stackSync
@@ -314,6 +319,10 @@ export class Server {
     setImmediate((s: string) => {
       this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
     }, JSON.stringify(block));
+
+    setTimeout(() => {
+      this.doPropose();
+    }, 0);
   }
 
   private onMessage(m: Message) {

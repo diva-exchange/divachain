@@ -23,6 +23,7 @@
         "$ref": "transaction/tx.json"
       },
       "minItems": 1,
+      "maxItems": 15,
       "uniqueItems": true
     },
     "height": {
@@ -34,6 +35,7 @@
       "items": {
         "$ref": "votes.json"
       },
+      "maxItems": 15,
       "uniqueItems": true
     }
   },

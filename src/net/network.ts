@@ -32,7 +32,6 @@ export class Network extends EventEmitter {
 
   private readonly publicKey: string;
   private arrayBroadcast: Array<string> = [];
-  private arrayProcessed: Array<string> = [];
   private arrayBroadcasted: Array<string> = [];
 
   private readonly _onMessage: Function | false;
@@ -159,11 +158,6 @@ export class Network extends EventEmitter {
   }
 
   private processMessage(m: Message) {
-    if (this.arrayProcessed.includes(m.ident())) {
-      return;
-    }
-    this.arrayProcessed.push(m.ident());
-
     // stateless validation
     if (!this.server.getValidation().validateMessage(m)) {
       return;
@@ -174,7 +168,6 @@ export class Network extends EventEmitter {
   }
 
   private clean() {
-    this.arrayProcessed.splice(0, Math.floor(this.arrayProcessed.length / 10));
     this.arrayBroadcasted.splice(0, Math.floor(this.arrayBroadcasted.length / 2));
 
     this.timeoutClean = setTimeout(() => {

@@ -132,6 +132,7 @@ export class Validation {
 
     // vote validation
     _aOrigin = [];
+    const voteHash = Util.hash([height, Util.hash(JSON.stringify(tx))].join());
     for (const vote of votes) {
       if (_aOrigin.includes(vote.origin)) {
         Logger.trace(`Validation.validateBlock() - Multiple votes from same origin: ${height}`);
@@ -139,13 +140,10 @@ export class Validation {
       }
       _aOrigin.push(vote.origin);
 
-      //@FIXME vote validation
-      /*
-      if (!Util.verifySignature(vote.origin, vote.sig, hash)) {
+      if (!Util.verifySignature(vote.origin, vote.sig, voteHash)) {
         Logger.trace(`Validation.validateBlock() - invalid vote: ${height}`);
         return false;
       }
-*/
     }
 
     // transaction validation

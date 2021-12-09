@@ -41,12 +41,6 @@ export type recordTx = {
   hash: string;
 };
 
-type recordVote = {
-  origin: string;
-  sig: string;
-  stake: number;
-};
-
 export class Pool {
   private readonly server: Server;
 
@@ -54,13 +48,14 @@ export class Pool {
   private ownTx: recordTx = {} as recordTx;
 
   private current: Map<string, TransactionStruct> = new Map();
-  private currentHash: string = '';
   private arrayTransaction: Array<TransactionStruct> = [];
-  private heightCurrent: number = 0;
+
+  private currentHeight: number = 0;
+  private currentHash: string = '';
+  private currentVote: Vote = {} as Vote;
+  private mapVote: Map<string, VoteStruct> = new Map();
 
   private block: BlockStruct = {} as BlockStruct;
-
-  private mapVote: Map<string, Array<recordVote>> = new Map();
 
   static make(server: Server) {
     return new Pool(server);
@@ -71,8 +66,8 @@ export class Pool {
   }
 
   initHeight() {
-    if (!this.heightCurrent) {
-      this.heightCurrent = this.server.getBlockchain().getHeight() + 1;
+    if (!this.currentHeight) {
+      this.currentHeight = this.server.getBlockchain().getHeight() + 1;
     }
   }
 
@@ -99,14 +94,14 @@ export class Pool {
     const r: recordStack = this.stackTransaction.shift() as recordStack;
     const tx: TransactionStruct = new Transaction(
       this.server.getWallet(),
-      this.heightCurrent,
+      this.currentHeight,
       r.ident,
       r.commands
     ).get();
     this.ownTx = {
-      height: this.heightCurrent,
-      tx: new Transaction(this.server.getWallet(), this.heightCurrent, r.ident, r.commands).get(),
-      hash: Util.hash([this.heightCurrent, JSON.stringify(tx)].join()),
+      height: this.currentHeight,
+      tx: new Transaction(this.server.getWallet(), this.currentHeight, r.ident, r.commands).get(),
+      hash: Util.hash([this.currentHeight, JSON.stringify(tx)].join()),
     };
   }
 
@@ -126,7 +121,7 @@ export class Pool {
   }
 
   propose(structProposal: ProposalStruct): boolean {
-    if (structProposal.height !== this.heightCurrent || this.hasBlock()) {
+    if (structProposal.height !== this.currentHeight || this.hasBlock()) {
       return false;
     }
 
@@ -141,9 +136,6 @@ export class Pool {
     }
 
     this.current.set(structProposal.origin, structProposal.tx);
-    this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
-    this.currentHash = Util.hash(this.arrayTransaction.reduce((s, t) => s + t.origin, ''));
-    this.mapVote = new Map();
 
     return true;
   }
@@ -152,54 +144,85 @@ export class Pool {
     return this.arrayTransaction;
   }
 
+  lock(): Vote | false {
+    if (!this.current.size) {
+      return false;
+    }
+
+    if (!this.currentVote.origin) {
+      this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
+
+      this.currentHash = Util.hash(JSON.stringify(this.arrayTransaction));
+
+      this.currentVote = new Vote().create(
+        this.server.getWallet().getPublicKey(),
+        this.currentHeight,
+        this.currentHash,
+        this.server.getWallet().sign(Util.hash([this.currentHeight, this.currentHash].join()))
+      );
+    }
+
+    return this.currentVote;
+  }
+
   vote(structVote: VoteStruct): boolean {
-    if (structVote.height !== this.heightCurrent || this.hasBlock()) {
+    if (structVote.height !== this.currentHeight || this.hasBlock()) {
       return false;
     }
 
-    // hashes have to match
-    if (this.currentHash !== structVote.hash) {
+    // no double voting
+    if (this.mapVote.has(structVote.origin)) {
       return false;
     }
 
-    const arrayVotes = this.mapVote.get(structVote.origin) || [];
-    //@FIXME rounds hardcoded
-    const rounds = 2; //this.server.getBlockchain().roundsPBFT();
-    if (arrayVotes.length < rounds) {
-      arrayVotes.push({
-        origin: structVote.origin,
-        sig: structVote.sig,
-        stake: this.server.getBlockchain().getStake(structVote.origin),
-      });
-      this.mapVote.set(structVote.origin, arrayVotes);
+    this.mapVote.set(structVote.origin, structVote);
+    const stakeVotes = [...this.mapVote.keys()].reduce((s, pk) => {
+      return s + this.server.getBlockchain().getStake(pk);
+    }, 0);
 
-      const aVotes = [...this.mapVote.values()].filter((a) => a.length === rounds);
-      const stake = aVotes.reduce((sum, a) => sum + a[rounds - 1].stake, 0);
-      if (stake >= this.server.getBlockchain().getQuorum()) {
-        this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayTransaction);
-        this.block.votes = aVotes.map((a) => {
-          return { origin: a[rounds - 1].origin, sig: a[rounds - 1].sig };
-        });
+    // not enough votes yet
+    if (stakeVotes < this.server.getBlockchain().getQuorum()) {
+      return true;
+    }
+
+    const quorum = this.server.getBlockchain().getQuorum();
+    const quorumTotal = this.server.getBlockchain().getTotalQuorum();
+    let isDeadlocked = true;
+    const mapStakes: Map<string, number> = new Map();
+    const arrayVotes: Array<{ origin: string; sig: string }> = [];
+    for (const v of [...this.mapVote.values()]) {
+      let stake = mapStakes.get(v.hash) || 0;
+      stake += this.server.getBlockchain().getStake(v.origin);
+      if (v.hash === this.currentHash) {
+        arrayVotes.push({ origin: v.origin, sig: v.sig });
       }
+      mapStakes.set(v.hash, stake);
+      if (stake >= quorum) {
+        isDeadlocked = false;
+        break;
+      }
+      isDeadlocked = isDeadlocked && quorum - stake > quorumTotal - stakeVotes;
     }
 
-    return true;
+    if ((mapStakes.get(this.currentHash) || 0) >= quorum) {
+      this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayTransaction);
+      this.block.votes = arrayVotes;
+    }
+
+    if (!isDeadlocked) {
+      return true;
+    }
+
+    this.arrayTransaction = [];
+    this.currentHash = '';
+    this.currentVote = {} as Vote;
+    this.mapVote = new Map();
+
+    return false;
   }
 
   getArrayVote(): Array<any> {
     return [...this.mapVote];
-  }
-
-  getVote(): Vote | false {
-    return this.currentHash.length > 0
-      ? new Vote().create(
-          Util.hash(JSON.stringify([...this.mapVote])),
-          this.server.getWallet().getPublicKey(),
-          this.heightCurrent,
-          this.currentHash,
-          this.server.getWallet().sign(Util.hash([this.heightCurrent, this.currentHash].join()))
-        )
-      : false;
   }
 
   hasBlock(): boolean {
@@ -220,10 +243,11 @@ export class Pool {
       this.stackTransaction.unshift({ ident: this.ownTx.tx.ident, commands: this.ownTx.tx.commands });
     }
     this.ownTx = {} as recordTx;
-    this.heightCurrent = block.height + 1;
+    this.currentHeight = block.height + 1;
     this.current = new Map();
     this.arrayTransaction = [];
     this.currentHash = '';
+    this.currentVote = {} as Vote;
     this.block = {} as BlockStruct;
     this.mapVote = new Map();
   }

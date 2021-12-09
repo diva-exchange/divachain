@@ -29,7 +29,7 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-@suite(timeout(300000))
+@suite(timeout(120000))
 class TestServerI2P {
   static mapConfigServer: Map<string, Config> = new Map();
   static mapServer: Map<string, Server> = new Map();
@@ -157,12 +157,12 @@ class TestServerI2P {
       } catch (error) {
         console.error(error);
       }
-      await TestServerI2P.wait(Math.ceil(Math.random() * 2000));
+      await TestServerI2P.wait(Math.ceil(Math.random() * 500));
     }
 
-    console.debug('waiting 60s to sync');
+    console.debug('waiting 120s to sync');
     // wait for a possible sync
-    await TestServerI2P.wait(60000);
+    await TestServerI2P.wait(120000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];

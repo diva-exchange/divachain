@@ -288,6 +288,14 @@ export class Blockchain {
     }
   }
 
+  getTotalQuorum(): number {
+    if (this.quorum <= 0) {
+      throw new Error('Invalid network quorum');
+    }
+
+    return this.quorum;
+  }
+
   getQuorum(): number {
     if (this.quorum <= 0) {
       throw new Error('Invalid network quorum');
@@ -313,10 +321,6 @@ export class Blockchain {
       peers: [...this.getMapPeer().values()],
       broadcast: this.server.getNetwork().getArrayBroadcast(),
     };
-  }
-
-  roundsPBFT(): number {
-    return Math.ceil([...this.getMapPeer().values()].length / 3);
   }
 
   hasNetworkAddress(address: string): boolean {
