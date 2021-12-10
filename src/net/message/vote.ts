@@ -30,15 +30,13 @@ export type VoteStruct = {
 
 export class Vote extends Message {
   create(origin: string, height: number, hash: string, sig: string): Vote {
-    const structVote: VoteStruct = {
+    this.message.data = {
       type: Message.TYPE_VOTE,
       origin: origin,
       height: height,
       hash: hash,
       sig: sig,
     };
-    this.message.ident = [structVote.type, origin, hash].join();
-    this.message.data = structVote;
     return this;
   }
 

@@ -65,10 +65,6 @@ export class Wallet {
     sodium.sodium_munlock(this.secretKey);
   }
 
-  /**
-   * @param data {string}
-   * @returns {string} - base64url encoded signature
-   */
   sign(data: string): string {
     if (!this.ident) {
       this.open();
@@ -80,9 +76,6 @@ export class Wallet {
     return base64url.encode(bufferSignature.toString('binary'), 'binary');
   }
 
-  /**
-   * @returns {string} - base64url encoded
-   */
   getPublicKey(): string {
     if (!this.ident) {
       this.open();

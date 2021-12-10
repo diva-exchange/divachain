@@ -17,24 +17,4 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import { Message } from './message';
-import { BlockStruct } from '../../chain/block';
-
-export type SyncStruct = {
-  type: number;
-  blocks: Array<BlockStruct>;
-};
-
-export class Sync extends Message {
-  create(blocks: Array<BlockStruct>): Sync {
-    this.message.data = {
-      type: Message.TYPE_SYNC,
-      blocks: blocks,
-    };
-    return this;
-  }
-
-  get(): SyncStruct {
-    return this.message.data as SyncStruct;
-  }
-}
+declare module 'simple-get';

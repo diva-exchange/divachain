@@ -37,6 +37,7 @@ import { ArrayCommand } from '../chain/transaction';
 import { Sync } from './message/sync';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
+import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 export class Server {
   public readonly config: Config;
@@ -56,7 +57,7 @@ export class Server {
   private stackSync: Array<BlockStruct> = [];
 
   private intervalProposal: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private intervalVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -155,14 +156,15 @@ export class Server {
 
     this.pool.initHeight();
 
+    // schedule proposing
     this.intervalProposal = setInterval(() => {
       this.doPropose();
-
-      clearTimeout(this.timeoutVote);
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, Math.ceil(this.config.network_clean_interval_ms / 2));
     }, this.config.network_clean_interval_ms);
+
+    // schedule voting
+    this.intervalVote = setInterval(() => {
+      this.doVote();
+    }, Math.floor(this.config.network_clean_interval_ms * 1.5));
 
     return new Promise((resolve) => {
       this.network.once('ready', resolve);
@@ -171,7 +173,7 @@ export class Server {
 
   async shutdown(): Promise<void> {
     clearInterval(this.intervalProposal);
-    clearTimeout(this.timeoutVote);
+    clearInterval(this.intervalVote);
 
     this.network.shutdown();
     this.wallet.close();
@@ -241,7 +243,7 @@ export class Server {
       return;
     }
 
-    // re-distribute the proposal
+    // re-distribute proposal
     this.network.broadcast(proposal);
   }
 
@@ -269,13 +271,12 @@ export class Server {
       return;
     }
 
-    // re-distribute
+    // re-distribute vote
     this.network.broadcast(vote);
 
     // if a block is available, send out a sync
     if (this.pool.hasBlock()) {
-      const sync = new Sync().create([this.pool.getBlock()]);
-      this.processSync(sync);
+      this.addBlock(this.pool.getBlock());
     }
   }
 
@@ -285,8 +286,6 @@ export class Server {
         return;
       }
     }
-
-    this.network.broadcast(sync);
 
     let h = this.blockchain.getHeight();
     this.stackSync = this.stackSync
@@ -314,7 +313,7 @@ export class Server {
     }
 
     //@FIXME logging
-    Logger.trace(`${this.getWallet().getPublicKey()} - block ${block.height} added (${block.hash})`);
+    Logger.trace(`${toB32(this.config.udp)}.b32.i2p - block ${block.height} added (${block.hash})`);
 
     this.pool.clear(block);
 

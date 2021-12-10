@@ -26,6 +26,8 @@ import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
+import { Logger } from '../logger';
+import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -212,6 +214,9 @@ export class Pool {
     if (!isDeadlocked) {
       return true;
     }
+
+    //@FIXME logging
+    Logger.trace(`${toB32(this.server.config.udp)}.b32.i2p - DEADLOCK ${stakeVotes} / ${quorumTotal}`);
 
     this.arrayTransaction = [];
     this.currentHash = '';

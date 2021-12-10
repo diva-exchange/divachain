@@ -31,15 +31,13 @@ export type ProposalStruct = {
 
 export class Proposal extends Message {
   create(origin: string, height: number, tx: TransactionStruct, sig: string): Proposal {
-    const structProposal: ProposalStruct = {
+    this.message.data = {
       type: Message.TYPE_PROPOSAL,
       origin: origin,
       height: height,
       tx: tx,
       sig: sig,
     };
-    this.message.ident = [structProposal.type, sig].join();
-    this.message.data = structProposal;
     return this;
   }
 
