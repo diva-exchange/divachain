@@ -17,8 +17,6 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import SocksProxyAgent from 'socks-proxy-agent/dist/agent';
-import { get } from 'simple-get';
 import { Logger } from '../logger';
 import { Server } from './server';
 import { Util } from '../chain/util';
@@ -31,18 +29,10 @@ const LENGTH_TOKEN = 32;
 const MIN_WAIT_JOIN_MS = 15000;
 const MAX_WAIT_JOIN_MS = 60000;
 
-type Options = {
-  url: string;
-  agent: SocksProxyAgent | false;
-  timeout: number;
-  followRedirects: boolean;
-};
-
-type recordNetwork = { publicKey: string; address: string };
+type recordNetwork = { publicKey: string; http: string; udp: string };
 
 export class Bootstrap {
   private readonly server: Server;
-  private readonly socksProxyAgent: SocksProxyAgent | false;
   private mapToken: Map<string, string>;
   private arrayNetwork: Array<recordNetwork> = [];
 
@@ -53,9 +43,6 @@ export class Bootstrap {
 
   private constructor(server: Server) {
     this.server = server;
-    this.socksProxyAgent = this.server.config.i2p_has_socks
-      ? new SocksProxyAgent(`socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`)
-      : false;
     this.mapToken = new Map();
   }
 
@@ -86,38 +73,37 @@ export class Bootstrap {
     }
   }
   async enterNetwork(publicKey: string) {
-    await this.fetchFromApi('join/' + this.server.config.address + '/' + publicKey);
+    await this.fetchFromApi('join/' + this.server.config.http + '/' + this.server.config.udp + '/' + publicKey);
   }
 
-  join(address: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
+  join(http: string, udp: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
     t = Math.floor(t);
     t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
 
     if (
       !/^[A-Za-z0-9_-]{43}$/.test(publicKey) ||
-      this.mapToken.has(address) ||
-      this.server.getBlockchain().hasNetworkAddress(address) ||
+      this.mapToken.has(publicKey) ||
       this.server.getBlockchain().hasPeer(publicKey)
     ) {
       return false;
     }
 
     const token = nanoid(LENGTH_TOKEN);
-    this.mapToken.set(address, token);
+    this.mapToken.set(publicKey, token);
 
     setTimeout(async () => {
       let res: { token: string } = { token: '' };
       try {
-        res = JSON.parse(await this.fetch('http://' + address + '/challenge/' + token));
-        this.confirm(address, publicKey, res.token);
+        res = JSON.parse(await this.fetch('http://' + http + '/challenge/' + token));
+        this.confirm(http, udp, publicKey, res.token);
       } catch (error) {
         Logger.warn('Bootstrap.join() failed: ' + JSON.stringify(error));
 
         // retry
-        this.mapToken.delete(address);
+        this.mapToken.delete(publicKey);
         t = t + MIN_WAIT_JOIN_MS;
         setTimeout(() => {
-          this.join(address, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
+          this.join(http, udp, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
         }, t);
       }
     }, t);
@@ -130,8 +116,8 @@ export class Bootstrap {
     return token && token.length === LENGTH_TOKEN ? this.server.getWallet().sign(token) : '';
   }
 
-  private confirm(address: string, publicKey: string, signedToken: string) {
-    const token = this.mapToken.get(address) || '';
+  private confirm(http: string, udp: string, publicKey: string, signedToken: string) {
+    const token = this.mapToken.get(publicKey) || '';
 
     if (!Util.verifySignature(publicKey, signedToken, token)) {
       throw new Error('Bootstrap.confirm() - Util.verifySignature() failed: ' + signedToken + ' / ' + token);
@@ -142,14 +128,15 @@ export class Bootstrap {
         {
           seq: 1,
           command: 'addPeer',
-          address: address,
+          http: http,
+          udp: udp,
           publicKey: publicKey,
         } as CommandAddPeer,
       ])
     ) {
       throw new Error('Bootstrap.confirm() - stackTransaction(addPeer) failed');
     }
-    this.mapToken.delete(address);
+    this.mapToken.delete(publicKey);
   }
 
   private async populateNetwork() {
@@ -174,7 +161,7 @@ export class Bootstrap {
   }
 
   private async fetchFromApi(endpoint: string) {
-    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.address !== this.server.config.address));
+    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
     let urlApi = '';
     do {
       urlApi = 'http://' + aNetwork.pop().api + '/' + endpoint;
@@ -189,21 +176,7 @@ export class Bootstrap {
   }
 
   private fetch(url: string): Promise<string> {
-    const options: Options = {
-      url: url,
-      agent: this.socksProxyAgent,
-      timeout: 10000,
-      followRedirects: false,
-    };
-
-    return new Promise((resolve, reject) => {
-      get.concat(options, (error: Error, res: any, data: Buffer) => {
-        if (error || res.statusCode !== 200) {
-          reject(error || { url: options.url, statusCode: res.statusCode });
-        } else {
-          resolve(data.toString());
-        }
-      });
-    });
+    //@FIXME via SAM to an HTTP endpoint...
+    return Promise.resolve('NOT IMPLEMENTED');
   }
 }

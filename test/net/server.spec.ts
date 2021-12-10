@@ -39,7 +39,6 @@ class TestServer {
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
     process.env.IP = process.env.IP || '127.27.27.1';
-    process.env.HAS_I2P = '0';
     process.env.DEBUG_PERFORMANCE = '1';
 
     TestServer.mapConfigServer = await Genesis.create();

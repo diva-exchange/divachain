@@ -117,8 +117,10 @@ export class Server {
 
   async start(): Promise<Server> {
     this.bootstrap = await Bootstrap.make(this);
-    Logger.info(`Address ${this.config.address}`);
+    Logger.info(`HTTP endpoint ${this.config.http}`);
+    Logger.info(`UDP endpoint ${this.config.udp}`);
 
+    //@FIXME logging
     Logger.trace(this.config);
 
     this.wallet = Wallet.make(this.config);
@@ -133,16 +135,16 @@ export class Server {
     this.pool = Pool.make(this);
     Logger.info('Pool initialized');
 
+    await this.httpServer.listen(this.config.port, this.config.ip);
+
     this.network = Network.make(this, (m: Message) => {
       return this.onMessage(m);
     });
     Logger.info('Network initialized');
 
-    await this.httpServer.listen(this.config.port, this.config.ip);
-
     if (this.config.bootstrap) {
       await this.bootstrap.syncWithNetwork();
-      if (!this.blockchain.hasNetworkAddress(this.config.address)) {
+      if (!this.blockchain.hasNetworkHttp(this.config.http)) {
         await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
       }
     }

@@ -23,6 +23,8 @@ import fs from 'fs';
 import path from 'path';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
+import { Util } from '../chain/util';
+import crypto from 'crypto';
 
 export const NAME_HEADER_API_TOKEN = 'diva-api-token';
 const DEFAULT_LENGTH_TOKEN = 32;
@@ -42,7 +44,7 @@ export class Api {
 
     this.pathToken = path.join(
       this.server.config.path_keys,
-      this.server.config.address.replace(/[^a-z0-9_-]+/gi, '-') + '.api-token'
+      Util.hash(this.server.config.http).replace(/[^a-z0-9_-]+/gi, '-') + '.token'
     );
     this.createToken();
     this.route();
@@ -53,13 +55,13 @@ export class Api {
     this.token = fs.readFileSync(this.pathToken).toString();
     setTimeout(() => {
       this.createToken();
-    }, 1000 * 60 * (Math.floor(Math.random() * 5) + 3)); // between 3 and 8 minutes
+    }, crypto.randomInt(180000, 600000)); // between 3 and 10 minutes
   }
 
   private route() {
-    this.server.app.get('/join/:address/:publicKey', (req: Request, res: Response) => {
-      return this.server.getBootstrap().join(req.params.address, req.params.publicKey)
-        ? res.status(200).json({ address: req.params.address, publicKey: req.params.publicKey })
+    this.server.app.get('/join/:http/:udp/:publicKey', (req: Request, res: Response) => {
+      return this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
+        ? res.status(200).json({ http: req.params.http, udp: req.params.udp, publicKey: req.params.publicKey })
         : res.status(403).end();
     });
 

@@ -29,21 +29,22 @@ import { Logger } from '../../src/logger';
 
 chai.use(chaiHttp);
 
-@suite(timeout(120000))
+@suite(timeout(180000))
 class TestServerI2P {
   static mapConfigServer: Map<string, Config> = new Map();
   static mapServer: Map<string, Server> = new Map();
 
   static async before(): Promise<void> {
     process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
-    process.env.IP = process.env.IP || '127.27.27.1';
+    process.env.IP = process.env.IP || '0.0.0.0';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
-    process.env.HAS_I2P = '1';
-    process.env.I2P_SOCKS_HOST = process.env.I2P_SOCKS_HOST || '172.19.75.11';
-    process.env.I2P_SAM_HOST = process.env.I2P_SAM_HOST || '172.19.75.11';
-    process.env.I2P_SAM_FORWARD_HOST = process.env.I2P_SAM_FORWARD_HOST || '172.19.75.1';
-    process.env.I2P_SAM_FORWARD_PORT = process.env.I2P_SAM_FORWARD_PORT || '19000';
+    process.env.I2P_HTTP_HOST = '172.19.75.11';
+    process.env.I2P_UDP_HOST = '172.19.75.12';
+    process.env.I2P_SAM_FORWARD_HTTP_HOST = process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1';
+    process.env.I2P_SAM_FORWARD_HTTP_PORT = process.env.I2P_SAM_FORWARD_HTTP_PORT || process.env.BASE_PORT;
+    process.env.I2P_SAM_FORWARD_UDP_HOST = process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1';
+    process.env.I2P_SAM_FORWARD_UDP_PORT = process.env.I2P_SAM_FORWARD_UDP_PORT || '19000';
     process.env.DEBUG_PERFORMANCE = '1';
 
     TestServerI2P.mapConfigServer = await Genesis.create();

@@ -19,19 +19,31 @@
 
 version: "3.7"
 services:
-  local-i2p-testnet:
-    container_name: local-i2p-testnet
+  local-i2p-testnet-http:
+    container_name: local-i2p-testnet-http
     image: divax/i2p:latest
     restart: unless-stopped
     environment:
-      ENABLE_SOCKSPROXY: 1
       ENABLE_SAM: 1
       BANDWIDTH: P
     volumes:
-      - local-i2p-testnet:/home/i2pd/
+      - local-i2p-testnet-http:/home/i2pd/
     networks:
       network.local-i2p-testnet:
         ipv4_address: 172.19.75.11
+
+  local-i2p-testnet-udp:
+    container_name: local-i2p-testnet-udp
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_SAM: 1
+      BANDWIDTH: P
+    volumes:
+      - local-i2p-testnet-udp:/home/i2pd/
+    networks:
+      network.local-i2p-testnet:
+        ipv4_address: 172.19.75.12
 
 networks:
   network.local-i2p-testnet:
@@ -42,5 +54,7 @@ networks:
         - subnet: 172.19.75.0/24
 
 volumes:
-  local-i2p-testnet:
-    name: local-i2p-testnet
+  local-i2p-testnet-http:
+    name: local-i2p-testnet-http
+  local-i2p-testnet-udp:
+    name: local-i2p-testnet-udp

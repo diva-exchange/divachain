@@ -29,18 +29,21 @@ import { Util } from '../src/chain/util';
 
 export class Genesis {
   static async create(): Promise<Map<string, Config>> {
-    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 14);
+    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 9);
+
+    const IP = process.env.IP || '127.27.27.1';
     const BASE_PORT = Number(process.env.BASE_PORT || 17000);
     const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || 18000);
-    const IP = process.env.IP || '127.27.27.1';
-    const HAS_I2P = Number(process.env.HAS_I2P) > 0 || false;
-    const I2P_HOST = HAS_I2P ? process.env.I2P_HOST || '172.19.75.11' : '';
-    const I2P_SOCKS_PORT = HAS_I2P ? Number(process.env.I2P_SOCKS_PORT || 4445) : 0;
-    const I2P_SAM_PORT_TCP = HAS_I2P ? Number(process.env.I2P_SAM_PORT_TCP || 7656) : 0;
-    const I2P_SAM_FORWARD_HOST = process.env.I2P_SAM_FORWARD_HOST || '172.19.75.1';
-    const I2P_SAM_FORWARD_PORT = Number(process.env.I2P_SAM_FORWARD_PORT || 19000);
-    const TCP_SERVER_IP = process.env.TCP_SERVER_IP || '0.0.0.0';
-    const TCP_SERVER_PORT = Number(process.env.TCP_SERVER_PORT || I2P_SAM_FORWARD_PORT);
+
+    const I2P_HTTP_HOST = process.env.I2P_HTTP_HOST || '';
+    const I2P_SAM_HTTP_PORT_TCP = I2P_HTTP_HOST ? Number(process.env.I2P_SAM_HTTP_PORT_TCP || 7656) : 0;
+    const I2P_UDP_HOST = process.env.I2P_UDP_HOST || '';
+    const I2P_SAM_UDP_PORT_TCP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_TCP || 7656) : 0;
+    const I2P_SAM_UDP_PORT_UDP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_UDP || 7655) : 0;
+    const I2P_SAM_FORWARD_HTTP_HOST = I2P_HTTP_HOST ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1' : '';
+    const I2P_SAM_FORWARD_HTTP_PORT = I2P_HTTP_HOST ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT) : 0;
+    const I2P_SAM_FORWARD_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';
+    const I2P_SAM_FORWARD_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 19000) : 0;
 
     const pathGenesis = path.join(__dirname, './genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
     let genesis: BlockStruct;
@@ -72,15 +75,17 @@ export class Genesis {
         path_blockstore: path.join(__dirname, './blockstore'),
         path_keys: path.join(__dirname, './keys'),
         blockchain_max_blocks_in_memory: 100,
-        i2p_socks_host: I2P_HOST,
-        i2p_socks_port: I2P_SOCKS_PORT,
-        i2p_sam_host: I2P_HOST,
-        i2p_sam_port_tcp: I2P_SAM_PORT_TCP,
-        i2p_sam_forward_host: I2P_SAM_FORWARD_HOST,
-        i2p_sam_forward_port: I2P_SAM_FORWARD_PORT + i,
-        tcp_server_ip: TCP_SERVER_IP,
-        tcp_server_port: TCP_SERVER_PORT + i,
-        address: HAS_I2P ? '' : `${IP}:${BASE_PORT + i}`,
+        i2p_sam_http_host: I2P_HTTP_HOST,
+        i2p_sam_http_port_tcp: I2P_SAM_HTTP_PORT_TCP,
+        i2p_sam_udp_host: I2P_UDP_HOST,
+        i2p_sam_udp_port_tcp: I2P_SAM_UDP_PORT_TCP,
+        i2p_sam_udp_port_udp: I2P_SAM_UDP_PORT_UDP,
+        i2p_sam_forward_http_host: I2P_SAM_FORWARD_HTTP_HOST,
+        i2p_sam_forward_http_port: I2P_SAM_FORWARD_HTTP_PORT > 0 ? I2P_SAM_FORWARD_HTTP_PORT + i : 0,
+        i2p_sam_forward_udp_host: I2P_SAM_FORWARD_UDP_HOST,
+        i2p_sam_forward_udp_port: I2P_SAM_FORWARD_UDP_PORT > 0 ? I2P_SAM_FORWARD_UDP_PORT + i : 0,
+        http: I2P_HTTP_HOST ? '' : `${IP}:${BASE_PORT + i}`,
+        udp: I2P_UDP_HOST ? '' : `${IP}:${BASE_PORT + 3000 + i}`,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
@@ -89,8 +94,8 @@ export class Genesis {
       cmds.push({
         seq: s,
         command: 'addPeer',
-        address: config.address,
-        destination: config.i2p_public_key,
+        http: config.http,
+        udp: config.udp,
         publicKey: publicKey,
       } as CommandAddPeer);
       s++;
@@ -113,7 +118,7 @@ export class Genesis {
     genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
 
     fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
-    fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...map]));
+    fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...map]), { mode: '0600' });
 
     return Promise.resolve(map);
   }

@@ -22,6 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { Config } from '../config';
 import base64url from 'base64url';
+import { Util } from './util';
 
 export class Wallet {
   private config: Config;
@@ -40,13 +41,13 @@ export class Wallet {
   }
 
   open(): Wallet {
-    this.ident = this.config.address.replace(/[^a-z0-9_-]+/gi, '-');
+    this.ident = Util.hash(this.config.http + this.config.udp);
 
     sodium.sodium_mlock(this.secretKey);
 
     // look for keys
     const pathPublic = path.join(this.config.path_keys, this.ident + '.public');
-    const pathSecret = path.join(this.config.path_keys, this.ident + '.secret');
+    const pathSecret = path.join(this.config.path_keys, this.ident + '.private');
     if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
       this.publicKey.fill(fs.readFileSync(pathPublic));
       this.secretKey.fill(fs.readFileSync(pathSecret));

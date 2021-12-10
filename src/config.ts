@@ -21,34 +21,38 @@ import path from 'path';
 import fs from 'fs';
 import { createLocalDestination } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import net from 'net';
+import { Util } from './chain/util';
 
 export type Configuration = {
   no_bootstrapping?: number;
   bootstrap?: string;
 
-  path_app?: string;
   ip?: string;
   port?: number;
   port_block_feed?: number;
-  tcp_server_ip?: string;
-  tcp_server_port?: number;
+
+  path_app?: string;
   path_genesis?: string;
   path_blockstore?: string;
   path_state?: string;
   path_keys?: string;
 
-  i2p_socks_host?: string;
-  i2p_socks_port?: number;
-  i2p_sam_host?: string;
-  i2p_sam_port_tcp?: number;
-  i2p_sam_port_udp?: number;
-  i2p_sam_forward_host?: string;
-  i2p_sam_forward_port?: number;
-  i2p_b32_address?: string;
-  i2p_public_key?: string;
-  i2p_private_key?: string;
+  i2p_sam_http_host?: string;
+  i2p_sam_http_port_tcp?: number;
+  i2p_sam_udp_host?: string;
+  i2p_sam_udp_port_tcp?: number;
+  i2p_sam_udp_port_udp?: number;
+  i2p_sam_forward_http_host?: string;
+  i2p_sam_forward_http_port?: number;
+  i2p_sam_forward_udp_host?: string;
+  i2p_sam_forward_udp_port?: number;
+  i2p_public_key_http?: string;
+  i2p_private_key_http?: string;
+  i2p_public_key_udp?: string;
+  i2p_private_key_udp?: string;
 
-  address?: string;
+  http?: string;
+  udp?: string;
 
   network_p2p_interval_ms?: number;
   network_clean_interval_ms?: number;
@@ -66,10 +70,10 @@ const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
 const DEFAULT_BLOCK_FEED_PORT = 17469;
 
-const DEFAULT_I2P_SOCKS_PORT = 4445;
-const DEFAULT_I2P_SAM_TCP_PORT = 7656;
-const DEFAULT_I2P_SAM_UDP_PORT = 7655;
-const DEFAULT_I2P_SAM_FORWARD_PORT = 17470;
+const DEFAULT_I2P_SAM_PORT_TCP = 7656;
+const DEFAULT_I2P_SAM_PORT_UDP = 7655;
+const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = 17470;
+const DEFAULT_I2P_SAM_FORWARD_PORT_UDP = 17471;
 
 const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
@@ -87,28 +91,36 @@ const MAX_API_MAX_QUERY_SIZE = 100;
 export class Config {
   public debug_performance: boolean = false;
   public bootstrap: string = '';
-  public path_app: string = '';
   public VERSION: string = '';
+
   public ip: string = '';
   public port: number = 0;
   public port_block_feed: number = 0;
+
+  public path_app: string = '';
   public path_genesis: string = '';
   public path_blockstore: string = '';
   public path_state: string = '';
   public path_keys: string = '';
-  public i2p_socks_host: string = '';
-  public i2p_socks_port: number = 0;
-  public i2p_has_socks: boolean = false;
-  public i2p_sam_host: string = '';
-  public i2p_sam_port_tcp: number = 0;
-  public i2p_sam_port_udp: number = 0;
-  public i2p_sam_forward_host: string = '';
-  public i2p_sam_forward_port: number = 0;
-  public i2p_has_sam: boolean = false;
-  public i2p_b32_address: string = '';
-  public i2p_public_key: string = '';
-  public i2p_private_key: string = '';
-  public address: string = '';
+
+  public http: string = '';
+  public udp: string = '';
+
+  public has_i2p: boolean = false;
+  public i2p_sam_http_host: string = '';
+  public i2p_sam_http_port_tcp: number = 0;
+  public i2p_sam_udp_host: string = '';
+  public i2p_sam_udp_port_tcp: number = 0;
+  public i2p_sam_udp_port_udp: number = 0;
+  public i2p_sam_forward_http_host: string = '';
+  public i2p_sam_forward_http_port: number = 0;
+  public i2p_sam_forward_udp_host: string = '';
+  public i2p_sam_forward_udp_port: number = 0;
+  public i2p_public_key_http: string = '';
+  public i2p_private_key_http: string = '';
+  public i2p_public_key_udp: string = '';
+  public i2p_private_key_udp: string = '';
+
   public network_p2p_interval_ms: number = MIN_NETWORK_P2P_INTERVAL_MS;
   public network_clean_interval_ms: number = MIN_NETWORK_CLEAN_INTERVAL_MS;
   public network_sync_size: number = MIN_NETWORK_SYNC_SIZE;
@@ -173,55 +185,60 @@ export class Config {
       self.path_keys = c.path_keys;
     }
 
-    self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || '';
-    self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
-    self.i2p_has_socks =
-      !!self.i2p_socks_host &&
-      self.i2p_socks_port > 0 &&
-      (await Config.isTCPAvailable(self.i2p_socks_host, self.i2p_socks_port));
-    self.i2p_has_socks || (self.i2p_socks_host = '');
+    self.udp = c.udp || process.env.UDP || '';
+    self.http = c.http || process.env.HTTP || '';
 
-    self.i2p_sam_host = c.i2p_sam_host || process.env.I2P_SAM_HOST || '';
-    self.i2p_sam_port_tcp = Config.port(c.i2p_sam_port_tcp || process.env.I2P_SAM_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
-    self.i2p_sam_port_udp = Config.port(c.i2p_sam_port_udp || process.env.I2P_SAM_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT;
-    self.i2p_sam_forward_host = c.i2p_sam_forward_host || process.env.I2P_SAM_FORWARD_HOST || '';
-    self.i2p_sam_forward_port =
-      Config.port(c.i2p_sam_forward_port || process.env.I2P_SAM_FORWARD_PORT) || DEFAULT_I2P_SAM_FORWARD_PORT;
+    self.i2p_sam_http_host = c.i2p_sam_http_host || process.env.I2P_SAM_HTTP_HOST || '';
+    self.i2p_sam_http_port_tcp =
+      Config.port(c.i2p_sam_http_port_tcp || process.env.I2P_SAM_HTTP_PORT_TCP) || DEFAULT_I2P_SAM_PORT_TCP;
+    self.i2p_sam_udp_host = c.i2p_sam_udp_host || process.env.I2P_SAM_UDP_HOST || '';
+    self.i2p_sam_udp_port_tcp =
+      Config.port(c.i2p_sam_udp_port_tcp || process.env.I2P_SAM_UDP_PORT_TCP) || DEFAULT_I2P_SAM_PORT_TCP;
+    self.i2p_sam_udp_port_udp =
+      Config.port(c.i2p_sam_udp_port_udp || process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_PORT_UDP;
+    self.i2p_sam_forward_http_host = c.i2p_sam_forward_http_host || process.env.I2P_SAM_FORWARD_HTTP_HOST || '';
+    self.i2p_sam_forward_http_port =
+      Config.port(c.i2p_sam_forward_http_port || process.env.I2P_SAM_FORWARD_HTTP_PORT) ||
+      DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
+    self.i2p_sam_forward_udp_host = c.i2p_sam_forward_udp_host || process.env.I2P_SAM_FORWARD_HOST_UDP || '';
+    self.i2p_sam_forward_udp_port =
+      Config.port(c.i2p_sam_forward_udp_port || process.env.I2P_SAM_FORWARD_PORT_UDP) ||
+      DEFAULT_I2P_SAM_FORWARD_PORT_UDP;
 
-    self.i2p_has_sam =
-      !!self.i2p_sam_host &&
-      self.i2p_sam_port_tcp > 0 &&
-      (await Config.isTCPAvailable(self.i2p_sam_host, self.i2p_sam_port_tcp));
-    self.i2p_has_sam || (self.i2p_sam_host = '');
+    self.has_i2p =
+      !!self.i2p_sam_http_host &&
+      self.i2p_sam_http_port_tcp > 0 &&
+      (await Config.isTCPAvailable(self.i2p_sam_http_host, self.i2p_sam_http_port_tcp)) &&
+      !!self.i2p_sam_udp_host &&
+      self.i2p_sam_udp_port_tcp > 0 &&
+      (await Config.isTCPAvailable(self.i2p_sam_udp_host, self.i2p_sam_udp_port_tcp));
 
-    self.address = c.address || process.env.ADDRESS || '';
-    if (self.i2p_has_sam) {
-      let ident = 'sam-' + self.address.replace(/[^a-z0-9_-]+/gi, '-');
-      let pathDestination = path.join(self.path_keys, ident);
-      if (!self.address) {
-        const obj = await createLocalDestination({
-          sam: {
-            host: self.i2p_sam_host,
-            portTCP: self.i2p_sam_port_tcp,
-          },
-        });
-        self.i2p_private_key = obj.private;
-        self.i2p_public_key = obj.public;
-        self.i2p_b32_address = obj.address;
-        self.address = self.i2p_b32_address;
-        ident = 'sam-' + self.address.replace(/[^a-z0-9_-]+/gi, '-');
-        pathDestination = path.join(self.path_keys, ident);
-        fs.writeFileSync(pathDestination + '.public', self.i2p_public_key);
-        fs.writeFileSync(pathDestination + '.private', self.i2p_private_key);
-      } else if (/\.b32\.i2p$/.test(self.address) && fs.existsSync(pathDestination)) {
-        self.i2p_b32_address = self.address;
-        self.i2p_public_key = fs.readFileSync(pathDestination + '.public').toString();
-        self.i2p_private_key = fs.readFileSync(pathDestination + '.private').toString();
+    if (self.has_i2p) {
+      if (/\.b32\.i2p$/.test(self.http)) {
+        const _p = path.join(self.path_keys, Util.hash(self.http));
+        self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
+        self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
       } else {
-        throw new Error(`Fatal: invalid I2P address (${self.address})`);
+        const obj = await Config.createI2PDestination(self);
+        self.i2p_public_key_http = obj.public;
+        self.i2p_private_key_http = obj.private;
       }
-    } else if (!self.address || /\.b32\.i2p$/.test(self.address)) {
-      throw new Error(`Fatal: invalid address (${self.address})`);
+      self.http = self.i2p_public_key_http;
+
+      if (/\.b32\.i2p$/.test(self.udp)) {
+        const _p = path.join(self.path_keys, Util.hash(self.udp));
+        self.i2p_public_key_udp = fs.readFileSync(_p + '.public').toString();
+        self.i2p_private_key_udp = fs.readFileSync(_p + '.private').toString();
+      } else {
+        const obj = await Config.createI2PDestination(self);
+        self.i2p_public_key_udp = obj.public;
+        self.i2p_private_key_udp = obj.private;
+      }
+      self.udp = self.i2p_public_key_udp;
+    }
+
+    if (!self.http || !self.udp) {
+      throw new Error('Invalid network configuration');
     }
 
     self.network_p2p_interval_ms = Config.b(
@@ -258,6 +275,21 @@ export class Config {
   }
 
   private constructor() {}
+
+  private static async createI2PDestination(self: Config) {
+    const obj = await createLocalDestination({
+      sam: {
+        host: self.i2p_sam_http_host,
+        portTCP: self.i2p_sam_http_port_tcp,
+      },
+    });
+
+    const pathDestination = path.join(self.path_keys, Util.hash(obj.address));
+    fs.writeFileSync(pathDestination + '.public', obj.public, { mode: '0644' });
+    fs.writeFileSync(pathDestination + '.private', obj.private, { mode: '0600' });
+
+    return obj;
+  }
 
   private static tf(n: any): boolean {
     return Number(n) > 0;

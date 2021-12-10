@@ -36,8 +36,8 @@ import { Util } from './util';
 
 export type Peer = {
   publicKey: string;
-  address: string;
-  destination: string;
+  http: string;
+  udp: string;
   stake: number;
 };
 
@@ -323,9 +323,9 @@ export class Blockchain {
     };
   }
 
-  hasNetworkAddress(address: string): boolean {
+  hasNetworkHttp(http: string): boolean {
     for (const v of [...this.mapPeer]) {
-      if (v[1].address === address) {
+      if (v[1].http === http) {
         return true;
       }
     }
@@ -386,8 +386,8 @@ export class Blockchain {
 
     const peer: Peer = {
       publicKey: command.publicKey,
-      address: command.address,
-      destination: command.destination,
+      http: command.http,
+      udp: command.udp,
       stake: 0,
     };
     this.mapPeer.set(command.publicKey, peer);

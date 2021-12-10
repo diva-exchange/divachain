@@ -21,14 +21,21 @@ import { Logger } from '../logger';
 import { Message } from './message/message';
 import { Server } from './server';
 import EventEmitter from 'events';
-import { createDatagram, I2pSamDatagram } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import {
+  createDatagram,
+  I2pSamDatagram,
+  createForward,
+  I2pSamStream,
+  toB32,
+} from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import { Util } from '../chain/util';
 import crypto from 'crypto';
 import { Sync } from './message/sync';
 
 export class Network extends EventEmitter {
   private readonly server: Server;
-  private sam: I2pSamDatagram = {} as I2pSamDatagram;
+  private samForward: I2pSamStream = {} as I2pSamStream;
+  private samUDP: I2pSamDatagram = {} as I2pSamDatagram;
 
   private readonly publicKey: string;
   private arrayBroadcast: Array<string> = [];
@@ -61,29 +68,50 @@ export class Network extends EventEmitter {
     clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
 
-    this.sam.close();
+    this.samUDP.close();
   }
 
   private init() {
     let started = false;
     const i = setInterval(async () => {
+      const _c = this.server.config;
+
       if (!started && [...this.server.getBlockchain().getMapPeer().keys()].length > 0) {
         started = true;
-        Logger.info(`P2P starting on ${this.server.config.address}`);
+        Logger.info(`P2P starting on ${toB32(_c.udp)}.b32.i2p`);
 
-        this.sam = (
+        this.samForward = await createForward({
+          sam: {
+            host: _c.i2p_sam_http_host,
+            portTCP: _c.i2p_sam_http_port_tcp,
+            publicKey: _c.i2p_public_key_http,
+            privateKey: _c.i2p_private_key_http,
+          },
+          forward: {
+            host: _c.i2p_sam_forward_http_host,
+            port: _c.i2p_sam_forward_http_port,
+            silent: true,
+          },
+        });
+        Logger.info(
+          `SAM HTTP ${toB32(_c.http)}.b32.i2p forwarded to ${_c.i2p_sam_forward_http_host}:${
+            _c.i2p_sam_forward_http_port
+          }`
+        );
+
+        this.samUDP = (
           await createDatagram({
             sam: {
-              host: this.server.config.i2p_sam_host,
-              portTCP: this.server.config.i2p_sam_port_tcp,
-              publicKey: this.server.config.i2p_public_key,
-              privateKey: this.server.config.i2p_private_key,
+              host: _c.i2p_sam_udp_host,
+              portTCP: _c.i2p_sam_udp_port_tcp,
+              publicKey: _c.i2p_public_key_udp,
+              privateKey: _c.i2p_private_key_udp,
             },
             listen: {
               address: '0.0.0.0',
-              port: this.server.config.i2p_sam_forward_port,
-              hostForward: this.server.config.i2p_sam_forward_host,
-              portForward: this.server.config.i2p_sam_forward_port,
+              port: _c.i2p_sam_forward_udp_port,
+              hostForward: _c.i2p_sam_forward_udp_host,
+              portForward: _c.i2p_sam_forward_udp_port,
             },
           })
         )
@@ -93,7 +121,9 @@ export class Network extends EventEmitter {
           .on('error', (error: any) => {
             Logger.warn('SAM Error: ' + error.toString());
           });
-        Logger.info(`Inbound SAM connection available ${this.server.config.i2p_sam_host}`);
+        Logger.info(
+          `SAM UDP ${toB32(_c.udp)}.b32.i2p forwarded to ${_c.i2p_sam_forward_udp_host}:${_c.i2p_sam_forward_udp_port}`
+        );
 
         this.p2pNetwork();
       }
@@ -103,7 +133,7 @@ export class Network extends EventEmitter {
           this.server.getBlockchain().getStake(this.publicKey) +
           this.arrayBroadcast.reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
         if (nq >= this.server.getBlockchain().getQuorum()) {
-          Logger.info(`P2P ready on ${this.server.config.address}`);
+          Logger.info(`P2P ready on ${toB32(_c.udp)}.b32.i2p`);
           this.emit('ready');
           clearInterval(i);
         }
@@ -125,7 +155,7 @@ export class Network extends EventEmitter {
             await this.server.getBlockchain().getRange(Number(msg) + 1, this.server.getBlockchain().getHeight())
           );
           const buf: Buffer = Buffer.from(m.pack());
-          this.sam.send(from, buf);
+          this.samUDP.send(from, buf);
         });
       }
     } else {
@@ -151,7 +181,7 @@ export class Network extends EventEmitter {
     const buf = Buffer.from(this.server.getBlockchain().getHeight() + '\n');
     this.arrayBroadcast.forEach((pk) => {
       setTimeout(() => {
-        this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
+        this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
       }, int);
       int = int + step;
     });
@@ -187,7 +217,7 @@ export class Network extends EventEmitter {
         return !this.arrayBroadcasted.includes(pk + ident) && pk !== m.origin();
       })
       .forEach((pk) => {
-        this.sam.send(this.server.getBlockchain().getPeer(pk).destination, buf);
+        this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
         this.arrayBroadcasted.push(pk + ident);
       });
   }
