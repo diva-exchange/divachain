@@ -316,13 +316,6 @@ export class Blockchain {
     return this.mapPeer.get(publicKey) as Peer;
   }
 
-  network(): { peers: Array<Peer>; broadcast: Array<string> } {
-    return {
-      peers: [...this.getMapPeer().values()],
-      broadcast: this.server.getNetwork().getArrayBroadcast(),
-    };
-  }
-
   hasNetworkHttp(http: string): boolean {
     for (const v of [...this.mapPeer]) {
       if (v[1].http === http) {

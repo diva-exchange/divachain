@@ -37,6 +37,9 @@ export type Configuration = {
   path_state?: string;
   path_keys?: string;
 
+  i2p_socks_host?: string;
+  i2p_socks_port?: number;
+
   i2p_sam_http_host?: string;
   i2p_sam_http_port_tcp?: number;
   i2p_sam_udp_host?: string;
@@ -69,6 +72,8 @@ export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
 const DEFAULT_BLOCK_FEED_PORT = 17469;
+
+const DEFAULT_I2P_SOCKS_PORT = 4445;
 
 const DEFAULT_I2P_SAM_PORT_TCP = 7656;
 const DEFAULT_I2P_SAM_PORT_UDP = 7655;
@@ -107,6 +112,8 @@ export class Config {
   public udp: string = '';
 
   public has_i2p: boolean = false;
+  public i2p_socks_host: string = '';
+  public i2p_socks_port: number = 0;
   public i2p_sam_http_host: string = '';
   public i2p_sam_http_port_tcp: number = 0;
   public i2p_sam_udp_host: string = '';
@@ -188,6 +195,8 @@ export class Config {
     self.udp = c.udp || process.env.UDP || '';
     self.http = c.http || process.env.HTTP || '';
 
+    self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || '';
+    self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
     self.i2p_sam_http_host = c.i2p_sam_http_host || process.env.I2P_SAM_HTTP_HOST || '';
     self.i2p_sam_http_port_tcp =
       Config.port(c.i2p_sam_http_port_tcp || process.env.I2P_SAM_HTTP_PORT_TCP) || DEFAULT_I2P_SAM_PORT_TCP;
@@ -206,6 +215,7 @@ export class Config {
       DEFAULT_I2P_SAM_FORWARD_PORT_UDP;
 
     self.has_i2p =
+      !!self.i2p_socks_host &&
       !!self.i2p_sam_http_host &&
       self.i2p_sam_http_port_tcp > 0 &&
       (await Config.isTCPAvailable(self.i2p_sam_http_host, self.i2p_sam_http_port_tcp)) &&

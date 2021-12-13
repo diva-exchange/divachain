@@ -35,9 +35,11 @@ export class Genesis {
     const BASE_PORT = Number(process.env.BASE_PORT || 17000);
     const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || 18000);
 
-    const I2P_HTTP_HOST = process.env.I2P_HTTP_HOST || '';
+    const I2P_SOCKS_HOST = process.env.I2P_SOCKS_HOST || '';
+    const I2P_SOCKS_PORT = I2P_SOCKS_HOST ? Number(process.env.I2P_SOCKS_PORT || 4445) : 0;
+    const I2P_HTTP_HOST = process.env.I2P_HTTP_HOST || I2P_SOCKS_HOST;
     const I2P_SAM_HTTP_PORT_TCP = I2P_HTTP_HOST ? Number(process.env.I2P_SAM_HTTP_PORT_TCP || 7656) : 0;
-    const I2P_UDP_HOST = process.env.I2P_UDP_HOST || '';
+    const I2P_UDP_HOST = process.env.I2P_UDP_HOST || I2P_HTTP_HOST;
     const I2P_SAM_UDP_PORT_TCP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_TCP || 7656) : 0;
     const I2P_SAM_UDP_PORT_UDP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_UDP || 7655) : 0;
     const I2P_SAM_FORWARD_HTTP_HOST = I2P_HTTP_HOST ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1' : '';
@@ -75,6 +77,8 @@ export class Genesis {
         path_blockstore: path.join(__dirname, './blockstore'),
         path_keys: path.join(__dirname, './keys'),
         blockchain_max_blocks_in_memory: 100,
+        i2p_socks_host: I2P_SOCKS_HOST,
+        i2p_socks_port: I2P_SOCKS_PORT,
         i2p_sam_http_host: I2P_HTTP_HOST,
         i2p_sam_http_port_tcp: I2P_SAM_HTTP_PORT_TCP,
         i2p_sam_udp_host: I2P_UDP_HOST,

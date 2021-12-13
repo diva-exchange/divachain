@@ -24,6 +24,7 @@ services:
     image: divax/i2p:latest
     restart: unless-stopped
     environment:
+      ENABLE_SOCKSPROXY: 1
       ENABLE_SAM: 1
       BANDWIDTH: P
     volumes:

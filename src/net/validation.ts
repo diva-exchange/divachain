@@ -39,7 +39,6 @@ export class Validation {
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
     const schemaProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/proposal.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
-    const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
 
     const schemaBlockV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/block.json');
     const schemaVotesV1: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v1/votes.json');
@@ -78,7 +77,6 @@ export class Validation {
       schemas: [
         schemaProposal,
         schemaVote,
-        schemaSync,
         schemaBlockV1,
         schemaVotesV1,
         schemaTxV1,
@@ -110,7 +108,6 @@ export class Validation {
     switch (m.type()) {
       case Message.TYPE_PROPOSAL:
       case Message.TYPE_VOTE:
-      case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
           Logger.trace('Validation.validateMessage() failed');
           Logger.trace(`${JSON.stringify(m)}`);

@@ -39,6 +39,7 @@ class TestServerI2P {
     process.env.IP = process.env.IP || '0.0.0.0';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
+    process.env.I2P_SOCKS_HOST = '172.19.75.11';
     process.env.I2P_HTTP_HOST = '172.19.75.11';
     process.env.I2P_UDP_HOST = '172.19.75.12';
     process.env.I2P_SAM_FORWARD_HTTP_HOST = process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1';

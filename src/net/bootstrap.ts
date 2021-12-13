@@ -24,21 +24,16 @@ import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
 
-const MAX_RETRY = 10;
 const LENGTH_TOKEN = 32;
 const MIN_WAIT_JOIN_MS = 15000;
 const MAX_WAIT_JOIN_MS = 60000;
 
-type recordNetwork = { publicKey: string; http: string; udp: string };
-
 export class Bootstrap {
   private readonly server: Server;
   private mapToken: Map<string, string>;
-  private arrayNetwork: Array<recordNetwork> = [];
 
-  static async make(server: Server): Promise<Bootstrap> {
-    const b = new Bootstrap(server);
-    return await b.init();
+  static make(server: Server): Bootstrap {
+    return new Bootstrap(server);
   }
 
   private constructor(server: Server) {
@@ -46,25 +41,16 @@ export class Bootstrap {
     this.mapToken = new Map();
   }
 
-  private async init(): Promise<Bootstrap> {
-    if (this.server.config.bootstrap) {
-      Logger.info(`Bootstrapping network, using ${this.server.config.bootstrap}`);
-      await this.populateNetwork();
-    }
-
-    return this;
-  }
-
   async syncWithNetwork() {
-    const blockNetwork: BlockStruct = await this.fetchFromApi('block/latest');
+    const blockNetwork: BlockStruct = await this.server.getNetwork().fetchFromApi('block/latest');
     const blockLocal: BlockStruct = this.server.getBlockchain().getLatestBlock();
 
     if (blockLocal.hash !== blockNetwork.hash) {
-      const genesis: BlockStruct = await this.fetchFromApi('block/genesis');
+      const genesis: BlockStruct = await this.server.getNetwork().fetchFromApi('block/genesis');
       await this.server.getBlockchain().reset(genesis);
       let h = 1;
       while (blockNetwork.height > h) {
-        const arrayBlocks: Array<BlockStruct> = await this.fetchFromApi('sync/' + (h + 1));
+        const arrayBlocks: Array<BlockStruct> = await this.server.getNetwork().fetchFromApi('sync/' + (h + 1));
         for (const b of arrayBlocks) {
           this.server.getBlockchain().add(b);
         }
@@ -73,7 +59,9 @@ export class Bootstrap {
     }
   }
   async enterNetwork(publicKey: string) {
-    await this.fetchFromApi('join/' + this.server.config.http + '/' + this.server.config.udp + '/' + publicKey);
+    await this.server
+      .getNetwork()
+      .fetchFromApi('join/' + this.server.config.http + '/' + this.server.config.udp + '/' + publicKey);
   }
 
   join(http: string, udp: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
@@ -94,7 +82,7 @@ export class Bootstrap {
     setTimeout(async () => {
       let res: { token: string } = { token: '' };
       try {
-        res = JSON.parse(await this.fetch('http://' + http + '/challenge/' + token));
+        res = JSON.parse(await this.server.getNetwork().fetchFromApi('http://' + http + '/challenge/' + token));
         this.confirm(http, udp, publicKey, res.token);
       } catch (error) {
         Logger.warn('Bootstrap.join() failed: ' + JSON.stringify(error));
@@ -137,46 +125,5 @@ export class Bootstrap {
       throw new Error('Bootstrap.confirm() - stackTransaction(addPeer) failed');
     }
     this.mapToken.delete(publicKey);
-  }
-
-  private async populateNetwork() {
-    let r = 0;
-    do {
-      try {
-        this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network')).sort(
-          (a: recordNetwork, b: recordNetwork) => {
-            return a.publicKey > b.publicKey ? 1 : -1;
-          }
-        );
-      } catch (error) {
-        Logger.warn('Bootstrap.populateNetwork() failed: ' + JSON.stringify(error));
-        this.arrayNetwork = [];
-      }
-      r++;
-    } while (!this.arrayNetwork.length && r < MAX_RETRY);
-
-    if (!this.arrayNetwork.length) {
-      throw new Error('Network not available');
-    }
-  }
-
-  private async fetchFromApi(endpoint: string) {
-    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
-    let urlApi = '';
-    do {
-      urlApi = 'http://' + aNetwork.pop().api + '/' + endpoint;
-      try {
-        return JSON.parse(await this.fetch(urlApi));
-      } catch (error) {
-        Logger.warn('Bootstrap.fetchFromApi() failed: ' + JSON.stringify(error));
-      }
-    } while (aNetwork.length);
-
-    throw new Error('Fetch failed: ' + urlApi);
-  }
-
-  private fetch(url: string): Promise<string> {
-    //@FIXME via SAM to an HTTP endpoint...
-    return Promise.resolve('NOT IMPLEMENTED');
   }
 }

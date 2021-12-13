@@ -88,7 +88,7 @@ export class Api {
     });
 
     this.server.app.get('/network', (req: Request, res: Response) => {
-      return res.json(this.server.getBlockchain().network());
+      return res.json(this.server.getNetwork().getArrayNetwork());
     });
 
     this.server.app.get('/state/:key?', async (req: Request, res: Response) => {

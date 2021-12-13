@@ -36,7 +36,6 @@ export class Message {
 
   static readonly TYPE_PROPOSAL = 1;
   static readonly TYPE_VOTE = 2;
-  static readonly TYPE_SYNC = 3;
 
   protected message: MessageStruct = {} as MessageStruct;
 

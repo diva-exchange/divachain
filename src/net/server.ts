@@ -34,7 +34,6 @@ import { Network } from './network';
 import { Message } from './message/message';
 import { Api } from './api';
 import { ArrayCommand } from '../chain/transaction';
-import { Sync } from './message/sync';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
 import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
@@ -53,8 +52,6 @@ export class Server {
   private network: Network = {} as Network;
   private blockchain: Blockchain = {} as Blockchain;
   private validation: Validation = {} as Validation;
-
-  private stackSync: Array<BlockStruct> = [];
 
   private intervalProposal: NodeJS.Timeout = {} as NodeJS.Timeout;
   private intervalVote: NodeJS.Timeout = {} as NodeJS.Timeout;
@@ -117,7 +114,7 @@ export class Server {
   }
 
   async start(): Promise<Server> {
-    this.bootstrap = await Bootstrap.make(this);
+    this.bootstrap = Bootstrap.make(this);
     Logger.info(`HTTP endpoint ${this.config.http}`);
     Logger.info(`UDP endpoint ${this.config.udp}`);
 
@@ -229,6 +226,17 @@ export class Server {
     }
   }
 
+  sync() {
+    (async () => {
+      const arrayBlocks: Array<BlockStruct> = await this.getNetwork().fetchFromApi(
+        'sync/' + this.getBlockchain().getHeight()
+      );
+      for (const b of arrayBlocks) {
+        this.addBlock(b);
+      }
+    })();
+  }
+
   private processProposal(proposal: Proposal) {
     const p: ProposalStruct = proposal.get();
 
@@ -280,33 +288,6 @@ export class Server {
     }
   }
 
-  private processSync(sync: Sync) {
-    for (const b of sync.get().blocks) {
-      if (!this.validation.validateBlock(b)) {
-        return;
-      }
-    }
-
-    let h = this.blockchain.getHeight();
-    this.stackSync = this.stackSync
-      .concat(sync.get().blocks)
-      .filter((b) => b.height >= h + 1)
-      .sort((a, b) => (a.height > b.height ? 1 : -1));
-
-    let b: BlockStruct = (this.stackSync.shift() || {}) as BlockStruct;
-
-    while (b.height) {
-      if (b.height === h + 1) {
-        this.addBlock(b);
-      } else if (b.height > h + 1) {
-        break;
-      }
-
-      h = this.blockchain.getHeight();
-      b = (this.stackSync.shift() || {}) as BlockStruct;
-    }
-  }
-
   private addBlock(block: BlockStruct) {
     if (!this.blockchain.add(block)) {
       return;
@@ -333,9 +314,6 @@ export class Server {
         break;
       case Message.TYPE_VOTE:
         this.processVote(new Vote(m.pack()));
-        break;
-      case Message.TYPE_SYNC:
-        this.processSync(new Sync(m.pack()));
         break;
       default:
         throw new Error('Invalid message type');
