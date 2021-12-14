@@ -54,7 +54,7 @@ if (process.env.GENESIS === '1') {
       fs.writeFileSync(_p, JSON.stringify(obj.genesis));
       const _c = process.env.GENESIS_CONFIG_PATH || '';
       if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
-        fs.writeFileSync(_p, JSON.stringify(obj.config));
+        fs.writeFileSync(_c, JSON.stringify(obj.config));
       }
     } else {
       process.stdout.write(JSON.stringify(obj.genesis));
