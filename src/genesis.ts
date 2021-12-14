@@ -27,7 +27,7 @@ import crypto from 'crypto';
 import { Util } from './chain/util';
 
 export class Genesis {
-  static async create(): Promise<{ genesis: BlockStruct; config: Map<string, Config> }> {
+  static async create(): Promise<{ genesis: BlockStruct; config: Array<any> }> {
     const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
 
     const IP = process.env.IP || '127.27.27.1';
@@ -43,6 +43,8 @@ export class Genesis {
     const I2P_SAM_UDP_PORT_UDP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_UDP || 7655) : 0;
     const I2P_SAM_FORWARD_HTTP_HOST = I2P_HTTP_HOST ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1' : '';
     const I2P_SAM_FORWARD_HTTP_PORT = I2P_HTTP_HOST ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT) : 0;
+    const I2P_SAM_LISTEN_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0' : '';
+    const I2P_SAM_LISTEN_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_LISTEN_UDP_PORT || 19000) : 0;
     const I2P_SAM_FORWARD_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';
     const I2P_SAM_FORWARD_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 19000) : 0;
 
@@ -73,6 +75,8 @@ export class Genesis {
         i2p_sam_udp_port_udp: I2P_SAM_UDP_PORT_UDP,
         i2p_sam_forward_http_host: I2P_SAM_FORWARD_HTTP_HOST,
         i2p_sam_forward_http_port: I2P_SAM_FORWARD_HTTP_PORT > 0 ? I2P_SAM_FORWARD_HTTP_PORT + i : 0,
+        i2p_sam_listen_udp_host: I2P_SAM_LISTEN_UDP_HOST,
+        i2p_sam_listen_udp_port: I2P_SAM_LISTEN_UDP_PORT > 0 ? I2P_SAM_LISTEN_UDP_PORT + i : 0,
         i2p_sam_forward_udp_host: I2P_SAM_FORWARD_UDP_HOST,
         i2p_sam_forward_udp_port: I2P_SAM_FORWARD_UDP_PORT > 0 ? I2P_SAM_FORWARD_UDP_PORT + i : 0,
         http: I2P_HTTP_HOST ? '' : `${IP}:${BASE_PORT + i}`,
@@ -108,6 +112,6 @@ export class Genesis {
     ];
     genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
 
-    return Promise.resolve({ genesis: genesis, config: map });
+    return Promise.resolve({ genesis: genesis, config: [...map] });
   }
 }
