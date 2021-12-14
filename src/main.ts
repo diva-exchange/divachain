@@ -20,6 +20,8 @@
 import { Server } from './net/server';
 import { Config, Configuration } from './config';
 import { Genesis } from './genesis';
+import fs from 'fs';
+import path from 'path';
 
 class Main {
   private config: Config = {} as Config;
@@ -47,10 +49,15 @@ class Main {
 if (process.env.GENESIS === '1') {
   (async () => {
     const obj = await Genesis.create();
-    process.stdout.write(JSON.stringify(obj.genesis));
+    const _p = process.env.GENESIS_PATH || '';
+    if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
+      fs.writeFileSync(_p, JSON.stringify(obj.genesis));
+    } else {
+      process.stdout.write(JSON.stringify(obj.genesis));
+    }
   })();
 } else {
-  //@FIXME load configuration?
+  //@TODO load configuration?
   const c: Configuration = {} as Configuration;
   (async () => {
     await Main.make(c);

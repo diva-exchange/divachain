@@ -30,12 +30,15 @@ LABEL author="Konrad Baechler <konrad@diva.exchange>" \
 #############################################
 COPY bin /divachain/bin
 COPY src /divachain/src
+COPY genesis /divachain/genesis
 COPY package.json /divachain/package.json
 COPY tsconfig.json /divachain/tsconfig.json
 
+RUN mkdir /genesis-empty-mount \
+  && mkdir /keys-empty-mount
+
 RUN cd divachain \
   && mkdir build \
-  && mkdir genesis \
   && mkdir keys \
   && mkdir dist \
   && npm i -g pkg@5.3.1 \
@@ -53,9 +56,7 @@ COPY --from=build /divachain/build/divachain-linux-x64 /divachain
 COPY --from=build /divachain/build/prebuilds /prebuilds
 
 # genesis and keys folder are just created empty - the content must be provided externally (like: a volume mount)
-COPY --from=build /divachain/genesis /genesis
-COPY --from=build /divachain/keys /keys
-
-EXPOSE 17468 17469
+COPY --from=build /genesis-empty-mount /genesis
+COPY --from=build /keys-empty-mount /keys
 
 CMD [ "/divachain" ]
