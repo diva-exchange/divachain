@@ -148,8 +148,9 @@ export class Config {
     self.bootstrap =
       (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
-    // package handling
-    if (!c.path_app && Object.keys(process).includes('pkg')) {
+    //@TODO review
+    // if it's a packaged binary, leave the snapshot enviroment
+    if (Object.keys(process).includes('pkg')) {
       c.path_app = path.join(path.dirname(process.execPath), '/../');
     }
 
