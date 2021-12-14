@@ -17,18 +17,17 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import fs from 'fs';
 import path from 'path';
-import { BlockStruct } from '../src/chain/block';
-import { Blockchain } from '../src/chain/blockchain';
-import { CommandAddPeer, CommandModifyStake } from '../src/chain/transaction';
-import { Config, DEFAULT_NAME_GENESIS_BLOCK } from '../src/config';
-import { Wallet } from '../src/chain/wallet';
+import { BlockStruct } from './chain/block';
+import { Blockchain } from './chain/blockchain';
+import { CommandAddPeer, CommandModifyStake } from './chain/transaction';
+import { Config } from './config';
+import { Wallet } from './chain/wallet';
 import crypto from 'crypto';
-import { Util } from '../src/chain/util';
+import { Util } from './chain/util';
 
 export class Genesis {
-  static async create(): Promise<Map<string, Config>> {
+  static async create(): Promise<{ genesis: BlockStruct; config: Map<string, Config> }> {
     const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 9);
 
     const IP = process.env.IP || '127.27.27.1';
@@ -47,20 +46,8 @@ export class Genesis {
     const I2P_SAM_FORWARD_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';
     const I2P_SAM_FORWARD_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 19000) : 0;
 
-    const pathGenesis = path.join(__dirname, './genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
-    let genesis: BlockStruct;
-    if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
-      genesis = Blockchain.genesis(path.join(__dirname, '../genesis/block.json'));
-      fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
-    } else {
-      fs.rmdirSync(__dirname + '/blockstore', { recursive: true });
-      fs.rmdirSync(__dirname + '/state', { recursive: true });
-      fs.mkdirSync(__dirname + '/blockstore');
-      fs.mkdirSync(__dirname + '/state');
-      fs.copyFileSync(__dirname + '/../blockstore/.gitignore', __dirname + '/blockstore/.gitignore');
-      fs.copyFileSync(__dirname + '/../state/.gitignore', __dirname + '/state/.gitignore');
-      return Promise.resolve(new Map(JSON.parse(fs.readFileSync(pathGenesis + '.config').toString())));
-    }
+    const pathGenesis = path.join(__dirname, '/../genesis/block.json');
+    const genesis: BlockStruct = Blockchain.genesis(pathGenesis);
 
     const map = new Map();
     const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
@@ -73,9 +60,9 @@ export class Genesis {
         port: BASE_PORT + i,
         port_block_feed: BASE_PORT_FEED + i,
         path_genesis: pathGenesis,
-        path_state: path.join(__dirname, './state'),
-        path_blockstore: path.join(__dirname, './blockstore'),
-        path_keys: path.join(__dirname, './keys'),
+        path_state: path.join(__dirname, '/../state'),
+        path_blockstore: path.join(__dirname, '/../blockstore'),
+        path_keys: path.join(__dirname, '/../keys'),
         blockchain_max_blocks_in_memory: 100,
         i2p_socks_host: I2P_SOCKS_HOST,
         i2p_socks_port: I2P_SOCKS_PORT,
@@ -121,9 +108,6 @@ export class Genesis {
     ];
     genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
 
-    fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
-    fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...map]), { mode: '0600' });
-
-    return Promise.resolve(map);
+    return Promise.resolve({ genesis: genesis, config: map });
   }
 }

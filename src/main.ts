@@ -19,6 +19,7 @@
 
 import { Server } from './net/server';
 import { Config, Configuration } from './config';
+import { Genesis } from './genesis';
 
 class Main {
   private config: Config = {} as Config;
@@ -43,8 +44,15 @@ class Main {
   }
 }
 
-//@FIXME load configuration?
-const c: Configuration = {} as Configuration;
-(async () => {
-  await Main.make(c);
-})();
+if (process.env.GENESIS === '1') {
+  (async () => {
+    const obj = await Genesis.create();
+    process.stdout.write(JSON.stringify(obj.genesis));
+  })();
+} else {
+  //@FIXME load configuration?
+  const c: Configuration = {} as Configuration;
+  (async () => {
+    await Main.make(c);
+  })();
+}

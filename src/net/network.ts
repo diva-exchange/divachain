@@ -140,8 +140,8 @@ export class Network extends EventEmitter {
                   privateKey: _c.i2p_private_key_udp,
                 },
                 listen: {
-                  address: '0.0.0.0',
-                  port: _c.i2p_sam_forward_udp_port,
+                  address: _c.i2p_sam_listen_udp_host,
+                  port: _c.i2p_sam_listen_udp_port,
                   hostForward: _c.i2p_sam_forward_udp_host,
                   portForward: _c.i2p_sam_forward_udp_port,
                 },

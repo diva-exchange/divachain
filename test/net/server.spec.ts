@@ -22,9 +22,13 @@ import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
 
 import { Server } from '../../src/net/server';
-import { Config } from '../../src/config';
+import { Config, DEFAULT_NAME_GENESIS_BLOCK } from '../../src/config';
 import { Logger } from '../../src/logger';
-import { Genesis } from '../genesis';
+import { Genesis } from '../../src/genesis';
+import { BlockStruct } from '../../src/chain/block';
+import { Blockchain } from '../../src/chain/blockchain';
+import fs from 'fs';
+import path from 'path';
 
 chai.use(chaiHttp);
 
@@ -41,7 +45,24 @@ class TestServer {
     process.env.IP = process.env.IP || '127.27.27.1';
     process.env.DEBUG_PERFORMANCE = '1';
 
-    TestServer.mapConfigServer = await Genesis.create();
+    const pathGenesis = path.join(__dirname, '/../genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
+    let genesis: BlockStruct;
+    if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
+      genesis = Blockchain.genesis(path.join(__dirname, '/../../genesis/block.json'));
+      fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
+      const obj = await Genesis.create();
+      fs.writeFileSync(pathGenesis, JSON.stringify(obj.genesis));
+      fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...obj.config]), { mode: '0600' });
+    } else {
+      fs.rmdirSync(__dirname + '/../blockstore', { recursive: true });
+      fs.rmdirSync(__dirname + '/../state', { recursive: true });
+      fs.mkdirSync(__dirname + '/../blockstore');
+      fs.mkdirSync(__dirname + '/../state');
+      fs.copyFileSync(__dirname + '/../../blockstore/.gitignore', __dirname + '/../blockstore/.gitignore');
+      fs.copyFileSync(__dirname + '/../../state/.gitignore', __dirname + '/../state/.gitignore');
+    }
+
+    TestServer.mapConfigServer = new Map(JSON.parse(fs.readFileSync(pathGenesis + '.config').toString()));
 
     for (const pk of TestServer.mapConfigServer.keys()) {
       await TestServer.createServer(pk);

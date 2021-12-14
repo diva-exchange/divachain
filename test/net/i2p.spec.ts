@@ -21,11 +21,15 @@ import { suite, test, timeout } from '@testdeck/mocha';
 import chai, { expect } from 'chai';
 import chaiHttp from 'chai-http';
 
-import { Genesis } from '../genesis';
+import { Genesis } from '../../src/genesis';
 import { Server } from '../../src/net/server';
-import { Config } from '../../src/config';
+import { Config, DEFAULT_NAME_GENESIS_BLOCK } from '../../src/config';
 import crypto from 'crypto';
 import { Logger } from '../../src/logger';
+import { BlockStruct } from '../../src/chain/block';
+import { Blockchain } from '../../src/chain/blockchain';
+import fs from 'fs';
+import path from 'path';
 
 chai.use(chaiHttp);
 
@@ -45,10 +49,27 @@ class TestServerI2P {
     process.env.I2P_SAM_FORWARD_HTTP_HOST = process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1';
     process.env.I2P_SAM_FORWARD_HTTP_PORT = process.env.I2P_SAM_FORWARD_HTTP_PORT || process.env.BASE_PORT;
     process.env.I2P_SAM_FORWARD_UDP_HOST = process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1';
-    process.env.I2P_SAM_FORWARD_UDP_PORT = process.env.I2P_SAM_FORWARD_UDP_PORT || '19000';
+    process.env.I2P_SAM_LISTEN_UDP_HOST = process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0';
     process.env.DEBUG_PERFORMANCE = '1';
 
-    TestServerI2P.mapConfigServer = await Genesis.create();
+    const pathGenesis = path.join(__dirname, '/../genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
+    let genesis: BlockStruct;
+    if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
+      genesis = Blockchain.genesis(path.join(__dirname, '/../../genesis/block.json'));
+      fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
+      const obj = await Genesis.create();
+      fs.writeFileSync(pathGenesis, JSON.stringify(obj.genesis));
+      fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...obj.config]), { mode: '0600' });
+    } else {
+      fs.rmdirSync(__dirname + '/../blockstore', { recursive: true });
+      fs.rmdirSync(__dirname + '/../state', { recursive: true });
+      fs.mkdirSync(__dirname + '/../blockstore');
+      fs.mkdirSync(__dirname + '/../state');
+      fs.copyFileSync(__dirname + '/../../blockstore/.gitignore', __dirname + '/../blockstore/.gitignore');
+      fs.copyFileSync(__dirname + '/../../state/.gitignore', __dirname + '/../state/.gitignore');
+    }
+
+    TestServerI2P.mapConfigServer = new Map(JSON.parse(fs.readFileSync(pathGenesis + '.config').toString()));
 
     for (const pk of TestServerI2P.mapConfigServer.keys()) {
       await TestServerI2P.createServer(pk);

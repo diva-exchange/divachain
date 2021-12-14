@@ -42,17 +42,34 @@ Default: 127.0.0.1
 ### PORT
 Default: 17468
 
-### PORT_BLOCK_FEED
+### BLOCK_FEED_PORT
 Default: 17469
 
-### I2P_SAM_HOST
-Default: (empty)
+### I2P_SOCKS_HOST
 
-### I2P_SAM_PORT_TCP
-Default: 7656
+### I2P_SOCKS_PORT
 
-### I2P_SAM_PORT_UDP
-Default: 7655
+### I2P_SAM_HTTP_HOST
+
+### I2P_SAM_HTTP_PORT_TCP
+
+### I2P_SAM_UDP_HOST
+
+### I2P_SAM_UDP_PORT_TCP
+
+### I2P_SAM_UDP_PORT_UDP
+
+### I2P_SAM_FORWARD_HTTP_HOST
+
+### I2P_SAM_FORWARD_HTTP_PORT
+
+### I2P_SAM_LISTEN_UDP_HOST
+
+### I2P_SAM_LISTEN_UDP_PORT
+
+### I2P_SAM_FORWARD_UDP_HOST
+
+### I2P_SAM_FORWARD_UDP_PORT
 
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 

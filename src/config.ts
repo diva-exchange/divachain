@@ -47,6 +47,8 @@ export type Configuration = {
   i2p_sam_udp_port_udp?: number;
   i2p_sam_forward_http_host?: string;
   i2p_sam_forward_http_port?: number;
+  i2p_sam_listen_udp_host?: string;
+  i2p_sam_listen_udp_port?: number;
   i2p_sam_forward_udp_host?: string;
   i2p_sam_forward_udp_port?: number;
   i2p_public_key_http?: string;
@@ -75,10 +77,11 @@ const DEFAULT_BLOCK_FEED_PORT = 17469;
 
 const DEFAULT_I2P_SOCKS_PORT = 4445;
 
-const DEFAULT_I2P_SAM_PORT_TCP = 7656;
-const DEFAULT_I2P_SAM_PORT_UDP = 7655;
-const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = 17470;
-const DEFAULT_I2P_SAM_FORWARD_PORT_UDP = 17471;
+const DEFAULT_I2P_SAM_TCP_PORT = 7656;
+const DEFAULT_I2P_SAM_UDP_PORT = 7655;
+const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = 17468;
+const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = 17470;
+const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
 
 const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
@@ -121,6 +124,8 @@ export class Config {
   public i2p_sam_udp_port_udp: number = 0;
   public i2p_sam_forward_http_host: string = '';
   public i2p_sam_forward_http_port: number = 0;
+  public i2p_sam_listen_udp_host: string = '';
+  public i2p_sam_listen_udp_port: number = 0;
   public i2p_sam_forward_udp_host: string = '';
   public i2p_sam_forward_udp_port: number = 0;
   public i2p_public_key_http: string = '';
@@ -142,6 +147,11 @@ export class Config {
 
     self.bootstrap =
       (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
+
+    // package handling
+    if (!c.path_app && Object.keys(process).includes('pkg')) {
+      c.path_app = path.join(path.dirname(process.execPath), '/../');
+    }
 
     if (!c.path_app || !fs.existsSync(c.path_app)) {
       self.path_app = path.join(__dirname, '/../');
@@ -199,20 +209,23 @@ export class Config {
     self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
     self.i2p_sam_http_host = c.i2p_sam_http_host || process.env.I2P_SAM_HTTP_HOST || '';
     self.i2p_sam_http_port_tcp =
-      Config.port(c.i2p_sam_http_port_tcp || process.env.I2P_SAM_HTTP_PORT_TCP) || DEFAULT_I2P_SAM_PORT_TCP;
+      Config.port(c.i2p_sam_http_port_tcp || process.env.I2P_SAM_HTTP_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
     self.i2p_sam_udp_host = c.i2p_sam_udp_host || process.env.I2P_SAM_UDP_HOST || '';
     self.i2p_sam_udp_port_tcp =
-      Config.port(c.i2p_sam_udp_port_tcp || process.env.I2P_SAM_UDP_PORT_TCP) || DEFAULT_I2P_SAM_PORT_TCP;
+      Config.port(c.i2p_sam_udp_port_tcp || process.env.I2P_SAM_UDP_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
     self.i2p_sam_udp_port_udp =
-      Config.port(c.i2p_sam_udp_port_udp || process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_PORT_UDP;
+      Config.port(c.i2p_sam_udp_port_udp || process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT;
     self.i2p_sam_forward_http_host = c.i2p_sam_forward_http_host || process.env.I2P_SAM_FORWARD_HTTP_HOST || '';
     self.i2p_sam_forward_http_port =
       Config.port(c.i2p_sam_forward_http_port || process.env.I2P_SAM_FORWARD_HTTP_PORT) ||
       DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
-    self.i2p_sam_forward_udp_host = c.i2p_sam_forward_udp_host || process.env.I2P_SAM_FORWARD_HOST_UDP || '';
+    self.i2p_sam_listen_udp_host = c.i2p_sam_listen_udp_host || process.env.I2P_SAM_LISTEN_UDP_HOST || '';
+    self.i2p_sam_listen_udp_port =
+      Config.port(c.i2p_sam_listen_udp_port || process.env.I2P_SAM_LISTEN_UDP_PORT) || DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
+    self.i2p_sam_forward_udp_host = c.i2p_sam_forward_udp_host || process.env.I2P_SAM_FORWARD_UDP_HOST || '';
     self.i2p_sam_forward_udp_port =
-      Config.port(c.i2p_sam_forward_udp_port || process.env.I2P_SAM_FORWARD_PORT_UDP) ||
-      DEFAULT_I2P_SAM_FORWARD_PORT_UDP;
+      Config.port(c.i2p_sam_forward_udp_port || process.env.I2P_SAM_FORWARD_UDP_PORT) ||
+      DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
 
     self.has_i2p =
       !!self.i2p_socks_host &&
