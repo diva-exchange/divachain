@@ -19,8 +19,7 @@
 
 import path from 'path';
 import fs from 'fs';
-import {createLocalDestination, toB32} from '@diva.exchange/i2p-sam/dist/i2p-sam';
-import net from 'net';
+import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import crypto from 'crypto';
 
 export type Configuration = {
@@ -231,13 +230,10 @@ export class Config {
     self.has_i2p =
       !!self.i2p_socks_host &&
       self.i2p_socks_port > 0 &&
-      (await Config.isTCPAvailable(self.i2p_socks_host, self.i2p_socks_port)) &&
       !!self.i2p_sam_http_host &&
       self.i2p_sam_http_port_tcp > 0 &&
-      (await Config.isTCPAvailable(self.i2p_sam_http_host, self.i2p_sam_http_port_tcp)) &&
       !!self.i2p_sam_udp_host &&
-      self.i2p_sam_udp_port_tcp > 0 &&
-      (await Config.isTCPAvailable(self.i2p_sam_udp_host, self.i2p_sam_udp_port_tcp));
+      self.i2p_sam_udp_port_tcp > 0;
 
     if (self.has_i2p) {
       if (self.http.length > 0) {
@@ -335,18 +331,5 @@ export class Config {
 
   private static port(n: any): number {
     return Number(n) ? Config.b(Number(n), 1025, 65535) : 0;
-  }
-
-  private static async isTCPAvailable(host: string, port: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const tcp = new net.Socket();
-      tcp.on('error', () => {
-        resolve(false);
-      });
-      tcp.connect(port, host, () => {
-        tcp.destroy();
-        resolve(true);
-      });
-    });
   }
 }
