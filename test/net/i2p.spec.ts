@@ -57,7 +57,7 @@ class TestServerI2P {
     if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
       genesis = Blockchain.genesis(path.join(__dirname, '/../../genesis/block.json'));
       fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
-      const obj = await Genesis.create();
+      const obj = await Genesis.create(path.join(__dirname, '/../'));
       fs.writeFileSync(pathGenesis, JSON.stringify(obj.genesis));
       fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...obj.config]), { mode: '0600' });
     } else {
@@ -72,6 +72,13 @@ class TestServerI2P {
     TestServerI2P.mapConfigServer = new Map(JSON.parse(fs.readFileSync(pathGenesis + '.config').toString()));
 
     for (const pk of TestServerI2P.mapConfigServer.keys()) {
+      const c = TestServerI2P.mapConfigServer.get(pk) || ({} as Config);
+      c.path_app = path.join(__dirname, '/../');
+      c.path_genesis = pathGenesis;
+      c.path_keys = path.join(__dirname, '/../keys/');
+      c.path_blockstore = path.join(__dirname, '/../blockstore/');
+      c.path_state = path.join(__dirname, '/../state/');
+      TestServerI2P.mapConfigServer.set(pk, c);
       await TestServerI2P.createServer(pk);
     }
 

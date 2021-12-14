@@ -19,9 +19,9 @@
 
 import path from 'path';
 import fs from 'fs';
-import { createLocalDestination } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import {createLocalDestination, toB32} from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import net from 'net';
-import { Util } from './chain/util';
+import crypto from 'crypto';
 
 export type Configuration = {
   no_bootstrapping?: number;
@@ -239,8 +239,10 @@ export class Config {
       (await Config.isTCPAvailable(self.i2p_sam_udp_host, self.i2p_sam_udp_port_tcp));
 
     if (self.has_i2p) {
-      if (/\.b32\.i2p$/.test(self.http)) {
-        const _p = path.join(self.path_keys, Util.hash(self.http));
+      if (self.http.length > 0) {
+        const _b32 = /\.b32\.i2p$/.test(self.http) ? self.http : toB32(self.http) + '.b32.i2p';
+        const _fn = crypto.createHash('md5').update(_b32).digest('hex');
+        const _p = path.join(self.path_keys, _fn);
         self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
         self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
       } else {
@@ -250,8 +252,10 @@ export class Config {
       }
       self.http = self.i2p_public_key_http;
 
-      if (/\.b32\.i2p$/.test(self.udp)) {
-        const _p = path.join(self.path_keys, Util.hash(self.udp));
+      if (self.udp.length > 0) {
+        const _b32 = /\.b32\.i2p$/.test(self.udp) ? self.udp : toB32(self.udp) + '.b32.i2p';
+        const _fn = crypto.createHash('md5').update(_b32).digest('hex');
+        const _p = path.join(self.path_keys, _fn);
         self.i2p_public_key_udp = fs.readFileSync(_p + '.public').toString();
         self.i2p_private_key_udp = fs.readFileSync(_p + '.private').toString();
       } else {
@@ -309,7 +313,8 @@ export class Config {
       },
     });
 
-    const pathDestination = path.join(self.path_keys, Util.hash(obj.address));
+    const _fn = crypto.createHash('md5').update(obj.address).digest('hex');
+    const pathDestination = path.join(self.path_keys, _fn);
     fs.writeFileSync(pathDestination + '.public', obj.public, { mode: '0644' });
     fs.writeFileSync(pathDestination + '.private', obj.private, { mode: '0600' });
 

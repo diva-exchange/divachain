@@ -23,7 +23,6 @@ import fs from 'fs';
 import path from 'path';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
-import { Util } from '../chain/util';
 import crypto from 'crypto';
 
 export const NAME_HEADER_API_TOKEN = 'diva-api-token';
@@ -44,7 +43,7 @@ export class Api {
 
     this.pathToken = path.join(
       this.server.config.path_keys,
-      Util.hash(this.server.config.http).replace(/[^a-z0-9_-]+/gi, '-') + '.token'
+      crypto.createHash('md5').update(this.server.config.http).digest('hex') + '.token'
     );
     this.createToken();
     this.route();

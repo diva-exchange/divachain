@@ -22,7 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { Config } from '../config';
 import base64url from 'base64url';
-import { Util } from './util';
+import crypto from 'crypto';
 
 export class Wallet {
   private config: Config;
@@ -41,7 +41,7 @@ export class Wallet {
   }
 
   open(): Wallet {
-    this.ident = Util.hash(this.config.http + this.config.udp);
+    this.ident = crypto.createHash('md5').update([this.config.http, this.config.udp].join()).digest('hex');
 
     sodium.sodium_mlock(this.secretKey);
 

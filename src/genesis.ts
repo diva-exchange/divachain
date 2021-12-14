@@ -27,7 +27,7 @@ import crypto from 'crypto';
 import { Util } from './chain/util';
 
 export class Genesis {
-  static async create(): Promise<{ genesis: BlockStruct; config: Array<any> }> {
+  static async create(pathApplication = ''): Promise<{ genesis: BlockStruct; config: Array<any> }> {
     const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
 
     const IP = process.env.IP || '127.27.27.1';
@@ -48,6 +48,8 @@ export class Genesis {
     const I2P_SAM_FORWARD_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';
     const I2P_SAM_FORWARD_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 19000) : 0;
 
+    const pathApp = pathApplication || path.join(__dirname, '/../');
+
     const pathGenesis = path.join(__dirname, '/../genesis/block.json');
     const genesis: BlockStruct = Blockchain.genesis(pathGenesis);
 
@@ -61,10 +63,8 @@ export class Genesis {
         ip: IP,
         port: BASE_PORT + i,
         port_block_feed: BASE_PORT_FEED + i,
+        path_app: pathApp,
         path_genesis: pathGenesis,
-        path_state: path.join(__dirname, '/../state'),
-        path_blockstore: path.join(__dirname, '/../blockstore'),
-        path_keys: path.join(__dirname, '/../keys'),
         blockchain_max_blocks_in_memory: 100,
         i2p_socks_host: I2P_SOCKS_HOST,
         i2p_socks_port: I2P_SOCKS_PORT,
