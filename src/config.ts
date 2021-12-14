@@ -229,6 +229,8 @@ export class Config {
 
     self.has_i2p =
       !!self.i2p_socks_host &&
+      self.i2p_socks_port > 0 &&
+      (await Config.isTCPAvailable(self.i2p_socks_host, self.i2p_socks_port)) &&
       !!self.i2p_sam_http_host &&
       self.i2p_sam_http_port_tcp > 0 &&
       (await Config.isTCPAvailable(self.i2p_sam_http_host, self.i2p_sam_http_port_tcp)) &&

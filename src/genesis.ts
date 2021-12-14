@@ -28,7 +28,7 @@ import { Util } from './chain/util';
 
 export class Genesis {
   static async create(): Promise<{ genesis: BlockStruct; config: Map<string, Config> }> {
-    const SIZE_TESTNET = Number(process.env.SIZE_TESTNET || 9);
+    const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
 
     const IP = process.env.IP || '127.27.27.1';
     const BASE_PORT = Number(process.env.BASE_PORT || 17000);
@@ -53,7 +53,7 @@ export class Genesis {
     const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
     let s = 1;
     let config = {} as Config;
-    for (let i = 1; i <= SIZE_TESTNET; i++) {
+    for (let i = 1; i <= SIZE_NETWORK; i++) {
       config = await Config.make({
         no_bootstrapping: 1,
         ip: IP,
