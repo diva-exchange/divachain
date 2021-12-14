@@ -202,8 +202,8 @@ export class Config {
       self.path_keys = c.path_keys;
     }
 
-    self.udp = c.udp || process.env.UDP || '';
     self.http = c.http || process.env.HTTP || '';
+    self.udp = c.udp || process.env.UDP || '';
 
     self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || '';
     self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
