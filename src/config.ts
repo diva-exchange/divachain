@@ -21,6 +21,8 @@ import path from 'path';
 import fs from 'fs';
 import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import crypto from 'crypto';
+import { Genesis } from './genesis';
+import { Wallet } from './chain/wallet';
 
 export type Configuration = {
   no_bootstrapping?: number;
@@ -142,10 +144,23 @@ export class Config {
 
   static async make(c: Configuration): Promise<Config> {
     const self = new Config();
-    self.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
 
-    self.bootstrap =
-      (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
+    // GENESIS mode
+    if (process.env.GENESIS === '1') {
+      const obj = await Genesis.create();
+      const _p = process.env.GENESIS_PATH || '';
+      if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
+        fs.writeFileSync(_p, JSON.stringify(obj.genesis));
+        const _c = process.env.GENESIS_CONFIG_PATH || '';
+        if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
+          fs.writeFileSync(_c, JSON.stringify(obj.config));
+        }
+      } else {
+        process.stdout.write(JSON.stringify(obj.genesis));
+      }
+
+      process.exit(0);
+    }
 
     // setting the path, if the executable is a packaged binary (see "pkg --help")
     if (Object.keys(process).includes('pkg')) {
@@ -157,6 +172,11 @@ export class Config {
     } else {
       self.path_app = c.path_app;
     }
+
+    self.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
+
+    self.bootstrap =
+      (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
     try {
       self.VERSION = fs.readFileSync(path.join(__dirname, 'version')).toString();
@@ -170,36 +190,6 @@ export class Config {
     self.ip = c.ip || process.env.IP || DEFAULT_IP;
     self.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
     self.port_block_feed = Config.port(c.port_block_feed || process.env.BLOCK_FEED_PORT || DEFAULT_BLOCK_FEED_PORT);
-
-    if (!c.path_genesis || !fs.existsSync(c.path_genesis)) {
-      self.path_genesis = path.join(self.path_app, 'genesis/');
-    } else {
-      self.path_genesis = c.path_genesis;
-    }
-    if (!/\.json$/.test(self.path_genesis)) {
-      self.path_genesis = self.path_genesis + DEFAULT_NAME_GENESIS_BLOCK + '.json';
-    }
-    if (!fs.existsSync(self.path_genesis)) {
-      throw new Error(`Path to genesis block not found: ${self.path_genesis}`);
-    }
-
-    if (!c.path_blockstore || !fs.existsSync(c.path_blockstore)) {
-      self.path_blockstore = path.join(self.path_app, 'blockstore/');
-    } else {
-      self.path_blockstore = c.path_blockstore;
-    }
-    if (!fs.existsSync(self.path_blockstore)) {
-      throw new Error(`Path to the blockstore database not found: ${self.path_blockstore}`);
-    }
-
-    if (!c.path_state || !fs.existsSync(c.path_state)) {
-      self.path_state = path.join(self.path_app, 'state/');
-    } else {
-      self.path_state = c.path_state;
-    }
-    if (!fs.existsSync(self.path_state)) {
-      throw new Error(`Path to the state database not found: ${self.path_state}`);
-    }
 
     if (!c.path_keys || !fs.existsSync(c.path_keys)) {
       self.path_keys = path.join(self.path_app, 'keys/');
@@ -234,6 +224,18 @@ export class Config {
     self.i2p_sam_forward_udp_port =
       Config.port(c.i2p_sam_forward_udp_port || process.env.I2P_SAM_FORWARD_UDP_PORT) ||
       DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
+
+    // CREATE_KEYS mode
+    if (process.env.CREATE_KEYS === '1') {
+      if (!!self.i2p_sam_http_host && self.i2p_sam_http_port_tcp > 0) {
+        self.http = (await Config.createI2PDestination(self)).public;
+        self.udp = (await Config.createI2PDestination(self)).public;
+        console.log(toB32(self.http) + '.b32.i2p');
+        console.log(toB32(self.udp) + '.b32.i2p');
+      }
+      Wallet.make(self).open();
+      process.exit(0);
+    }
 
     self.has_i2p =
       !!self.i2p_socks_host &&
@@ -273,6 +275,36 @@ export class Config {
 
     if (!self.http || !self.udp) {
       throw new Error('Invalid network configuration');
+    }
+
+    if (!c.path_genesis || !fs.existsSync(c.path_genesis)) {
+      self.path_genesis = path.join(self.path_app, 'genesis/');
+    } else {
+      self.path_genesis = c.path_genesis;
+    }
+    if (!/\.json$/.test(self.path_genesis)) {
+      self.path_genesis = self.path_genesis + DEFAULT_NAME_GENESIS_BLOCK + '.json';
+    }
+    if (!fs.existsSync(self.path_genesis)) {
+      throw new Error(`Path to genesis block not found: ${self.path_genesis}`);
+    }
+
+    if (!c.path_blockstore || !fs.existsSync(c.path_blockstore)) {
+      self.path_blockstore = path.join(self.path_app, 'blockstore/');
+    } else {
+      self.path_blockstore = c.path_blockstore;
+    }
+    if (!fs.existsSync(self.path_blockstore)) {
+      throw new Error(`Path to the blockstore database not found: ${self.path_blockstore}`);
+    }
+
+    if (!c.path_state || !fs.existsSync(c.path_state)) {
+      self.path_state = path.join(self.path_app, 'state/');
+    } else {
+      self.path_state = c.path_state;
+    }
+    if (!fs.existsSync(self.path_state)) {
+      throw new Error(`Path to the state database not found: ${self.path_state}`);
     }
 
     self.network_p2p_interval_ms = Config.b(

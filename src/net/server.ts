@@ -114,7 +114,6 @@ export class Server {
   }
 
   async start(): Promise<Server> {
-    this.bootstrap = Bootstrap.make(this);
     Logger.info(`HTTP endpoint ${this.config.http}`);
     Logger.info(`UDP endpoint ${this.config.udp}`);
 
@@ -135,20 +134,6 @@ export class Server {
     this.network = Network.make(this, (m: Message) => {
       return this.onMessage(m);
     });
-    Logger.info('Network initialized');
-
-    if (this.config.bootstrap) {
-      await this.bootstrap.syncWithNetwork();
-      if (!this.blockchain.hasNetworkHttp(this.config.http)) {
-        await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
-      }
-    }
-
-    if (this.blockchain.getHeight() === 0) {
-      await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
-    }
-
-    this.pool.initHeight();
 
     // schedule proposing
     this.intervalProposal = setInterval(() => {
@@ -161,7 +146,25 @@ export class Server {
     }, Math.floor(this.config.network_clean_interval_ms * 1.5));
 
     return new Promise((resolve) => {
-      this.network.once('ready', resolve);
+      this.network.once('ready', async () => {
+        Logger.info('Network ready');
+
+        this.bootstrap = Bootstrap.make(this);
+        if (this.config.bootstrap) {
+          await this.bootstrap.syncWithNetwork();
+          if (!this.blockchain.hasNetworkHttp(this.config.http)) {
+            await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
+          }
+        }
+
+        if (this.blockchain.getHeight() === 0) {
+          await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
+        }
+
+        this.pool.initHeight();
+
+        resolve(this);
+      });
     });
   }
 

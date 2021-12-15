@@ -23,6 +23,7 @@ import { Util } from '../chain/util';
 import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
+import {toB32} from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 const LENGTH_TOKEN = 32;
 const MIN_WAIT_JOIN_MS = 15000;
@@ -82,10 +83,11 @@ export class Bootstrap {
     setTimeout(async () => {
       let res: { token: string } = { token: '' };
       try {
+        http = http.indexOf('.') === -1 ? toB32(http) + '.b32.i2p' : http;
         res = JSON.parse(await this.server.getNetwork().fetchFromApi('http://' + http + '/challenge/' + token));
         this.confirm(http, udp, publicKey, res.token);
-      } catch (error) {
-        Logger.warn('Bootstrap.join() failed: ' + JSON.stringify(error));
+      } catch (error: any) {
+        Logger.warn('Bootstrap.join() failed: ' + error.toString());
 
         // retry
         this.mapToken.delete(publicKey);

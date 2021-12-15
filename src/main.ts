@@ -19,9 +19,6 @@
 
 import { Server } from './net/server';
 import { Config, Configuration } from './config';
-import { Genesis } from './genesis';
-import fs from 'fs';
-import path from 'path';
 
 class Main {
   private config: Config = {} as Config;
@@ -46,22 +43,6 @@ class Main {
   }
 }
 
-if (process.env.GENESIS === '1') {
-  (async () => {
-    const obj = await Genesis.create();
-    const _p = process.env.GENESIS_PATH || '';
-    if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
-      fs.writeFileSync(_p, JSON.stringify(obj.genesis));
-      const _c = process.env.GENESIS_CONFIG_PATH || '';
-      if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
-        fs.writeFileSync(_c, JSON.stringify(obj.config));
-      }
-    } else {
-      process.stdout.write(JSON.stringify(obj.genesis));
-    }
-  })();
-} else {
-  (async () => {
-    await Main.make();
-  })();
-}
+(async () => {
+  await Main.make();
+})();

@@ -34,8 +34,6 @@ import get from 'simple-get';
 import SocksProxyAgent from 'socks-proxy-agent/dist/agent';
 import { Peer } from '../chain/blockchain';
 
-const MAX_RETRY = 10;
-
 type Options = {
   url: string;
   agent: SocksProxyAgent | false;
@@ -81,6 +79,9 @@ export class Network extends EventEmitter {
         `Network, using SOCKS: socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
       );
 
+    if (this.server.config.bootstrap) {
+      this.bootstrapNetwork();
+    }
     this.init();
 
     this._onMessage = onMessage || false;
@@ -101,8 +102,6 @@ export class Network extends EventEmitter {
       const _c = this.server.config;
 
       if (!started) {
-        this.populateNetwork();
-
         if (this.arrayNetwork.length > 0) {
           started = true;
           Logger.info(`P2P starting on ${toB32(_c.udp)}.b32.i2p`);
@@ -123,7 +122,7 @@ export class Network extends EventEmitter {
                 },
               })
             ).on('error', (error: any) => {
-              Logger.warn('SAM HTTP Error: ' + error.toString());
+              Logger.warn('SAM HTTP ' + error.toString());
             });
             Logger.info(
               `HTTP ${toB32(_c.http)}.b32.i2p to ${_c.i2p_sam_forward_http_host}:${_c.i2p_sam_forward_http_port}`
@@ -151,17 +150,15 @@ export class Network extends EventEmitter {
                 this.incomingData(data, from);
               })
               .on('error', (error: any) => {
-                Logger.warn('SAM UDP Error: ' + error.toString());
+                Logger.warn('SAM UDP ' + error.toString());
               });
 
             this.p2pNetwork();
           })();
         }
       } else {
-        const nq =
-          this.server.getBlockchain().getStake(this.publicKey) +
-          this.arrayBroadcast.reduce((q, pk) => q + this.server.getBlockchain().getStake(pk), 0);
-        if (nq >= this.server.getBlockchain().getQuorum()) {
+        //@FIXME hardcoded
+        if (this.arrayNetwork.length > 5) {
           Logger.info(`UDP ${toB32(_c.udp)}.b32.i2p to ${_c.i2p_sam_forward_udp_host}:${_c.i2p_sam_forward_udp_port}`);
           this.emit('ready');
           clearInterval(i);
@@ -187,7 +184,7 @@ export class Network extends EventEmitter {
       try {
         this.processMessage(new Message(msg));
       } catch (error: any) {
-        Logger.warn(`Network.incomingData(): ${error.toString()}`);
+        Logger.warn(`Network.incomingData() ${error.toString()}`);
       }
     }
   }
@@ -197,12 +194,16 @@ export class Network extends EventEmitter {
       this.p2pNetwork();
     }, this.server.config.network_p2p_interval_ms);
 
+    const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
+    if (!aNetwork.length) {
+      return;
+    }
+    this.arrayNetwork = aNetwork;
+
     this.arrayBroadcast = Util.shuffleArray(
-      this.arrayNetwork
-        .map((p) => p.publicKey)
-        .filter((pk) => {
-          return pk !== this.publicKey;
-        })
+      [...this.server.getBlockchain().getMapPeer().keys()].filter((pk) => {
+        return pk !== this.publicKey;
+      })
     );
 
     // pinging: rectangular distribution of pings over time
@@ -253,8 +254,9 @@ export class Network extends EventEmitter {
         return !this.arrayBroadcasted.includes(pk + ident) && pk !== m.origin();
       })
       .forEach((pk) => {
-        this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
-        this.arrayBroadcasted.push(pk + ident);
+        const peer = this.server.getBlockchain().getPeer(pk);
+        peer && this.samUDP.send(peer.udp, buf);
+        peer && this.arrayBroadcasted.push(pk + ident);
       });
   }
 
@@ -263,14 +265,20 @@ export class Network extends EventEmitter {
       return await this.fetch(endpoint);
     }
 
+    if (!this.arrayNetwork.length) {
+      throw new Error('Network unavailable');
+    }
+
     const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
     let urlApi = '';
     do {
-      urlApi = 'http://' + toB32(aNetwork.pop().http) + '.b32.i2p/' + endpoint;
+      let http = aNetwork.pop().http;
+      http = http.indexOf('.') === -1 ? toB32(http) + '.b32.i2p' : http;
+      urlApi = 'http://' + http + '/' + endpoint;
       try {
         return JSON.parse(await this.fetch(urlApi));
       } catch (error: any) {
-        Logger.warn('Network.fetchFromApi() failed: ' + error.toString());
+        Logger.warn('Network.fetchFromApi() ' + error.toString());
       }
     } while (aNetwork.length);
 
@@ -296,31 +304,23 @@ export class Network extends EventEmitter {
     });
   }
 
-  private populateNetwork() {
-    if (!this.server.config.bootstrap) {
-      this.arrayNetwork = [...this.server.getBlockchain().getMapPeer().values()];
-      return;
-    }
+  private bootstrapNetwork() {
+    Logger.info('Bootstrapping, using: ' + this.server.config.bootstrap + '/network');
 
-    (async () => {
-      let r = 0;
-      do {
-        try {
-          this.arrayNetwork = JSON.parse(
-            await this.server.getNetwork().fetchFromApi(this.server.config.bootstrap + '/network')
-          ).sort((a: Peer, b: Peer) => {
-            return a.publicKey > b.publicKey ? 1 : -1;
-          });
-        } catch (error: any) {
-          Logger.warn('Network.populateNetwork() failed: ' + error.toString());
-          this.arrayNetwork = [];
-        }
-        r++;
-      } while (!this.arrayNetwork.length && r < MAX_RETRY);
-
-      if (!this.arrayNetwork.length) {
-        throw new Error('Network not available');
+    const _i = setInterval(async () => {
+      try {
+        this.arrayNetwork = JSON.parse(
+          await this.server.getNetwork().fetchFromApi(this.server.config.bootstrap + '/network')
+        ).sort((a: Peer, b: Peer) => {
+          return a.publicKey > b.publicKey ? 1 : -1;
+        });
+      } catch (error: any) {
+        Logger.warn('Network.populateNetwork() ' + error.toString());
+        this.arrayNetwork = [];
       }
-    })();
+      if (this.arrayNetwork.length) {
+        clearInterval(_i);
+      }
+    }, 10000);
   }
 }

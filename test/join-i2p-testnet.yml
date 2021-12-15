@@ -1,0 +1,93 @@
+version: "3.7"
+services:
+  i2p.http.join.testnet.diva.i2p:
+    container_name: i2p.http.join.testnet.diva.i2p
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_SOCKSPROXY: 1
+      ENABLE_SAM: 1
+      BANDWIDTH: P
+    volumes:
+      - i2p.http.join.testnet.diva.i2p:/home/i2pd/data
+    networks:
+      network.join.testnet.diva.i2p:
+        ipv4_address: 172.19.79.11
+
+  i2p.udp.join.testnet.diva.i2p:
+    container_name: i2p.udp.join.testnet.diva.i2p
+    image: divax/i2p:latest
+    restart: unless-stopped
+    environment:
+      ENABLE_SAM: 1
+      BANDWIDTH: P
+    volumes:
+      - i2p.udp.join.testnet.diva.i2p:/home/i2pd/data
+    networks:
+      network.join.testnet.diva.i2p:
+        ipv4_address: 172.19.79.12
+
+  explorer.join.testnet.diva.i2p:
+    container_name: explorer.join.testnet.diva.i2p
+    image: divax/explorer:latest
+    restart: unless-stopped
+    environment:
+      HTTP_IP: 172.19.79.200
+      HTTP_PORT: 3920
+      URL_API: http://172.19.79.21:17468
+      URL_FEED: ws://172.19.79.21:17469
+    ports:
+      - 3932:3920
+    networks:
+      network.join.testnet.diva.i2p:
+        ipv4_address: 172.19.79.200
+
+  chain.join.testnet.diva.i2p:
+    container_name: chain.join.testnet.diva.i2p
+    image: divax/divachain:develop
+    restart: unless-stopped
+    environment:
+      BOOTSTRAP: http://i3e3xwptonisy6qfpamr4umrr4kojayet7cfrdbdltfx3dc7dw5q.b32.i2p
+      NODE_ENV: production
+      LOG_LEVEL: trace
+      IP: 172.19.79.21
+      PORT: 17468
+      BLOCK_FEED_PORT: 17469
+      HTTP: vxh2pvdzxyrwtquak67mculihnaqum7sbw2ydmhn7dvfxpp6kngq.b32.i2p
+      UDP: xys52ibvdqa2kcphbnqhzk5luladq5x4fskkt3kxjm5dihz7y25q.b32.i2p
+      I2P_SOCKS_HOST: 172.19.79.11
+      I2P_SOCKS_PORT: 4445
+      I2P_SAM_HTTP_HOST: 172.19.79.11
+      I2P_SAM_FORWARD_HTTP_HOST: 172.19.79.21
+      I2P_SAM_FORWARD_HTTP_PORT: 17468
+      I2P_SAM_UDP_HOST: 172.19.79.12
+      I2P_SAM_LISTEN_UDP_HOST: 172.19.79.21
+      I2P_SAM_LISTEN_UDP_PORT: 17470
+      I2P_SAM_FORWARD_UDP_HOST: 172.19.79.21
+      I2P_SAM_FORWARD_UDP_PORT: 17470
+    volumes:
+      - chain.join.testnet.diva.i2p-blockstore:/blockstore
+      - chain.join.testnet.diva.i2p-state:/state
+      - ./keys:/keys
+      - ./genesis:/genesis
+    networks:
+      network.join.testnet.diva.i2p:
+        ipv4_address: 172.19.79.21
+
+networks:
+  network.join.testnet.diva.i2p:
+    name: network.join.testnet.diva.i2p
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.19.79.0/24
+
+volumes:
+  i2p.http.join.testnet.diva.i2p:
+    name: i2p.http.join.testnet.diva.i2p
+  i2p.udp.join.testnet.diva.i2p:
+    name: i2p.udp.join.testnet.diva.i2p
+  chain.join.testnet.diva.i2p-blockstore:
+    name: join.chain.join.testnet.diva.i2p-blockstore
+  chain.join.testnet.diva.i2p-state:
+    name: join.chain.join.testnet.diva.i2p-state
