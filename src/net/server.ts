@@ -121,6 +121,9 @@ export class Server {
     Logger.info('Wallet initialized');
 
     this.blockchain = await Blockchain.make(this);
+    if (this.blockchain.getHeight() === 0) {
+      await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
+    }
     Logger.info('Blockchain initialized');
 
     this.validation = Validation.make();
@@ -155,10 +158,6 @@ export class Server {
           if (!this.blockchain.hasNetworkHttp(this.config.http)) {
             await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
           }
-        }
-
-        if (this.blockchain.getHeight() === 0) {
-          await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
         }
 
         this.pool.initHeight();

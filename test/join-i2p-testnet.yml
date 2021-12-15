@@ -47,7 +47,7 @@ services:
     image: divax/divachain:develop
     restart: unless-stopped
     environment:
-      BOOTSTRAP: http://i3e3xwptonisy6qfpamr4umrr4kojayet7cfrdbdltfx3dc7dw5q.b32.i2p
+      BOOTSTRAP: http://6xd3mjm33zdv7daumaiga67cfohfmq4setlhyk2vfgnuqhj52giq.b32.i2p
       NODE_ENV: production
       LOG_LEVEL: trace
       IP: 172.19.79.21

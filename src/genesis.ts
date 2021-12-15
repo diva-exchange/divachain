@@ -28,6 +28,8 @@ import { Util } from './chain/util';
 
 export class Genesis {
   static async create(pathApplication = ''): Promise<{ genesis: BlockStruct; config: Array<any> }> {
+    process.env.GENESIS = '0';
+
     const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
 
     const IP = process.env.IP || '127.27.27.1';

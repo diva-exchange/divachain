@@ -82,6 +82,7 @@ export class Network extends EventEmitter {
     if (this.server.config.bootstrap) {
       this.bootstrapNetwork();
     }
+    this.p2pNetwork();
     this.init();
 
     this._onMessage = onMessage || false;
@@ -152,8 +153,6 @@ export class Network extends EventEmitter {
               .on('error', (error: any) => {
                 Logger.warn('SAM UDP ' + error.toString());
               });
-
-            this.p2pNetwork();
           })();
         }
       } else {
@@ -212,7 +211,11 @@ export class Network extends EventEmitter {
     const buf = Buffer.from(this.server.getBlockchain().getHeight() + '\n');
     this.arrayBroadcast.forEach((pk) => {
       setTimeout(() => {
-        this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
+        try {
+          this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
+        } catch (error: any) {
+          Logger.warn(`Network.p2pNetwork() ${error.toString()}`);
+        }
       }, int);
       int = int + step;
     });
@@ -254,9 +257,12 @@ export class Network extends EventEmitter {
         return !this.arrayBroadcasted.includes(pk + ident) && pk !== m.origin();
       })
       .forEach((pk) => {
-        const peer = this.server.getBlockchain().getPeer(pk);
-        peer && this.samUDP.send(peer.udp, buf);
-        peer && this.arrayBroadcasted.push(pk + ident);
+        try {
+          this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
+          this.arrayBroadcasted.push(pk + ident);
+        } catch (error: any) {
+          Logger.warn(`Network.broadcast() ${error.toString()}`);
+        }
       });
   }
 
