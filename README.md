@@ -4,7 +4,7 @@ A blockchain implementation using Practical Byzantine Fault Tolerance (PBFT) in 
 
 This is a fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
-The load of the PBFT consensus is very much network bound. The chain gets built by "communication" instead of "computation". Therefore lots of messages are crossing the network.
+The load of the PBFT consensus is network bound. The chain gets built by "communication" instead of "computation". Therefore many messages are crossing the network.
 
 The peers in the network communicate over I2P. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
 
@@ -12,12 +12,9 @@ The peers in the network communicate over I2P. The peers build the tunnels betwe
 
 The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
-1. New proposal: each peer in the network may anytime propose a transaction, by sending it to the network.
-2. Locking: each peer receiving such a new proposal may send a lock to the network. Such a lock represents an agreement of a peer with a specific proposal. If a peer also has an own transaction, it adds his own transaction to the new proposal first and sends the new proposal to the network. Per round, each peer can only add one own transaction to a proposal.
-3. Multiple rounds of locking might be necessary to reach consensus (2/3 of the network) on a lock and its related proposal. A peer might send multiple locks to the network.
-4. Creation of a new block to be voted for: as soon as consensus is reached on a lock, peers will create a new block based on the lock and vote for the new block. 
-5. Voting: each peer receiving a vote, checks it for validity and - if the peer agrees - votes for the block too.
-6. Commit: as soon as a peer in the network detects that consensus has been reached (2/3 of the network have voted for a specific block), it writes the block to the chain and sends a synchronization message to the network.
+1. New proposal: each peer in the network may anytime propose a transaction, by sending it to the network. Per round, each peer can only add one own transaction.
+2. Voting: each peer receiving a proposal may send a vote to the network. Such a vote represents an agreement of a peer with a specific stack of proposals. Each peer can vote only once. If the peers in the network do not agree (2/3 of the total stake of all peers) on a specific stack of proposals, the voting will go into a new round and all peers can vote again.  
+3. Creation of a new block: as soon as consensus is reached through voting for a specific stack of proposals, peers will create the new block. 
  
 ## Create Your Local Environment
 
