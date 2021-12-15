@@ -118,9 +118,6 @@ export class Server {
     Logger.info(`HTTP endpoint ${this.config.http}`);
     Logger.info(`UDP endpoint ${this.config.udp}`);
 
-    //@FIXME logging
-    Logger.trace(this.config);
-
     this.wallet = Wallet.make(this.config);
     Logger.info('Wallet initialized');
 

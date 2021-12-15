@@ -26,9 +26,9 @@ import path from 'path';
 class Main {
   private config: Config = {} as Config;
 
-  static async make(c: Configuration) {
+  static async make() {
     const self = new Main();
-    self.config = await Config.make(c);
+    self.config = await Config.make({} as Configuration);
     await self.start();
   }
 
@@ -61,9 +61,7 @@ if (process.env.GENESIS === '1') {
     }
   })();
 } else {
-  //@TODO load configuration?
-  const c: Configuration = {} as Configuration;
   (async () => {
-    await Main.make(c);
+    await Main.make();
   })();
 }

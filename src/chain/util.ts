@@ -19,7 +19,6 @@
 
 import base64url from 'base64url';
 import sodium from 'sodium-native';
-import { Logger } from '../logger';
 
 export class Util {
   static hash(s: string): string {
@@ -36,8 +35,6 @@ export class Util {
         Buffer.from(base64url.decode(publicKey, 'binary'), 'binary')
       );
     } catch (error) {
-      //@FIXME logging
-      Logger.trace('Util.verifySignature() failed');
       console.trace(`${publicKey} / ${sig} / ${data}`);
       return false;
     }

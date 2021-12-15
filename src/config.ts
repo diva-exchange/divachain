@@ -147,10 +147,9 @@ export class Config {
     self.bootstrap =
       (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
-    //@TODO review
-    // if it's a packaged binary, leave the snapshot enviroment
+    // setting the path, if the executable is a packaged binary (see "pkg --help")
     if (Object.keys(process).includes('pkg')) {
-      c.path_app = path.join(path.dirname(process.execPath), '/../');
+      c.path_app = path.dirname(process.execPath);
     }
 
     if (!c.path_app || !fs.existsSync(c.path_app)) {
@@ -189,17 +188,26 @@ export class Config {
     } else {
       self.path_blockstore = c.path_blockstore;
     }
+    if (!fs.existsSync(self.path_blockstore)) {
+      throw new Error(`Path to the blockstore database not found: ${self.path_blockstore}`);
+    }
 
     if (!c.path_state || !fs.existsSync(c.path_state)) {
       self.path_state = path.join(self.path_app, 'state/');
     } else {
       self.path_state = c.path_state;
     }
+    if (!fs.existsSync(self.path_state)) {
+      throw new Error(`Path to the state database not found: ${self.path_state}`);
+    }
 
     if (!c.path_keys || !fs.existsSync(c.path_keys)) {
       self.path_keys = path.join(self.path_app, 'keys/');
     } else {
       self.path_keys = c.path_keys;
+    }
+    if (!fs.existsSync(self.path_keys)) {
+      throw new Error(`Path to the keys storage not found: ${self.path_keys}`);
     }
 
     self.http = c.http || process.env.HTTP || '';
