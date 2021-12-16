@@ -36,7 +36,6 @@ import { Api } from './api';
 import { ArrayCommand } from '../chain/transaction';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
-import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 export class Server {
   public readonly config: Config;
@@ -291,9 +290,6 @@ export class Server {
     if (!this.blockchain.add(block)) {
       return;
     }
-
-    //@FIXME logging
-    Logger.trace(`${toB32(this.config.udp)}.b32.i2p - block ${block.height} added (${block.hash})`);
 
     this.pool.clear(block);
 

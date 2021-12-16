@@ -23,6 +23,7 @@ import { Util } from '../chain/util';
 import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
+import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 const LENGTH_TOKEN = 32;
 const MIN_WAIT_JOIN_MS = 10000;
@@ -60,12 +61,9 @@ export class Bootstrap {
     }
   }
   async enterNetwork(publicKey: string) {
-    const s = [this.server.config.http, this.server.config.udp, publicKey].join('/');
-
-    //@FIXME logging
-    Logger.trace('Joining network: ' + 'join/' + s);
-
-    await this.server.getNetwork().fetchFromApi('join/' + s);
+    await this.server
+      .getNetwork()
+      .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
   }
 
   join(http: string, udp: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS, r: number = 0): boolean {
@@ -88,7 +86,9 @@ export class Bootstrap {
     setTimeout(async () => {
       let res: { token: string } = { token: '' };
       try {
-        res = JSON.parse(await this.server.getNetwork().fetchFromApi('http://' + http + '/challenge/' + token));
+        res = JSON.parse(
+          await this.server.getNetwork().fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`)
+        );
         this.confirm(http, udp, publicKey, res.token);
       } catch (error: any) {
         Logger.warn('Bootstrap.join() / challenge ' + error.toString());
