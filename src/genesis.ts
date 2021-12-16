@@ -52,7 +52,7 @@ export class Genesis {
 
     const pathApp = pathApplication || path.join(__dirname, '/../');
 
-    const pathGenesis = path.join(__dirname, '/../genesis/block.json');
+    const pathGenesis = path.join(__dirname, '/../genesis/block.v3.json');
     const genesis: BlockStruct = Blockchain.genesis(pathGenesis);
 
     const map = new Map();

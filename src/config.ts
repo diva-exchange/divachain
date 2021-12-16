@@ -22,7 +22,6 @@ import fs from 'fs';
 import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import crypto from 'crypto';
 import { Genesis } from './genesis';
-import { Wallet } from './chain/wallet';
 
 export type Configuration = {
   no_bootstrapping?: number;
@@ -74,15 +73,15 @@ export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
 
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
-const DEFAULT_BLOCK_FEED_PORT = 17469;
+const DEFAULT_BLOCK_FEED_PORT = DEFAULT_PORT + 1;
 
 const DEFAULT_I2P_SOCKS_PORT = 4445;
 
 const DEFAULT_I2P_SAM_TCP_PORT = 7656;
 const DEFAULT_I2P_SAM_UDP_PORT = 7655;
-const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = 17468;
-const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = 17470;
-const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
+const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = DEFAULT_PORT;
+const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_PORT + 2;
+const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
 
 const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
@@ -115,7 +114,6 @@ export class Config {
   public http: string = '';
   public udp: string = '';
 
-  public has_i2p: boolean = false;
   public i2p_socks_host: string = '';
   public i2p_socks_port: number = 0;
   public i2p_sam_http_host: string = '';
@@ -203,79 +201,53 @@ export class Config {
     self.http = c.http || process.env.HTTP || '';
     self.udp = c.udp || process.env.UDP || '';
 
-    self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || '';
+    self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || self.ip;
     self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
-    self.i2p_sam_http_host = c.i2p_sam_http_host || process.env.I2P_SAM_HTTP_HOST || '';
+    self.i2p_sam_http_host = c.i2p_sam_http_host || process.env.I2P_SAM_HTTP_HOST || self.ip;
     self.i2p_sam_http_port_tcp =
       Config.port(c.i2p_sam_http_port_tcp || process.env.I2P_SAM_HTTP_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
-    self.i2p_sam_udp_host = c.i2p_sam_udp_host || process.env.I2P_SAM_UDP_HOST || '';
+    self.i2p_sam_udp_host = c.i2p_sam_udp_host || process.env.I2P_SAM_UDP_HOST || self.ip;
     self.i2p_sam_udp_port_tcp =
       Config.port(c.i2p_sam_udp_port_tcp || process.env.I2P_SAM_UDP_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
     self.i2p_sam_udp_port_udp =
       Config.port(c.i2p_sam_udp_port_udp || process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT;
-    self.i2p_sam_forward_http_host = c.i2p_sam_forward_http_host || process.env.I2P_SAM_FORWARD_HTTP_HOST || '';
+    self.i2p_sam_forward_http_host = c.i2p_sam_forward_http_host || process.env.I2P_SAM_FORWARD_HTTP_HOST || self.ip;
     self.i2p_sam_forward_http_port =
       Config.port(c.i2p_sam_forward_http_port || process.env.I2P_SAM_FORWARD_HTTP_PORT) ||
       DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
-    self.i2p_sam_listen_udp_host = c.i2p_sam_listen_udp_host || process.env.I2P_SAM_LISTEN_UDP_HOST || '';
+    self.i2p_sam_listen_udp_host = c.i2p_sam_listen_udp_host || process.env.I2P_SAM_LISTEN_UDP_HOST || self.ip;
     self.i2p_sam_listen_udp_port =
       Config.port(c.i2p_sam_listen_udp_port || process.env.I2P_SAM_LISTEN_UDP_PORT) || DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
-    self.i2p_sam_forward_udp_host = c.i2p_sam_forward_udp_host || process.env.I2P_SAM_FORWARD_UDP_HOST || '';
+    self.i2p_sam_forward_udp_host = c.i2p_sam_forward_udp_host || process.env.I2P_SAM_FORWARD_UDP_HOST || self.ip;
     self.i2p_sam_forward_udp_port =
       Config.port(c.i2p_sam_forward_udp_port || process.env.I2P_SAM_FORWARD_UDP_PORT) ||
       DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
 
-    // CREATE_KEYS mode
-    if (process.env.CREATE_KEYS === '1') {
-      if (!!self.i2p_sam_http_host && self.i2p_sam_http_port_tcp > 0) {
-        self.http = (await Config.createI2PDestination(self)).public;
-        self.udp = (await Config.createI2PDestination(self)).public;
-        console.log(toB32(self.http) + '.b32.i2p');
-        console.log(toB32(self.udp) + '.b32.i2p');
-      }
-      Wallet.make(self).open();
-      process.exit(0);
+    if (self.http.length > 0) {
+      const _b32 = /\.b32\.i2p$/.test(self.http) ? self.http : toB32(self.http) + '.b32.i2p';
+      const _fn = crypto.createHash('md5').update(_b32).digest('hex');
+      const _p = path.join(self.path_keys, _fn);
+      self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
+      self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
+    } else {
+      const obj = await Config.createI2PDestination(self);
+      self.i2p_public_key_http = obj.public;
+      self.i2p_private_key_http = obj.private;
     }
+    self.http = self.i2p_public_key_http;
 
-    self.has_i2p =
-      !!self.i2p_socks_host &&
-      self.i2p_socks_port > 0 &&
-      !!self.i2p_sam_http_host &&
-      self.i2p_sam_http_port_tcp > 0 &&
-      !!self.i2p_sam_udp_host &&
-      self.i2p_sam_udp_port_tcp > 0;
-
-    if (self.has_i2p) {
-      if (self.http.length > 0) {
-        const _b32 = /\.b32\.i2p$/.test(self.http) ? self.http : toB32(self.http) + '.b32.i2p';
-        const _fn = crypto.createHash('md5').update(_b32).digest('hex');
-        const _p = path.join(self.path_keys, _fn);
-        self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
-        self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
-      } else {
-        const obj = await Config.createI2PDestination(self);
-        self.i2p_public_key_http = obj.public;
-        self.i2p_private_key_http = obj.private;
-      }
-      self.http = self.i2p_public_key_http;
-
-      if (self.udp.length > 0) {
-        const _b32 = /\.b32\.i2p$/.test(self.udp) ? self.udp : toB32(self.udp) + '.b32.i2p';
-        const _fn = crypto.createHash('md5').update(_b32).digest('hex');
-        const _p = path.join(self.path_keys, _fn);
-        self.i2p_public_key_udp = fs.readFileSync(_p + '.public').toString();
-        self.i2p_private_key_udp = fs.readFileSync(_p + '.private').toString();
-      } else {
-        const obj = await Config.createI2PDestination(self);
-        self.i2p_public_key_udp = obj.public;
-        self.i2p_private_key_udp = obj.private;
-      }
-      self.udp = self.i2p_public_key_udp;
+    if (self.udp.length > 0) {
+      const _b32 = /\.b32\.i2p$/.test(self.udp) ? self.udp : toB32(self.udp) + '.b32.i2p';
+      const _fn = crypto.createHash('md5').update(_b32).digest('hex');
+      const _p = path.join(self.path_keys, _fn);
+      self.i2p_public_key_udp = fs.readFileSync(_p + '.public').toString();
+      self.i2p_private_key_udp = fs.readFileSync(_p + '.private').toString();
+    } else {
+      const obj = await Config.createI2PDestination(self);
+      self.i2p_public_key_udp = obj.public;
+      self.i2p_private_key_udp = obj.private;
     }
-
-    if (!self.http || !self.udp) {
-      throw new Error('Invalid network configuration');
-    }
+    self.udp = self.i2p_public_key_udp;
 
     if (!c.path_genesis || !fs.existsSync(c.path_genesis)) {
       self.path_genesis = path.join(self.path_app, 'genesis/');

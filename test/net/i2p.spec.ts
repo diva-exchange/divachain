@@ -55,7 +55,7 @@ class TestServerI2P {
     const pathGenesis = path.join(__dirname, '/../genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
     let genesis: BlockStruct;
     if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
-      genesis = Blockchain.genesis(path.join(__dirname, '/../../genesis/block.json'));
+      genesis = Blockchain.genesis(path.join(__dirname, '/../../genesis/block.v3.json'));
       fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
       const obj = await Genesis.create(path.join(__dirname, '/../'));
       fs.writeFileSync(pathGenesis, JSON.stringify(obj.genesis));

@@ -24,6 +24,7 @@ import path from 'path';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
 import crypto from 'crypto';
+import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 export const NAME_HEADER_API_TOKEN = 'diva-api-token';
 const DEFAULT_LENGTH_TOKEN = 32;
@@ -58,8 +59,12 @@ export class Api {
   }
 
   private route() {
-    this.server.app.get('/join/:base64url', (req: Request, res: Response) => {
-      return this.server.getBootstrap().join(req.params.base64url) ? res.status(200).end() : res.status(403).end();
+    this.server.app.get('/join/:http/:udp/:publicKey', (req: Request, res: Response) => {
+      return this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
+        ? res
+            .status(200)
+            .json({ http: toB32(req.params.http), udp: toB32(req.params.udp), publicKey: req.params.publicKey })
+        : res.status(403).end();
     });
 
     this.server.app.get('/challenge/:token', (req: Request, res: Response) => {

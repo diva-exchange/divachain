@@ -71,13 +71,12 @@ export class Network extends EventEmitter {
     this.publicKey = this.server.getWallet().getPublicKey();
     Logger.info(`Network, public key: ${this.publicKey}`);
 
-    this.socksProxyAgent = this.server.config.has_i2p
-      ? new SocksProxyAgent(`socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`)
-      : false;
-    this.socksProxyAgent &&
-      Logger.info(
-        `Network, using SOCKS: socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
-      );
+    this.socksProxyAgent = new SocksProxyAgent(
+      `socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
+    );
+    Logger.info(
+      `Network, using SOCKS: socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
+    );
 
     if (this.server.config.bootstrap) {
       this.bootstrapNetwork();

@@ -34,7 +34,7 @@ class TestValidation {
 
   static async before() {
     TestValidation.config = await Config.make({
-      path_genesis: path.join(__dirname, '../genesis/block.json'),
+      path_genesis: path.join(__dirname, '../genesis/block.v3.json'),
       path_state: path.join(__dirname, '../state'),
       path_blockstore: path.join(__dirname, '../blockstore'),
       path_keys: path.join(__dirname, '../keys'),
