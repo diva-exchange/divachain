@@ -58,10 +58,8 @@ export class Api {
   }
 
   private route() {
-    this.server.app.get('/join/:http/:udp/:publicKey', (req: Request, res: Response) => {
-      return this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
-        ? res.status(200).json({ http: req.params.http, udp: req.params.udp, publicKey: req.params.publicKey })
-        : res.status(403).end();
+    this.server.app.get('/join/:base64url', (req: Request, res: Response) => {
+      return this.server.getBootstrap().join(req.params.base64url) ? res.status(200).end() : res.status(403).end();
     });
 
     this.server.app.get('/challenge/:token', (req: Request, res: Response) => {

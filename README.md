@@ -168,26 +168,32 @@ _Error handling:_ 404 (Not Found) will be returned if the transaction is not ava
 ### Transmitting Transactions
 
 #### PUT /transaction/{ident?}
-Submit a new transaction proposal to the network.
+Submit a new transaction proposal to the network. The body must contain an array of transaction objects.
 
 ### Joining and Leaving the Network
-This is an automated process. Neither developers nor users need to access these API endpoints.  
 
-#### GET /join/{address}/{publicKey}
-Request to join the network. A new address and a new public key wants to join the network.
+#### GET /join/{base64url}
+This endpoint is part of an automated process.
+
+Request to join the network. Requires a base6url (RFC4648) encoded string containing the http and udp endpoint and the public key. 
 
 Send this GET request to any remote peer in the network which is online. This remote peer will later - in some seconds or even minutes - send back an independent GET request to the local /challenge/ endpoint. 
 
 #### GET /leave/{address}
+This endpoint is part of an automated process.
+
 TBD.
 
 #### GET /challenge/{token}
+This endpoint is part of an automated process.
+
 Response will contain the signed token. Verify the response with the public key of the remote peer.
 
 ### Network Synchronization
-This is an automated process. Neither developers nor users need to access these API endpoints.  
 
 #### GET /sync/{height}
+This endpoint is part of an automated process.
+
 Get a well-defined number of blocks starting from {height} (including). See NETWORK_SYNC_SIZE.  
 
 ## How to Run Unit Tests
@@ -210,15 +216,12 @@ To stop the local I2P test environment (and purge all data):
 docker-compose -f test/local-i2p-testnet.yml down --volumes
 ```
 
-
-
 ## Linting
 
 To lint the code, use
 ```
 npm run lint
 ```
-
 
 ## Contact the Developers
 

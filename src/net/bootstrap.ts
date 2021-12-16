@@ -23,11 +23,14 @@ import { Util } from '../chain/util';
 import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
-import {toB32} from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import zlib from 'zlib';
+import { base64url } from 'rfc4648';
 
 const LENGTH_TOKEN = 32;
 const MIN_WAIT_JOIN_MS = 15000;
 const MAX_WAIT_JOIN_MS = 60000;
+const MAX_RETRY_JOIN = 10;
 
 export class Bootstrap {
   private readonly server: Server;
@@ -60,22 +63,37 @@ export class Bootstrap {
     }
   }
   async enterNetwork(publicKey: string) {
-    await this.server
-      .getNetwork()
-      .fetchFromApi('join/' + this.server.config.http + '/' + this.server.config.udp + '/' + publicKey);
+    const s = base64url.stringify(
+      zlib.deflateRawSync([this.server.config.http, this.server.config.udp, publicKey].join(':'))
+    );
+
+    //@FIXME logging
+    Logger.trace('Joining network: ' + 'join/' + s);
+
+    await this.server.getNetwork().fetchFromApi('join/' + s);
   }
 
-  join(http: string, udp: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS): boolean {
-    t = Math.floor(t);
-    t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
+  join(b64u: string, t: number = MIN_WAIT_JOIN_MS, r: number = 0): boolean {
+    let [http, udp, publicKey] = ''.split(':');
+    try {
+      [http, udp, publicKey] = zlib.inflateRawSync(base64url.parse(b64u)).toString().split(':');
+    } catch (error: any) {
+      Logger.warn('Bootstrap.join() ' + error.toString());
+      return false;
+    }
 
     if (
+      !http.length ||
+      !udp.length ||
       !/^[A-Za-z0-9_-]{43}$/.test(publicKey) ||
       this.mapToken.has(publicKey) ||
       this.server.getBlockchain().hasPeer(publicKey)
     ) {
       return false;
     }
+
+    t = Math.floor(t);
+    t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
 
     const token = nanoid(LENGTH_TOKEN);
     this.mapToken.set(publicKey, token);
@@ -87,14 +105,18 @@ export class Bootstrap {
         res = JSON.parse(await this.server.getNetwork().fetchFromApi('http://' + http + '/challenge/' + token));
         this.confirm(http, udp, publicKey, res.token);
       } catch (error: any) {
-        Logger.warn('Bootstrap.join() failed: ' + error.toString());
+        Logger.warn('Bootstrap.join() / challenge ' + error.toString());
 
         // retry
-        this.mapToken.delete(publicKey);
-        t = t + MIN_WAIT_JOIN_MS;
-        setTimeout(() => {
-          this.join(http, udp, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t);
-        }, t);
+        if (r < MAX_RETRY_JOIN) {
+          this.mapToken.delete(publicKey);
+          t = t + MIN_WAIT_JOIN_MS;
+          setTimeout(() => {
+            this.join(b64u, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t, r++);
+          }, t);
+        } else {
+          Logger.info('Bootstrap.join() / giving up');
+        }
       }
     }, t);
 

@@ -17,7 +17,7 @@
  * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
  */
 
-import base64url from 'base64url';
+import { base64url } from 'rfc4648';
 import { nanoid } from 'nanoid';
 import zlib from 'zlib';
 
@@ -77,9 +77,9 @@ export class Message {
   protected _pack(version: number = Message.VERSION): string {
     switch (version) {
       case Message.VERSION_2:
-        return version + ';' + base64url.encode(JSON.stringify(this.message)) + '\n';
+        return version + ';' + base64url.stringify(Buffer.from(JSON.stringify(this.message))) + '\n';
       case Message.VERSION_3:
-        return version + ';' + zlib.deflateRawSync(JSON.stringify(this.message)).toString('base64') + '\n';
+        return version + ';' + base64url.stringify(zlib.deflateRawSync(JSON.stringify(this.message))) + '\n';
     }
     throw new Error('Message.pack(): unsupported data version');
   }
@@ -98,10 +98,10 @@ export class Message {
 
     switch (version) {
       case Message.VERSION_2:
-        this.message = JSON.parse(base64url.decode(message));
+        this.message = JSON.parse(base64url.parse(message).toString());
         break;
       case Message.VERSION_3:
-        this.message = JSON.parse(zlib.inflateRawSync(Buffer.from(message, 'base64')).toString());
+        this.message = JSON.parse(zlib.inflateRawSync(base64url.parse(message)).toString());
         break;
       default:
         throw new Error(`Message.unpack(): unsupported data version ${version}`);

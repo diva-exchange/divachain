@@ -21,7 +21,7 @@ import sodium from 'sodium-native';
 import fs from 'fs';
 import path from 'path';
 import { Config } from '../config';
-import base64url from 'base64url';
+import { base64url } from 'rfc4648';
 import crypto from 'crypto';
 
 export class Wallet {
@@ -73,13 +73,13 @@ export class Wallet {
     const bufferSignature: Buffer = Buffer.alloc(sodium.crypto_sign_BYTES);
     sodium.crypto_sign_detached(bufferSignature, Buffer.from(data), this.secretKey);
 
-    return base64url.encode(bufferSignature.toString('binary'), 'binary');
+    return base64url.stringify(bufferSignature, { pad: false });
   }
 
   getPublicKey(): string {
     if (!this.ident) {
       this.open();
     }
-    return base64url.encode(this.publicKey.toString('binary'), 'binary');
+    return base64url.stringify(this.publicKey, { pad: false });
   }
 }

@@ -155,7 +155,7 @@ class TestServerI2P {
     console.debug('waiting 30s to integrate');
     await TestServerI2P.wait(30000);
 
-    const _outer = Number(process.env.TRANSACTIONS) > 10 ? Number(process.env.TRANSACTIONS) : 100;
+    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 10;
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions
