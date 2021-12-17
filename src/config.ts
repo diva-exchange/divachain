@@ -148,10 +148,10 @@ export class Config {
       const obj = await Genesis.create();
       const _p = process.env.GENESIS_PATH || '';
       if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
-        fs.writeFileSync(_p, JSON.stringify(obj.genesis));
+        fs.writeFileSync(_p, JSON.stringify(obj.genesis), { mode: '0644' });
         const _c = process.env.GENESIS_CONFIG_PATH || '';
         if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
-          fs.writeFileSync(_c, JSON.stringify(obj.config));
+          fs.writeFileSync(_c, JSON.stringify(obj.config), { mode: '0600' });
         }
       } else {
         process.stdout.write(JSON.stringify(obj.genesis));

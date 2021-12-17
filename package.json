@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.24.1",
+  "version": "0.24.2",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "bin": "dist/main.js",
   "keywords": [
@@ -43,7 +43,7 @@
     "@diva.exchange/i2p-sam": "^4.0.1",
     "ajv": "^8.8.2",
     "compression": "^1.7.4",
-    "express": "^4.17.1",
+    "express": "^4.17.2",
     "http-errors": "^1.8.1",
     "leveldown": "^6.1.0",
     "levelup": "^5.1.1",
