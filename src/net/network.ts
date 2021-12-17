@@ -165,7 +165,8 @@ export class Network extends EventEmitter {
 
   private hasP2PNetwork() {
     return (
-      this.arrayNetwork.length > [...this.server.getBlockchain().getMapPeer().values()].length * 0.5 &&
+      (this.server.config.bootstrap ||
+        this.arrayNetwork.length > [...this.server.getBlockchain().getMapPeer().values()].length * 0.5) &&
       Object.keys(this.samForward).length &&
       Object.keys(this.samUDP).length
     );
