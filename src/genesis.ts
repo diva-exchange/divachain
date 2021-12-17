@@ -114,6 +114,6 @@ export class Genesis {
     ];
     genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
 
-    return Promise.resolve({ genesis: genesis, config: [...map] });
+    return Promise.resolve({ genesis: genesis, config: [...map.values()] });
   }
 }
