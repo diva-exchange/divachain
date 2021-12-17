@@ -145,13 +145,13 @@ export class Config {
 
     // GENESIS mode
     if (process.env.GENESIS === '1') {
-      const obj = await Genesis.create();
+      const obj: { genesis: any; config: any } = await Genesis.create();
       const _p = process.env.GENESIS_PATH || '';
       if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
         fs.writeFileSync(_p, JSON.stringify(obj.genesis), { mode: '0644' });
         const _c = process.env.GENESIS_CONFIG_PATH || '';
         if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
-          fs.writeFileSync(_c, JSON.stringify(obj.config), { mode: '0600' });
+          fs.writeFileSync(_c, JSON.stringify({ http: obj.config.http, udp: obj.config.udp }), { mode: '0644' });
         }
       } else {
         process.stdout.write(JSON.stringify(obj.genesis));
