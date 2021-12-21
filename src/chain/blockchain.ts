@@ -429,7 +429,7 @@ export class Blockchain {
     try {
       const arrayState = await this.getState(key);
       const mapDecision: Map<string, { stake: number; base64url: string }> = arrayState.length
-        ? new Map(Blockchain.unpack(arrayState[0].value))
+        ? new Map(arrayState[0].value)
         : new Map();
       mapDecision.set(origin, { stake: this.getStake(origin), base64url: b64url });
       const stake = [...mapDecision.values()].filter((v) => v.base64url === b64url).reduce((p, v) => p + v.stake, 0);
