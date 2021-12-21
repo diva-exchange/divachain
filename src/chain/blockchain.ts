@@ -261,7 +261,7 @@ export class Blockchain {
           .on('end', () => {
             resolve(a);
           })
-          .on('error', (e) => {
+          .on('error', () => {
             resolve([])
           });
       } else {
@@ -418,8 +418,9 @@ export class Blockchain {
 
     const key = Blockchain.STATE_DECISION_IDENT + ns;
     try {
+      const arrayState = await this.getState(key);
       const mapDecision: Map<string, { stake: number, base64url: string }> =
-        new Map(JSON.parse((await this.getState(key))[0].value));
+        arrayState.length ? new Map(JSON.parse(arrayState[0].value)) : new Map();
       mapDecision.set(origin, { stake: this.getStake(origin), base64url: base64url });
       const stake = [...mapDecision.values()]
         .filter((v) => v.base64url === base64url )
