@@ -95,16 +95,12 @@ export class Api {
 
     this.server.app.get('/state/:key?', async (req: Request, res: Response) => {
       const key = req.params.key || '';
-      try {
-        const filter = req.query.filter ? new RegExp(req.query.filter.toString()) : false;
-        const arrayState: Array<{ key: string; value: string }> = await this.server.getBlockchain().getState(key);
-        if (filter) {
-          return res.json(arrayState.filter((o) => filter.test(o.key)));
-        }
-        return res.json(arrayState);
-      } catch (error) {
-        return res.status(404).end();
+      const filter = req.query.filter ? new RegExp(req.query.filter.toString()) : false;
+      const arrayState: Array<{ key: string; value: string }> = await this.server.getBlockchain().getState(key);
+      if (arrayState.length && filter) {
+        return res.json(arrayState.filter((o) => filter.test(o.key)));
       }
+      return arrayState.length ? res.json(arrayState) : res.status(404).end();
     });
 
     this.server.app.get('/stack', (req: Request, res: Response) => {

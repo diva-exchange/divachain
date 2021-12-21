@@ -247,7 +247,7 @@ export class Blockchain {
   }
 
   async getState(key: string): Promise<Array<{ key: string; value: string }>> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!key.length) {
         const a: Array<any> = [];
         this.dbState
@@ -262,11 +262,11 @@ export class Blockchain {
             resolve(a);
           })
           .on('error', (e) => {
-            reject(e);
+            resolve([])
           });
       } else {
         this.dbState.get(key, (error, value: Buffer) => {
-          error ? reject(error) : resolve([{ key: key, value: value.toString() }]);
+          error ? resolve([]) : resolve([{ key: key, value: value.toString() }]);
         });
       }
     });
@@ -412,12 +412,7 @@ export class Blockchain {
 
   private async setDecision(ns: string, origin: string, base64url: string) {
     const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
-    try {
-      if ((await this.getState(keyTaken)).length) {
-        return;
-      }
-    } catch (error: any) {
-      Logger.warn(`Blockchain.setDecision() ${keyTaken} ${error.toString()}`);
+    if ((await this.getState(keyTaken)).length) {
       return;
     }
 
