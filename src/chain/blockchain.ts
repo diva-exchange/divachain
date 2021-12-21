@@ -33,6 +33,7 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
+import {base64url} from 'rfc4648';
 
 export type Peer = {
   publicKey: string;
@@ -362,10 +363,12 @@ export class Blockchain {
             await this.modifyStake(c as CommandModifyStake);
             break;
           case Blockchain.COMMAND_DATA:
-            await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).base64url);
+            await this.updateStateData((c as CommandData).ns + ':' + t.origin,
+              base64url.parse((c as CommandData).base64url, { loose: true }).toString());
             break;
           case Blockchain.COMMAND_DECISION:
-            await this.setDecision((c as CommandDecision).ns, t.origin, (c as CommandDecision).base64url);
+            await this.setDecision((c as CommandDecision).ns, t.origin,
+              base64url.parse((c as CommandDecision).base64url, { loose: true }).toString());
             break;
         }
       }
@@ -410,7 +413,7 @@ export class Blockchain {
     }
   }
 
-  private async setDecision(ns: string, origin: string, base64url: string) {
+  private async setDecision(ns: string, origin: string, b64url: string) {
     const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
     if ((await this.getState(keyTaken)).length) {
       return;
@@ -421,12 +424,12 @@ export class Blockchain {
       const arrayState = await this.getState(key);
       const mapDecision: Map<string, { stake: number, base64url: string }> =
         arrayState.length ? new Map(JSON.parse(arrayState[0].value)) : new Map();
-      mapDecision.set(origin, { stake: this.getStake(origin), base64url: base64url });
+      mapDecision.set(origin, { stake: this.getStake(origin), base64url: b64url });
       const stake = [...mapDecision.values()]
-        .filter((v) => v.base64url === base64url )
+        .filter((v) => v.base64url === b64url )
         .reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
-        await this.updateStateData(keyTaken, base64url);
+        await this.updateStateData(keyTaken, base64url.parse(b64url, { loose: true }).toString());
       } else {
         await this.updateStateData(key, JSON.stringify([...mapDecision]));
       }
