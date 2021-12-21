@@ -49,7 +49,7 @@ export class Blockchain {
   public static readonly COMMAND_DECISION = 'decision';
   public static readonly STATE_DECISION_IDENT = 'decision:';
   public static readonly STATE_PEER_IDENT = 'peer:';
-  public static readonly STATE_DECISION_TAKEN = 'taken';
+  public static readonly STATE_DECISION_TAKEN = 'decision:taken:';
 
   private readonly server: Server;
   private readonly publicKey: string;
@@ -365,7 +365,7 @@ export class Blockchain {
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).base64url);
             break;
           case Blockchain.COMMAND_DECISION:
-            await this.setDecision((c as CommandDecision).ns, t.origin);
+            await this.setDecision((c as CommandDecision).ns, t.origin, (c as CommandDecision).base64url);
             break;
         }
       }
@@ -410,24 +410,32 @@ export class Blockchain {
     }
   }
 
-  private async setDecision(ns: string, origin: string) {
-    const key = Blockchain.STATE_DECISION_IDENT + ns;
-    let objOriginStake: { [origin: string]: number };
+  private async setDecision(ns: string, origin: string, base64url: string) {
+    const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
     try {
-      const v = (await this.getState(key))[0].value;
-      if (v === Blockchain.STATE_DECISION_TAKEN) {
+      if ((await this.getState(keyTaken)).length) {
         return;
       }
-      objOriginStake = JSON.parse(v);
-    } catch (error) {
-      objOriginStake = {};
+    } catch (error: any) {
+      Logger.warn(`Blockchain.setDecision() ${keyTaken} ${error.toString()}`);
+      return;
     }
-    if (!objOriginStake[origin]) {
-      objOriginStake[origin] = this.getStake(origin);
-      await this.updateStateData(key, JSON.stringify(objOriginStake));
-      if (this.getQuorum() <= Object.values(objOriginStake).reduce((a, b) => a + b, 0)) {
-        await this.updateStateData(key, Blockchain.STATE_DECISION_TAKEN);
+
+    const key = Blockchain.STATE_DECISION_IDENT + ns;
+    try {
+      const mapDecision: Map<string, { stake: number, base64url: string }> =
+        new Map(JSON.parse((await this.getState(key))[0].value));
+      mapDecision.set(origin, { stake: this.getStake(origin), base64url: base64url });
+      const stake = [...mapDecision.values()]
+        .filter((v) => v.base64url === base64url )
+        .reduce((p, v) => p + v.stake, 0);
+      if (stake >= this.getQuorum()) {
+        await this.updateStateData(keyTaken, base64url);
+      } else {
+        await this.updateStateData(key, JSON.stringify([...mapDecision]));
       }
+    } catch (error: any) {
+      Logger.warn(`Blockchain.setDecision() ${key} ${error.toString()}`);
     }
   }
 
