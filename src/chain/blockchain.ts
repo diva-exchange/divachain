@@ -33,7 +33,7 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
-import {base64url} from 'rfc4648';
+import { base64url } from 'rfc4648';
 
 export type Peer = {
   publicKey: string;
@@ -247,14 +247,17 @@ export class Blockchain {
     });
   }
 
-  async getState(key: string): Promise<Array<{ key: string; value: string }>> {
+  async getState(key: string): Promise<Array<{ key: string; value: any }>> {
     return new Promise((resolve) => {
       if (!key.length) {
         const a: Array<any> = [];
         this.dbState
           .createReadStream()
           .on('data', (data) => {
-            a.push({ key: data.key.toString(), value: data.value.toString() });
+            a.push({
+              key: data.key.toString(),
+              value: Blockchain.unpack(data.value.toString()),
+            });
             if (a.length === this.server.config.api_max_query_size) {
               return resolve(a);
             }
@@ -263,11 +266,13 @@ export class Blockchain {
             resolve(a);
           })
           .on('error', () => {
-            resolve([])
+            resolve([]);
           });
       } else {
         this.dbState.get(key, (error, value: Buffer) => {
-          error ? resolve([]) : resolve([{ key: key, value: value.toString() }]);
+          error
+            ? resolve([])
+            : resolve([{ key: key, value: Blockchain.unpack(value.toString()) }]);
         });
       }
     });
@@ -363,12 +368,13 @@ export class Blockchain {
             await this.modifyStake(c as CommandModifyStake);
             break;
           case Blockchain.COMMAND_DATA:
-            await this.updateStateData((c as CommandData).ns + ':' + t.origin,
-              base64url.parse((c as CommandData).base64url, { loose: true }).toString());
+            await this.updateStateData(
+              (c as CommandData).ns + ':' + t.origin,
+              Blockchain.unpack((c as CommandData).base64url)
+            );
             break;
           case Blockchain.COMMAND_DECISION:
-            await this.setDecision((c as CommandDecision).ns, t.origin,
-              base64url.parse((c as CommandDecision).base64url, { loose: true }).toString());
+            await this.setDecision((c as CommandDecision).ns, t.origin, (c as CommandDecision).base64url);
             break;
         }
       }
@@ -422,16 +428,15 @@ export class Blockchain {
     const key = Blockchain.STATE_DECISION_IDENT + ns;
     try {
       const arrayState = await this.getState(key);
-      const mapDecision: Map<string, { stake: number, base64url: string }> =
-        arrayState.length ? new Map(JSON.parse(arrayState[0].value)) : new Map();
+      const mapDecision: Map<string, { stake: number; base64url: string }> = arrayState.length
+        ? new Map(Blockchain.unpack(arrayState[0].value))
+        : new Map();
       mapDecision.set(origin, { stake: this.getStake(origin), base64url: b64url });
-      const stake = [...mapDecision.values()]
-        .filter((v) => v.base64url === b64url )
-        .reduce((p, v) => p + v.stake, 0);
+      const stake = [...mapDecision.values()].filter((v) => v.base64url === b64url).reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
-        await this.updateStateData(keyTaken, base64url.parse(b64url, { loose: true }).toString());
+        await this.updateStateData(keyTaken, Blockchain.unpack(b64url));
       } else {
-        await this.updateStateData(key, JSON.stringify([...mapDecision]));
+        await this.updateStateData(key, [...mapDecision]);
       }
     } catch (error: any) {
       Logger.warn(`Blockchain.setDecision() ${key} ${error.toString()}`);
@@ -446,11 +451,19 @@ export class Blockchain {
     }
   }
 
-  private async updateStateData(key: string, value: string | number) {
+  private async updateStateData(key: string, value: any) {
     try {
-      await this.dbState.put(key, value);
+      await this.dbState.put(key, Blockchain.pack(value));
     } catch (error) {
       Logger.warn('Blockchain.updateStateData() failed: ' + JSON.stringify(error));
     }
+  }
+
+  private static pack(data: any): string {
+    return base64url.stringify(Buffer.from(JSON.stringify(data), 'binary'), { pad: false });
+  }
+
+  private static unpack(b64url: string): any {
+    return JSON.parse(Buffer.from(base64url.parse(b64url, { loose: true })).toString('binary'));
   }
 }
