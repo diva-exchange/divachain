@@ -207,9 +207,10 @@ export class Blockchain {
         ? this.server.config.api_max_query_size
         : Math.floor(size);
     size = size > this.height ? this.height : size;
-    const lte = page * size;
-    const gte = lte - size + 1;
-
+    let gte = this.height - (page * size) + 1;
+    gte = gte < 1 ? 1 : gte;
+    let lte = gte + size - 1;
+    lte = lte > this.height ? this.height : lte;
     return this.getRange(gte, lte);
   }
 
