@@ -213,7 +213,7 @@ export class Blockchain {
     let gte = height - (page * size) + 1;
     gte = gte < 1 ? 1 : gte;
 
-    return filter ? Promise.resolve(aFiltered.slice(gte, gte + size)) : this.getRange(gte, gte + size - 1);
+    return filter ? Promise.resolve(aFiltered.slice(gte - 1, gte + size - 1)) : this.getRange(gte, gte + size - 1);
   }
 
   private async filter(f: RegExp): Promise<Array<BlockStruct>> {
