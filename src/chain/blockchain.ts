@@ -173,12 +173,8 @@ export class Blockchain {
   }
 
   async getRange(gte: number, lte: number): Promise<Array<BlockStruct>> {
-    if (gte < 1) {
-      throw new Error('Blockchain.getRange(): invalid range');
-    }
-
     lte = Math.floor(lte < 1 ? this.height : lte);
-    gte = gte <= this.height ? Math.floor(gte) : this.height;
+    gte = gte <= this.height ? (gte < 1 ? 1 : Math.floor(gte)) : this.height;
     lte = lte <= this.height ? lte : this.height;
     gte = lte - gte > 0 ? gte : lte;
     gte = lte - gte >= this.server.config.api_max_query_size ? lte - this.server.config.api_max_query_size + 1 : gte;
@@ -211,7 +207,7 @@ export class Blockchain {
         ? this.server.config.api_max_query_size
         : Math.floor(size);
     size = size > this.height ? this.height : size;
-    const lte = this.height - (page - 1) * size < 1 ? size : this.height - (page - 1) * size;
+    const lte = page * size;
     const gte = lte - size + 1;
 
     return this.getRange(gte, lte);
