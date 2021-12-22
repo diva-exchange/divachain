@@ -21,7 +21,6 @@ import { Server } from './server';
 import { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
-import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
 import crypto from 'crypto';
 import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
@@ -138,12 +137,7 @@ export class Api {
         return res.status(404).end();
       }
       try {
-        const filter = req.query.filter ? new RegExp(req.query.filter.toString()) : false;
-        const arrayBlocks: Array<BlockStruct> = await this.server.getBlockchain().getRange(gte, lte);
-        if (filter) {
-          return res.json(arrayBlocks.filter((b) => filter.test(JSON.stringify(b))));
-        }
-        return res.json(arrayBlocks);
+        return res.json(await this.server.getBlockchain().getRange(gte, lte));
       } catch (error) {
         return res.status(404).end();
       }
@@ -152,7 +146,14 @@ export class Api {
     this.server.app.get('/page/:page/:size?', async (req: Request, res: Response) => {
       const page = Number(req.params.page || 1);
       const size = Number(req.params.size || 0);
-      return res.json(await this.server.getBlockchain().getPage(page, size));
+      try {
+        const filter = req.query.filter && req.query.filter.toString().length > 2
+          ? new RegExp(req.query.filter.toString())
+          : false;
+        return res.json(await this.server.getBlockchain().getPage(page, size, filter));
+      } catch (error) {
+        return res.status(404).end();
+      }
     });
 
     this.server.app.get('/transaction/:origin/:ident', async (req: Request, res: Response) => {

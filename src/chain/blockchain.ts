@@ -200,18 +200,36 @@ export class Blockchain {
     });
   }
 
-  async getPage(page: number, size: number): Promise<Array<BlockStruct>> {
+  async getPage(page: number, size: number, filter: RegExp | false = false): Promise<Array<BlockStruct>> {
     page = page < 1 ? 1 : Math.floor(page);
     size =
       size < 1 || size > this.server.config.api_max_query_size
         ? this.server.config.api_max_query_size
         : Math.floor(size);
-    size = size > this.height ? this.height : size;
-    let gte = this.height - (page * size) + 1;
+
+    const aFiltered = filter ? await this.filter(filter) : [];
+    const height = aFiltered.length || this.height;
+
+    let gte = height - (page * size) + 1;
     gte = gte < 1 ? 1 : gte;
-    let lte = gte + size - 1;
-    lte = lte > this.height ? this.height : lte;
-    return this.getRange(gte, lte);
+
+    return filter ? Promise.resolve(aFiltered.slice(gte, gte + size)) : this.getRange(gte, gte + size - 1);
+  }
+
+  private async filter(f: RegExp): Promise<Array<BlockStruct>> {
+    return new Promise((resolve, reject) => {
+      const a: Array<BlockStruct> = [];
+      this.dbBlockchain
+        .createValueStream()
+        .on('data', (data) => {
+          const b = JSON.parse(data);
+          f.test(JSON.stringify(b)) && a.push(b);
+        })
+        .on('end', () => {
+          resolve(a);
+        })
+        .on('error', reject);
+    });
   }
 
   async getTransaction(origin: string, ident: string): Promise<{ height: number; transaction: TransactionStruct }> {
