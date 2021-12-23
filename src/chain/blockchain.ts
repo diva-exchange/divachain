@@ -210,7 +210,7 @@ export class Blockchain {
     const aFiltered = filter ? await this.filter(filter) : [];
     const height = aFiltered.length || this.height;
 
-    let gte = height - (page * size) + 1;
+    let gte = height - page * size + 1;
     gte = gte < 1 ? 1 : gte;
 
     return filter ? Promise.resolve(aFiltered.slice(gte - 1, gte + size - 1)) : this.getRange(gte, gte + size - 1);
@@ -285,9 +285,7 @@ export class Blockchain {
           });
       } else {
         this.dbState.get(key, (error, value: Buffer) => {
-          error
-            ? resolve([])
-            : resolve([{ key: key, value: Blockchain.unpack(value.toString()) }]);
+          error ? resolve([]) : resolve([{ key: key, value: Blockchain.unpack(value.toString()) }]);
         });
       }
     });
@@ -461,24 +459,34 @@ export class Blockchain {
   private async updateBlockData(key: string, value: string | number) {
     try {
       await this.dbBlockchain.put(key, value);
-    } catch (error) {
-      Logger.warn('Blockchain.updateBlockData() failed: ' + JSON.stringify(error));
+    } catch (error: any) {
+      Logger.warn(`Blockchain.updateBlockData() ${error.toString()}`);
     }
   }
 
   private async updateStateData(key: string, value: any) {
     try {
       await this.dbState.put(key, Blockchain.pack(value));
-    } catch (error) {
-      Logger.warn('Blockchain.updateStateData() failed: ' + JSON.stringify(error));
+    } catch (error: any) {
+      Logger.warn(`Blockchain.updateStateData() ${error.toString()}`);
     }
   }
 
   private static pack(data: any): string {
-    return base64url.stringify(Buffer.from(JSON.stringify(data), 'binary'), { pad: false });
+    try {
+      return base64url.stringify(Buffer.from(JSON.stringify(data), 'binary'), { pad: false });
+    } catch (error: any) {
+      Logger.warn(`Blockchain.pack() ${error.toString()}`);
+      return '';
+    }
   }
 
   private static unpack(b64url: string): any {
-    return JSON.parse(Buffer.from(base64url.parse(b64url, { loose: true })).toString('binary'));
+    try {
+      return JSON.parse(Buffer.from(base64url.parse(b64url, { loose: true })).toString('binary'));
+    } catch (error: any) {
+      Logger.warn(`Blockchain.unpack() ${error.toString()}`);
+      return {};
+    }
   }
 }

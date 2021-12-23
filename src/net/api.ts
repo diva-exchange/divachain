@@ -147,9 +147,8 @@ export class Api {
       const page = Number(req.params.page || 1);
       const size = Number(req.params.size || 0);
       try {
-        const filter = req.query.filter && req.query.filter.toString().length > 2
-          ? new RegExp(req.query.filter.toString())
-          : false;
+        const filter =
+          req.query.filter && req.query.filter.toString().length > 2 ? new RegExp(req.query.filter.toString()) : false;
         return res.json(await this.server.getBlockchain().getPage(page, size, filter));
       } catch (error) {
         return res.status(404).end();
