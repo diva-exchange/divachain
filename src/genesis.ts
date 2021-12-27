@@ -21,7 +21,7 @@ import path from 'path';
 import { BlockStruct } from './chain/block';
 import { Blockchain } from './chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from './chain/transaction';
-import { Config } from './config';
+import { Config, DEFAULT_NAME_GENESIS_BLOCK } from './config';
 import { Wallet } from './chain/wallet';
 import crypto from 'crypto';
 import { Util } from './chain/util';
@@ -52,7 +52,7 @@ export class Genesis {
 
     const pathApp = pathApplication || path.join(__dirname, '/../');
 
-    const pathGenesis = path.join(__dirname, '/../genesis/block.v3.json');
+    const pathGenesis = path.join(__dirname, '/../genesis', DEFAULT_NAME_GENESIS_BLOCK + '.json');
     const genesis: BlockStruct = Blockchain.genesis(pathGenesis);
 
     const map = new Map();
@@ -114,6 +114,6 @@ export class Genesis {
     ];
     genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
 
-    return Promise.resolve({ genesis: genesis, config: [...map.values()] });
+    return Promise.resolve({ genesis: genesis, config: [...map] });
   }
 }

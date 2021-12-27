@@ -26,8 +26,6 @@ import { Server } from '../../src/net/server';
 import { Config, DEFAULT_NAME_GENESIS_BLOCK } from '../../src/config';
 import crypto from 'crypto';
 import { Logger } from '../../src/logger';
-import { BlockStruct } from '../../src/chain/block';
-import { Blockchain } from '../../src/chain/blockchain';
 import fs from 'fs';
 import path from 'path';
 
@@ -44,8 +42,8 @@ class TestServerI2P {
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
     process.env.I2P_SOCKS_HOST = '172.19.75.11';
-    process.env.I2P_HTTP_HOST = '172.19.75.11';
-    process.env.I2P_UDP_HOST = '172.19.75.12';
+    process.env.I2P_SAM_HTTP_HOST = '172.19.75.11';
+    process.env.I2P_SAM_UDP_HOST = '172.19.75.12';
     process.env.I2P_SAM_FORWARD_HTTP_HOST = process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1';
     process.env.I2P_SAM_FORWARD_HTTP_PORT = process.env.I2P_SAM_FORWARD_HTTP_PORT || process.env.BASE_PORT;
     process.env.I2P_SAM_FORWARD_UDP_HOST = process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1';
@@ -53,13 +51,10 @@ class TestServerI2P {
     process.env.DEBUG_PERFORMANCE = '1';
 
     const pathGenesis = path.join(__dirname, '/../genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
-    let genesis: BlockStruct;
     if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
-      genesis = Blockchain.genesis(path.join(__dirname, '/../../genesis/block.v3.json'));
-      fs.writeFileSync(pathGenesis, JSON.stringify(genesis));
       const obj = await Genesis.create(path.join(__dirname, '/../'));
       fs.writeFileSync(pathGenesis, JSON.stringify(obj.genesis));
-      fs.writeFileSync(pathGenesis + '.config', JSON.stringify([...obj.config]), { mode: '0600' });
+      fs.writeFileSync(pathGenesis + '.config', JSON.stringify(obj.config), { mode: '0600' });
     } else {
       fs.rmdirSync(__dirname + '/../blockstore', { recursive: true });
       fs.rmdirSync(__dirname + '/../state', { recursive: true });
@@ -78,6 +73,7 @@ class TestServerI2P {
       c.path_keys = path.join(__dirname, '/../keys/');
       c.path_blockstore = path.join(__dirname, '/../blockstore/');
       c.path_state = path.join(__dirname, '/../state/');
+
       TestServerI2P.mapConfigServer.set(pk, c);
       await TestServerI2P.createServer(pk);
     }
@@ -117,28 +113,25 @@ class TestServerI2P {
   @test
   @timeout(90000)
   async transactionTestLoad() {
-    Logger.trace('waiting 30s to integrate');
-    await TestServerI2P.wait(30000);
-
     for (let t = 0; t < 3; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
       Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/data' + t)
-        .send([{ seq: 1, command: 'data', ns: 'test:test', base64url: 'abcABC' + t }]);
+        .send([{ seq: 1, command: 'data', ns: 'test:data', d: 'abcABC' + t }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('data' + t);
       await TestServerI2P.wait(50);
     }
 
-    for (let t = 0; t < 3; t++) {
+    for (let t = 0; t < [...TestServerI2P.mapConfigServer.values()].length; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
       Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t)
-        .send([{ seq: 1, command: 'decision', ns: 'test:test', base64url: 'abcABC' + t }]);
+        .send([{ seq: 1, command: 'decision', ns: 'test:decision', d: 'SomeDecision' }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('decision' + t);
       await TestServerI2P.wait(1000);
@@ -146,15 +139,12 @@ class TestServerI2P {
 
     Logger.trace('waiting for a possible sync...');
     // wait for a possible sync
-    await TestServerI2P.wait(30000);
+    await TestServerI2P.wait(60000);
   }
 
   @test
   @timeout(10000000)
   async stressMultiTransaction() {
-    console.debug('waiting 30s to integrate');
-    await TestServerI2P.wait(30000);
-
     const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 10;
     const _inner = 4; // commands
 
@@ -169,7 +159,7 @@ class TestServerI2P {
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
-        aT.push({ seq: seq++, command: 'data', ns: 'test:test', base64url: Date.now().toString() });
+        aT.push({ seq: seq++, command: 'data', ns: 'test:test', d: Date.now().toString() });
       }
       const i = crypto.randomInt(0, arrayConfig.length);
 
@@ -192,7 +182,7 @@ class TestServerI2P {
 
     console.debug('waiting 120s to sync');
     // wait for a possible sync
-    await TestServerI2P.wait(120000);
+    await TestServerI2P.wait(90000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];

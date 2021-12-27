@@ -91,8 +91,6 @@ export class Network extends EventEmitter {
   shutdown() {
     clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
-
-    this.samUDP.close();
   }
 
   private init() {

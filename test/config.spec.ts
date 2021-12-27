@@ -20,32 +20,29 @@
 import { suite, test } from '@testdeck/mocha';
 import { expect } from 'chai';
 
-import { Config, Configuration } from '../src/config';
-import fs from 'fs';
+import { Config } from '../src/config';
+import path from 'path';
 
 @suite
 class TestConfig {
+  static before() {
+    process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
+    process.env.IP = process.env.IP || '0.0.0.0';
+    process.env.BASE_PORT = process.env.BASE_PORT || '17000';
+    process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
+    process.env.I2P_SOCKS_HOST = '172.19.75.11';
+    process.env.I2P_SAM_HTTP_HOST = '172.19.75.11';
+    process.env.I2P_SAM_UDP_HOST = '172.19.75.12';
+    process.env.I2P_SAM_FORWARD_HTTP_HOST = process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1';
+    process.env.I2P_SAM_FORWARD_HTTP_PORT = process.env.I2P_SAM_FORWARD_HTTP_PORT || process.env.BASE_PORT;
+    process.env.I2P_SAM_FORWARD_UDP_HOST = process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1';
+    process.env.I2P_SAM_LISTEN_UDP_HOST = process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0';
+    process.env.DEBUG_PERFORMANCE = '1';
+  }
+
   @test
   async config() {
-    const c = await Config.make({ network_p2p_interval_ms: 5000, network_size: 100 } as Configuration);
+    const c = await Config.make({ path_app: __dirname, path_genesis: path.join(__dirname, '../genesis/') });
     expect(c.ip).is.not.empty;
-  }
-
-  @test
-  async configPathExist() {
-    fs.rmdirSync(__dirname + '/blockstore', { recursive: true });
-    fs.rmdirSync(__dirname + '/state', { recursive: true });
-    fs.rmdirSync(__dirname + '/keys', { recursive: true });
-    const c = await Config.make({ path_app: __dirname } as Configuration);
-    expect(c.ip).is.not.empty;
-    fs.copyFileSync(__dirname + '/../blockstore/.gitignore', __dirname + '/blockstore/.gitignore');
-    fs.copyFileSync(__dirname + '/../state/.gitignore', __dirname + '/state/.gitignore');
-    fs.copyFileSync(__dirname + '/../keys/.gitignore', __dirname + '/keys/.gitignore');
-  }
-
-  @test
-  async configNetworkRefreshIntervalMs() {
-    const c = await Config.make({ path_app: __dirname, network_p2p_interval_ms: -1 } as Configuration);
-    expect(c.network_p2p_interval_ms).is.greaterThanOrEqual(1);
   }
 }

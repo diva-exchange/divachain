@@ -16,9 +16,9 @@
       "type": "string",
       "pattern": "^([A-Za-z_-]{4,15}:){1,4}[A-Za-z0-9_-]{1,64}$"
     },
-    "base64url": {
+    "d": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{1,8192}$"
+      "maxLength": 8192
     }
   },
   "additionalProperties": false,
@@ -26,6 +26,6 @@
     "seq",
     "command",
     "ns",
-    "base64url"
+    "d"
   ]
 }

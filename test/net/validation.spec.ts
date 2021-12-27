@@ -33,12 +33,20 @@ class TestValidation {
   private static validation: Validation;
 
   static async before() {
-    TestValidation.config = await Config.make({
-      path_genesis: path.join(__dirname, '../genesis/block.v3.json'),
-      path_state: path.join(__dirname, '../state'),
-      path_blockstore: path.join(__dirname, '../blockstore'),
-      path_keys: path.join(__dirname, '../keys'),
-    });
+    process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
+    process.env.IP = process.env.IP || '0.0.0.0';
+    process.env.BASE_PORT = process.env.BASE_PORT || '17000';
+    process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
+    process.env.I2P_SOCKS_HOST = '172.19.75.11';
+    process.env.I2P_SAM_HTTP_HOST = '172.19.75.11';
+    process.env.I2P_SAM_UDP_HOST = '172.19.75.12';
+    process.env.I2P_SAM_FORWARD_HTTP_HOST = process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1';
+    process.env.I2P_SAM_FORWARD_HTTP_PORT = process.env.I2P_SAM_FORWARD_HTTP_PORT || process.env.BASE_PORT;
+    process.env.I2P_SAM_FORWARD_UDP_HOST = process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1';
+    process.env.I2P_SAM_LISTEN_UDP_HOST = process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0';
+    process.env.DEBUG_PERFORMANCE = '1';
+
+    TestValidation.config = await Config.make({ path_app: __dirname });
     TestValidation.wallet = Wallet.make(TestValidation.config);
     TestValidation.validation = Validation.make();
   }

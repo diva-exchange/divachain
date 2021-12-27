@@ -33,7 +33,6 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
-import { base64url } from 'rfc4648';
 
 export type Peer = {
   publicKey: string;
@@ -140,14 +139,6 @@ export class Blockchain {
       block.previousHash !== this.latestBlock.hash ||
       !this.server.getValidation().validateBlock(block)
     ) {
-      const l: string = `${this.publicKey} - failed to verify block ${block.height}: `;
-      if (this.height + 1 !== block.height) {
-        Logger.warn(l + '"Height" check failed');
-      } else if (block.previousHash !== this.latestBlock.hash) {
-        Logger.warn(l + '"Previous Hash" check failed');
-      } else {
-        Logger.warn(l + '"Validation.validateBlock()" failed');
-      }
       return false;
     }
 
@@ -271,7 +262,7 @@ export class Blockchain {
           .on('data', (data) => {
             a.push({
               key: data.key.toString(),
-              value: Blockchain.unpack(data.value.toString()),
+              value: data.value.toString(),
             });
             if (a.length === this.server.config.api_max_query_size) {
               return resolve(a);
@@ -285,7 +276,7 @@ export class Blockchain {
           });
       } else {
         this.dbState.get(key, (error, value: Buffer) => {
-          error ? resolve([]) : resolve([{ key: key, value: Blockchain.unpack(value.toString()) }]);
+          error ? resolve([]) : resolve([{ key: key, value: value.toString() }]);
         });
       }
     });
@@ -365,7 +356,7 @@ export class Blockchain {
 
   private async processState(block: BlockStruct) {
     if (this.server.config.debug_performance) {
-      await this.updateStateData('debug-performance-' + this.height, new Date().getTime());
+      await this.updateStateData('debug-performance-' + this.height, new Date().getTime().toString());
     }
 
     for (const t of block.tx) {
@@ -381,13 +372,10 @@ export class Blockchain {
             await this.modifyStake(c as CommandModifyStake);
             break;
           case Blockchain.COMMAND_DATA:
-            await this.updateStateData(
-              (c as CommandData).ns + ':' + t.origin,
-              Blockchain.unpack((c as CommandData).base64url)
-            );
+            await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).d);
             break;
           case Blockchain.COMMAND_DECISION:
-            await this.setDecision((c as CommandDecision).ns, t.origin, (c as CommandDecision).base64url);
+            await this.setDecision((c as CommandDecision).ns, t.origin, (c as CommandDecision).d);
             break;
         }
       }
@@ -406,7 +394,7 @@ export class Blockchain {
       stake: 0,
     };
     this.mapPeer.set(command.publicKey, peer);
-    await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
+    await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
   }
 
   private async removePeer(command: CommandRemovePeer) {
@@ -428,11 +416,11 @@ export class Blockchain {
       this.quorum = this.quorum + command.stake;
       peer.stake = peer.stake + command.stake;
       this.mapPeer.set(command.publicKey, peer);
-      await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake);
+      await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
     }
   }
 
-  private async setDecision(ns: string, origin: string, b64url: string) {
+  private async setDecision(ns: string, origin: string, data: string) {
     const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
     if ((await this.getState(keyTaken)).length) {
       return;
@@ -441,52 +429,34 @@ export class Blockchain {
     const key = Blockchain.STATE_DECISION_IDENT + ns;
     try {
       const arrayState = await this.getState(key);
-      const mapDecision: Map<string, { stake: number; base64url: string }> = arrayState.length
-        ? new Map(arrayState[0].value)
+      const mapDecision: Map<string, { stake: number; d: string }> = arrayState.length
+        ? new Map(JSON.parse(arrayState[0].value))
         : new Map();
-      mapDecision.set(origin, { stake: this.getStake(origin), base64url: b64url });
-      const stake = [...mapDecision.values()].filter((v) => v.base64url === b64url).reduce((p, v) => p + v.stake, 0);
+      mapDecision.set(origin, { stake: this.getStake(origin), d: data });
+      const stake = [...mapDecision.values()].filter((v) => v.d === data).reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
-        await this.updateStateData(keyTaken, Blockchain.unpack(b64url));
+        await this.updateStateData(keyTaken, data);
       } else {
-        await this.updateStateData(key, [...mapDecision]);
+        await this.updateStateData(key, JSON.stringify([...mapDecision]));
       }
     } catch (error: any) {
       Logger.warn(`Blockchain.setDecision() ${key} ${error.toString()}`);
     }
   }
 
-  private async updateBlockData(key: string, value: string | number) {
+  private async updateBlockData(key: string, data: string) {
     try {
-      await this.dbBlockchain.put(key, value);
+      await this.dbBlockchain.put(key, data);
     } catch (error: any) {
       Logger.warn(`Blockchain.updateBlockData() ${error.toString()}`);
     }
   }
 
-  private async updateStateData(key: string, value: any) {
+  private async updateStateData(key: string, value: string) {
     try {
-      await this.dbState.put(key, Blockchain.pack(value));
+      await this.dbState.put(key, value);
     } catch (error: any) {
       Logger.warn(`Blockchain.updateStateData() ${error.toString()}`);
-    }
-  }
-
-  private static pack(data: any): string {
-    try {
-      return base64url.stringify(Buffer.from(JSON.stringify(data), 'binary'), { pad: false });
-    } catch (error: any) {
-      Logger.warn(`Blockchain.pack() ${error.toString()}`);
-      return '';
-    }
-  }
-
-  private static unpack(b64url: string): any {
-    try {
-      return JSON.parse(Buffer.from(base64url.parse(b64url, { loose: true })).toString('binary'));
-    } catch (error: any) {
-      Logger.warn(`Blockchain.unpack() ${error.toString()}`);
-      return {};
     }
   }
 }

@@ -216,7 +216,7 @@ export class Pool {
     }
 
     //@FIXME logging
-    Logger.trace(`${toB32(this.server.config.udp)}.b32.i2p - DEADLOCK ${stakeVotes} / ${quorumTotal}`);
+    Logger.trace(`${toB32(this.server.config.udp)}.b32.i2p isDeadlocked ${stakeVotes} / ${quorumTotal}`);
 
     this.arrayTransaction = [];
     this.currentHash = '';

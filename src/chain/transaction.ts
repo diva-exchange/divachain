@@ -41,12 +41,12 @@ export interface CommandModifyStake extends Command {
 
 export interface CommandData extends Command {
   ns: string;
-  base64url: string;
+  d: string;
 }
 
 export interface CommandDecision extends Command {
   ns: string;
-  base64url: string;
+  d: string;
 }
 
 export type ArrayCommand = Array<

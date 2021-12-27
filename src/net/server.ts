@@ -280,7 +280,7 @@ export class Server {
     // re-distribute vote
     this.network.broadcast(vote);
 
-    // if a block is available, send out a sync
+    // if a block is available, add it to the chain
     if (this.pool.hasBlock()) {
       this.addBlock(this.pool.getBlock());
     }
