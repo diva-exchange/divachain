@@ -38,17 +38,17 @@ export class Genesis {
 
     const I2P_SOCKS_HOST = process.env.I2P_SOCKS_HOST || '';
     const I2P_SOCKS_PORT = I2P_SOCKS_HOST ? Number(process.env.I2P_SOCKS_PORT || 4445) : 0;
-    const I2P_HTTP_HOST = process.env.I2P_HTTP_HOST || I2P_SOCKS_HOST;
-    const I2P_SAM_HTTP_PORT_TCP = I2P_HTTP_HOST ? Number(process.env.I2P_SAM_HTTP_PORT_TCP || 7656) : 0;
-    const I2P_UDP_HOST = process.env.I2P_UDP_HOST || I2P_HTTP_HOST;
-    const I2P_SAM_UDP_PORT_TCP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_TCP || 7656) : 0;
-    const I2P_SAM_UDP_PORT_UDP = I2P_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_UDP || 7655) : 0;
-    const I2P_SAM_FORWARD_HTTP_HOST = I2P_HTTP_HOST ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1' : '';
-    const I2P_SAM_FORWARD_HTTP_PORT = I2P_HTTP_HOST ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT) : 0;
-    const I2P_SAM_LISTEN_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0' : '';
-    const I2P_SAM_LISTEN_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_LISTEN_UDP_PORT || 19000) : 0;
-    const I2P_SAM_FORWARD_UDP_HOST = I2P_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';
-    const I2P_SAM_FORWARD_UDP_PORT = I2P_UDP_HOST ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 19000) : 0;
+    const I2P_SAM_HTTP_HOST = process.env.I2P_SAM_HTTP_HOST || I2P_SOCKS_HOST;
+    const I2P_SAM_HTTP_PORT_TCP = I2P_SAM_HTTP_HOST ? Number(process.env.I2P_SAM_HTTP_PORT_TCP || 7656) : 0;
+    const I2P_SAM_UDP_HOST = process.env.I2P_SAM_UDP_HOST || I2P_SAM_HTTP_HOST;
+    const I2P_SAM_UDP_PORT_TCP = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_TCP || 7656) : 0;
+    const I2P_SAM_UDP_PORT_UDP = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_UDP || 7655) : 0;
+    const I2P_SAM_FORWARD_HTTP_HOST = I2P_SAM_HTTP_HOST ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1' : '';
+    const I2P_SAM_FORWARD_HTTP_PORT = I2P_SAM_HTTP_HOST ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT) : 0;
+    const I2P_SAM_LISTEN_UDP_HOST = I2P_SAM_UDP_HOST ? process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0' : '';
+    const I2P_SAM_LISTEN_UDP_PORT = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_LISTEN_UDP_PORT || 19000) : 0;
+    const I2P_SAM_FORWARD_UDP_HOST = I2P_SAM_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';
+    const I2P_SAM_FORWARD_UDP_PORT = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 19000) : 0;
 
     const pathApp = pathApplication || path.join(__dirname, '/../');
 
@@ -70,9 +70,9 @@ export class Genesis {
         blockchain_max_blocks_in_memory: 100,
         i2p_socks_host: I2P_SOCKS_HOST,
         i2p_socks_port: I2P_SOCKS_PORT,
-        i2p_sam_http_host: I2P_HTTP_HOST,
+        i2p_sam_http_host: I2P_SAM_HTTP_HOST,
         i2p_sam_http_port_tcp: I2P_SAM_HTTP_PORT_TCP,
-        i2p_sam_udp_host: I2P_UDP_HOST,
+        i2p_sam_udp_host: I2P_SAM_UDP_HOST,
         i2p_sam_udp_port_tcp: I2P_SAM_UDP_PORT_TCP,
         i2p_sam_udp_port_udp: I2P_SAM_UDP_PORT_UDP,
         i2p_sam_forward_http_host: I2P_SAM_FORWARD_HTTP_HOST,
@@ -81,8 +81,8 @@ export class Genesis {
         i2p_sam_listen_udp_port: I2P_SAM_LISTEN_UDP_PORT > 0 ? I2P_SAM_LISTEN_UDP_PORT + i : 0,
         i2p_sam_forward_udp_host: I2P_SAM_FORWARD_UDP_HOST,
         i2p_sam_forward_udp_port: I2P_SAM_FORWARD_UDP_PORT > 0 ? I2P_SAM_FORWARD_UDP_PORT + i : 0,
-        http: I2P_HTTP_HOST ? '' : `${IP}:${BASE_PORT + i}`,
-        udp: I2P_UDP_HOST ? '' : `${IP}:${BASE_PORT + 3000 + i}`,
+        http: I2P_SAM_HTTP_HOST ? '' : `${IP}:${BASE_PORT + i}`,
+        udp: I2P_SAM_UDP_HOST ? '' : `${IP}:${BASE_PORT + 3000 + i}`,
       });
 
       const publicKey = Wallet.make(config).getPublicKey();
