@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v3/transaction/add-peer.json",
+  "$id": "/schema/block/v4/transaction/remove-peer.json",
 
   "type": "object",
   "properties": {
@@ -10,17 +10,7 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^addPeer$"
-    },
-    "http": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 1024
-    },
-    "udp": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 1024
+      "pattern": "^removePeer$"
     },
     "publicKey": {
       "type": "string",
@@ -31,8 +21,6 @@
   "required": [
     "seq",
     "command",
-    "http",
-    "udp",
     "publicKey"
   ]
 }

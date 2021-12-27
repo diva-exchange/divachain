@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v3/block.json",
+  "$id": "/schema/block/v4/block.json",
 
   "type": "object",
   "properties": {

@@ -18,7 +18,7 @@
       "minimum": 1
     },
     "tx": {
-      "$ref": "/schema/block/v3/transaction/tx.json"
+      "$ref": "/schema/block/v4/transaction/tx.json"
     },
     "sig": {
       "type": "string",

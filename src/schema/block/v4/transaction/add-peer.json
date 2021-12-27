@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v3/transaction/data-decision.json",
+  "$id": "/schema/block/v4/transaction/add-peer.json",
 
   "type": "object",
   "properties": {
@@ -10,22 +10,29 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^data|decision$"
+      "pattern": "^addPeer$"
     },
-    "ns": {
+    "http": {
       "type": "string",
-      "pattern": "^([A-Za-z_-]{4,15}:){1,4}[A-Za-z0-9_-]{1,64}$"
+      "minLength": 1,
+      "maxLength": 1024
     },
-    "d": {
+    "udp": {
       "type": "string",
-      "maxLength": 8192
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "publicKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
     }
   },
   "additionalProperties": false,
   "required": [
     "seq",
     "command",
-    "ns",
-    "d"
+    "http",
+    "udp",
+    "publicKey"
   ]
 }

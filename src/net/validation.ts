@@ -40,16 +40,16 @@ export class Validation {
     const schemaProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/proposal.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
 
-    const schemaBlockV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/block.json');
-    const schemaVotesV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/votes.json');
-    const schemaTxV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/transaction/tx.json');
-    const schemaAddPeerV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v3/transaction/add-peer.json');
+    const schemaBlockV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v4/block.json');
+    const schemaVotesV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v4/votes.json');
+    const schemaTxV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v4/transaction/tx.json');
+    const schemaAddPeerV3: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v4/transaction/add-peer.json');
     const schemaRemovePeerV3: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v3/transaction/remove-peer.json');
+      'block/v4/transaction/remove-peer.json');
     const schemaModifyStakeV3: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v3/transaction/modify-stake.json');
+      'block/v4/transaction/modify-stake.json');
     const schemaDataDecisionV3: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v3/transaction/data-decision.json');
+      'block/v4/transaction/data-decision.json');
 
     this.message = new Ajv({
       schemas: [
