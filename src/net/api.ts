@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -92,14 +92,18 @@ export class Api {
       return res.json(this.server.getNetwork().getArrayNetwork());
     });
 
-    this.server.app.get('/state/:key?', async (req: Request, res: Response) => {
-      const key = req.params.key || '';
-      const filter = req.query.filter ? new RegExp(req.query.filter.toString()) : false;
-      const arrayState: Array<{ key: string; value: string }> = await this.server.getBlockchain().getState(key);
-      if (arrayState.length && filter) {
-        return res.json(arrayState.filter((o) => filter.test(o.key)));
+    this.server.app.get('/state/search/:q?', async (req: Request, res: Response) => {
+      try {
+        return res.json(await this.server.getBlockchain().searchState(req.params.q || ''));
+      } catch (error) {
+        return res.status(404).end();
       }
-      return arrayState.length ? res.json(arrayState) : res.status(404).end();
+    });
+
+    this.server.app.get('/state/:key', async (req: Request, res: Response) => {
+      const key = req.params.key || '';
+      const state: { key: string; value: string } | false = await this.server.getBlockchain().getState(key);
+      return state ? res.json(state) : res.status(404).end();
     });
 
     this.server.app.get('/stack', (req: Request, res: Response) => {
@@ -130,6 +134,24 @@ export class Api {
       return res.json((await this.server.getBlockchain().getRange(h, h))[0]);
     });
 
+    this.server.app.get('/blocks/search/:q?', async (req: Request, res: Response) => {
+      try {
+        return res.json(await this.server.getBlockchain().searchBlocks(req.params.q || ''));
+      } catch (error) {
+        return res.status(404).end();
+      }
+    });
+
+    this.server.app.get('/blocks/page/:page/:size?', async (req: Request, res: Response) => {
+      const page = Number(req.params.page || 1);
+      const size = Number(req.params.size || 0);
+      try {
+        return res.json(await this.server.getBlockchain().getPage(page, size));
+      } catch (error) {
+        return res.status(404).end();
+      }
+    });
+
     this.server.app.get('/blocks/:gte?/:lte?', async (req: Request, res: Response) => {
       const gte = Math.floor(Number(req.params.gte || 1));
       const lte = Math.floor(Number(req.params.lte || 0));
@@ -138,18 +160,6 @@ export class Api {
       }
       try {
         return res.json(await this.server.getBlockchain().getRange(gte, lte));
-      } catch (error) {
-        return res.status(404).end();
-      }
-    });
-
-    this.server.app.get('/page/:page/:size?', async (req: Request, res: Response) => {
-      const page = Number(req.params.page || 1);
-      const size = Number(req.params.size || 0);
-      try {
-        const filter =
-          req.query.filter && req.query.filter.toString().length > 2 ? new RegExp(req.query.filter.toString()) : false;
-        return res.json(await this.server.getBlockchain().getPage(page, size, filter));
       } catch (error) {
         return res.status(404).end();
       }

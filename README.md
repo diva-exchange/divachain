@@ -112,10 +112,17 @@ Returns an object containing the version, the license and the public key of the 
 
 #### GET /network
 
-#### GET /state/{key?}[?filter=some-valid-regex]
+#### GET /state/search/{search?}
+Search states using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE states. 
+
+_Example:_ `http://url-divachain-api/state/search/`
+
+_Remark:_ Not more than API_MAX_QUERY_SIZE states can be requested at once.
+
+#### GET /state/{key}
 Get all or a specific state from the local state database. The local state database is a key/values storage and represents a well-defined set of current states.
 
-_Example:_ `http://url-divachain-api/state/?filter=^DivaExchange:` will return those states where the key starts with "DivaExchange:".
+_Example:_ `http://url-divachain-api/state/`
 
 #### GET /stack
 Get the stack (queue) of local transactions.
@@ -139,26 +146,31 @@ _Example:_ `http://url-divachain-api/block/10` will return the block on height 1
 
 _Error handling:_ If a block is not yet available, 404 (Not Found) will be returned.
 
-#### GET /blocks/{from?}/{to?}/[?filter=some-valid-regex]
+#### GET /blocks/{from?}/{to?}
 Get all blocks between height "from" (inclusive) and height "to" (inclusive). If "to" is not yet available, the blocks until the current height will be returned.
-
-The _optional_ query parameter `filter` is also supported. Supply some valid regex to filter the blocks. 
 
 _Example:_ `http://url-divachain-api/blocks/10/19/` will return 10 blocks (block 10 until 19, if all blocks are already).
  
 _Example:_ `http://url-divachain-api/blocks` will return the latest API_MAX_QUERY_SIZE blocks (at most).
 
-_Example:_ `http://url-divachain-api/blocks/10/19/?filter=abc` will return those blocks within the range of block 10 until 19, which do contain the string "abc".
-
 _Error handling:_ 404 (Not Found) will be returned.
 
-_Remark:_ Not more than API_MAX_QUERY_SIZE can be requested at once.
+_Remark:_ Not more than API_MAX_QUERY_SIZE blocks can be requested at once.
 
-#### GET /page/{page}/{size?}
+#### GET /blocks/page/{page}/{size?}
 Get a specific page of the blockchain, starting at the current height (reverse order).
 If size is not given, it will return API_MAX_QUERY_SIZE blocks or less. 
 
-_Example:_ `http://url-divachain-api/page/1/5` will return the **last** 5 or less blocks of the chain.
+_Example:_ `http://url-divachain-api/blocks/page/1/5` will return the **last** 5 or less blocks of the chain.
+
+_Remark:_ Not more than API_MAX_QUERY_SIZE blocks can be requested at once.
+
+#### GET /blocks/search/{search?}
+Search blocks using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE blocks. 
+
+_Example:_ `http://url-divachain-api/blocks/search/XMR` will return the latest blocks containing the string XMR.
+
+_Remark:_ Not more than API_MAX_QUERY_SIZE blocks can be requested at once.
 
 #### GET /transaction/{origin}/{ident}
 Get a well-defined transaction.
@@ -172,20 +184,20 @@ Submit a new transaction proposal to the network. The body must contain an array
 
 ### Joining and Leaving the Network
 
-#### GET /join/{base64url}
-This endpoint is part of an automated process.
+#### GET /join/{http}/{udp}/{publicKey}
+_Internal_: part of an automated process.
 
-Request to join the network. Requires a base6url (RFC4648) encoded string containing the http and udp endpoint and the public key. 
+Request to join the network. 
 
 Send this GET request to any remote peer in the network which is online. This remote peer will later - in some seconds or even minutes - send back an independent GET request to the local /challenge/ endpoint. 
 
 #### GET /leave/{address}
-This endpoint is part of an automated process.
+_Internal_: part of an automated process.
 
 TBD.
 
 #### GET /challenge/{token}
-This endpoint is part of an automated process.
+_Internal_: part of an automated process.
 
 Response will contain the signed token. Verify the response with the public key of the remote peer.
 

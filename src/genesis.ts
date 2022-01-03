@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -44,7 +44,9 @@ export class Genesis {
     const I2P_SAM_UDP_PORT_TCP = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_TCP || 7656) : 0;
     const I2P_SAM_UDP_PORT_UDP = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT_UDP || 7655) : 0;
     const I2P_SAM_FORWARD_HTTP_HOST = I2P_SAM_HTTP_HOST ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1' : '';
-    const I2P_SAM_FORWARD_HTTP_PORT = I2P_SAM_HTTP_HOST ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT) : 0;
+    const I2P_SAM_FORWARD_HTTP_PORT = I2P_SAM_HTTP_HOST
+      ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT)
+      : 0;
     const I2P_SAM_LISTEN_UDP_HOST = I2P_SAM_UDP_HOST ? process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0' : '';
     const I2P_SAM_LISTEN_UDP_PORT = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_LISTEN_UDP_PORT || 19000) : 0;
     const I2P_SAM_FORWARD_UDP_HOST = I2P_SAM_UDP_HOST ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1' : '';

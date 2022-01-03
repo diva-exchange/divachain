@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -33,6 +33,7 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
+import { Readable } from 'stream';
 
 export type Peer = {
   publicKey: string;
@@ -191,33 +192,33 @@ export class Blockchain {
     });
   }
 
-  async getPage(page: number, size: number, filter: RegExp | false = false): Promise<Array<BlockStruct>> {
+  async getPage(page: number, size: number): Promise<Array<BlockStruct>> {
     page = page < 1 ? 1 : Math.floor(page);
     size =
       size < 1 || size > this.server.config.api_max_query_size
         ? this.server.config.api_max_query_size
         : Math.floor(size);
 
-    const aFiltered = filter ? await this.filter(filter) : [];
-    const height = aFiltered.length || this.height;
-
-    let gte = height - page * size + 1;
+    let gte = this.height - page * size + 1;
     gte = gte < 1 ? 1 : gte;
 
-    return filter ? Promise.resolve(aFiltered.slice(gte - 1, gte + size - 1)) : this.getRange(gte, gte + size - 1);
+    return this.getRange(gte, gte + size - 1);
   }
 
-  private async filter(f: RegExp): Promise<Array<BlockStruct>> {
+  async searchBlocks(search: string = ''): Promise<Array<BlockStruct>> {
     return new Promise((resolve, reject) => {
       const a: Array<BlockStruct> = [];
-      this.dbBlockchain
-        .createValueStream()
+      const stream: Readable = this.dbBlockchain.createValueStream({ reverse: true }) as Readable;
+      stream
         .on('data', (data) => {
-          const b = JSON.parse(data);
-          f.test(JSON.stringify(b)) && a.push(b);
+          data.indexOf(search) > -1 && a.push(JSON.parse(data));
+          if (a.length === this.server.config.api_max_query_size) {
+            stream.destroy();
+            resolve(a.reverse());
+          }
         })
         .on('end', () => {
-          resolve(a);
+          resolve(a.reverse());
         })
         .on('error', reject);
     });
@@ -253,32 +254,34 @@ export class Blockchain {
     });
   }
 
-  async getState(key: string): Promise<Array<{ key: string; value: any }>> {
+  async getState(key: string): Promise<{ key: string; value: string } | false> {
     return new Promise((resolve) => {
-      if (!key.length) {
-        const a: Array<any> = [];
-        this.dbState
-          .createReadStream()
-          .on('data', (data) => {
+      this.dbState.get(key, (error, value: Buffer) => {
+        error ? resolve(false) : resolve({ key: key, value: value.toString() });
+      });
+    });
+  }
+
+  async searchState(search: string = ''): Promise<Array<{ key: string; value: any }>> {
+    return new Promise((resolve, reject) => {
+      const a: Array<{ key: string; value: any }> = [];
+      const stream: Readable = this.dbState.createReadStream({ reverse: true }) as Readable;
+      stream
+        .on('data', (data) => {
+          (data.key.toString() + data.value.toString()).indexOf(search) > -1 &&
             a.push({
               key: data.key.toString(),
               value: data.value.toString(),
             });
-            if (a.length === this.server.config.api_max_query_size) {
-              return resolve(a);
-            }
-          })
-          .on('end', () => {
+          if (a.length === this.server.config.api_max_query_size) {
+            stream.destroy();
             resolve(a);
-          })
-          .on('error', () => {
-            resolve([]);
-          });
-      } else {
-        this.dbState.get(key, (error, value: Buffer) => {
-          error ? resolve([]) : resolve([{ key: key, value: value.toString() }]);
-        });
-      }
+          }
+        })
+        .on('end', () => {
+          resolve(a);
+        })
+        .on('error', reject);
     });
   }
 
@@ -403,7 +406,7 @@ export class Blockchain {
       this.quorum = this.quorum - peer.stake;
 
       this.mapPeer.delete(command.publicKey);
-      await this.dbState.del(Blockchain.STATE_PEER_IDENT + command.publicKey);
+      await this.deleteStateData(Blockchain.STATE_PEER_IDENT + command.publicKey);
     }
   }
 
@@ -422,20 +425,21 @@ export class Blockchain {
 
   private async setDecision(ns: string, origin: string, data: string) {
     const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
-    if ((await this.getState(keyTaken)).length) {
+    if (await this.getState(keyTaken)) {
       return;
     }
 
     const key = Blockchain.STATE_DECISION_IDENT + ns;
     try {
-      const arrayState = await this.getState(key);
-      const mapDecision: Map<string, { stake: number; d: string }> = arrayState.length
-        ? new Map(JSON.parse(arrayState[0].value))
+      const state = await this.getState(key);
+      const mapDecision: Map<string, { stake: number; d: string }> = state
+        ? new Map(JSON.parse(state.value))
         : new Map();
       mapDecision.set(origin, { stake: this.getStake(origin), d: data });
       const stake = [...mapDecision.values()].filter((v) => v.d === data).reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
-        await this.updateStateData(keyTaken, data);
+        await this.updateStateData(keyTaken, JSON.stringify([...mapDecision]));
+        await this.deleteStateData(key);
       } else {
         await this.updateStateData(key, JSON.stringify([...mapDecision]));
       }
@@ -455,6 +459,14 @@ export class Blockchain {
   private async updateStateData(key: string, value: string) {
     try {
       await this.dbState.put(key, value);
+    } catch (error: any) {
+      Logger.warn(`Blockchain.updateStateData() ${error.toString()}`);
+    }
+  }
+
+  private async deleteStateData(key: string) {
+    try {
+      await this.dbState.del(key);
     } catch (error: any) {
       Logger.warn(`Blockchain.updateStateData() ${error.toString()}`);
     }
