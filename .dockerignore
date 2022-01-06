@@ -1,0 +1,10 @@
+.*
+blockstore/
+build/
+coverage/
+dist/
+keys/
+log/
+node_modules/
+state/
+test/
