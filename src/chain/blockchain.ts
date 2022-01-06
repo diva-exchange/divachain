@@ -19,8 +19,7 @@
 
 import { BlockStruct } from './block';
 import fs from 'fs';
-import LevelUp from 'levelup';
-import LevelDown from 'leveldown';
+import Level, { LevelDB } from 'level';
 import path from 'path';
 import {
   CommandAddPeer,
@@ -54,8 +53,8 @@ export class Blockchain {
 
   private readonly server: Server;
   private readonly publicKey: string;
-  private readonly dbBlockchain: InstanceType<typeof LevelUp>;
-  private readonly dbState: InstanceType<typeof LevelUp>;
+  private readonly dbBlockchain: LevelDB;
+  private readonly dbState: LevelDB;
 
   private height: number = 0;
   private mapBlocks: Map<number, BlockStruct> = new Map();
@@ -79,14 +78,14 @@ export class Blockchain {
     this.server = server;
     this.publicKey = this.server.getWallet().getPublicKey();
 
-    this.dbBlockchain = LevelUp(LevelDown(path.join(this.server.config.path_blockstore, this.publicKey)), {
+    this.dbBlockchain = Level(path.join(this.server.config.path_blockstore, this.publicKey), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
       cacheSize: 2 * 1024 * 1024, // 2 MB
     });
 
-    this.dbState = LevelUp(LevelDown(path.join(this.server.config.path_state, this.publicKey)), {
+    this.dbState = Level(path.join(this.server.config.path_state, this.publicKey), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
