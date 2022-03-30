@@ -16,6 +16,13 @@ The network itself is permission- and leaderless. Each peer in the network repre
 2. Voting: each peer receiving a proposal may send a vote to the network. Such a vote represents an agreement of a peer with a specific stack of proposals. Each peer can vote only once. If the peers in the network do not agree (2/3 of the total stake of all peers) on a specific stack of proposals, the voting will go into a new round and all peers can vote again.  
 3. Creation of a new block: as soon as consensus is reached through voting for a specific stack of proposals, peers will create the new block. 
  
+## API Overview
+Divachain supports two API's:
+a) an HTTP REST API running by default on port 17468
+b) a broadcasting websocket running by default on port 17468
+
+In a nutshell: use the REST API to write transaction proposals to the chain or use the REST API to read status information from the chain. Use the websocket to get live updates. 
+ 
 ## Create Your Local Environment
 
 To create a docker based local environment use the project https://codeberg.org/diva.exchange/diva-dockerized.
@@ -38,9 +45,11 @@ Default: 127.0.0.1
 
 ### PORT
 Default: 17468
+REST API as documented below (API Endpoints).
 
 ### BLOCK_FEED_PORT
 Default: 17469
+Websocket Feed, broadcasting block data to its listeners.
 
 ### I2P_SOCKS_HOST
 
@@ -181,7 +190,15 @@ _Error handling:_ 404 (Not Found) will be returned if the transaction is not ava
 ### Transmitting Transactions
 
 #### PUT /transaction/{ident?}
-Submit a new transaction proposal to the network. The body must contain an array of transaction objects.
+Submit a new transaction proposal to the network. The body must contain an array of commands.
+
+Example of such a transaction proposal, containing two commands:
+```
+[
+  { seq: 1, command: 'data', ns: 'test:data', d: 'data-1' },
+  { seq: 2, command: 'data', ns: 'test:data', d: 'data-2' },
+]
+```
 
 ### Joining and Leaving the Network
 
