@@ -88,8 +88,10 @@ export class Api {
       });
     });
 
-    this.server.app.get('/network', (req: Request, res: Response) => {
-      return res.json(this.server.getNetwork().getArrayNetwork());
+    this.server.app.get('/network/:stake?', (req: Request, res: Response) => {
+      const s = Math.floor(Number(req.params.stake) || 0);
+      const a = this.server.getNetwork().getArrayNetwork();
+      return res.json(s > 0 ? a.filter((r) => r['stake'] >= s) : a);
     });
 
     this.server.app.get('/state/search/:q?', async (req: Request, res: Response) => {

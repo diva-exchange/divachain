@@ -19,7 +19,7 @@
 
 import { BlockStruct } from './block';
 import fs from 'fs';
-import Level, { LevelDB } from 'level';
+import { Level } from 'level';
 import path from 'path';
 import {
   CommandAddPeer,
@@ -32,7 +32,6 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
-import { Readable } from 'stream';
 
 export type Peer = {
   publicKey: string;
@@ -53,8 +52,8 @@ export class Blockchain {
 
   private readonly server: Server;
   private readonly publicKey: string;
-  private readonly dbBlockchain: LevelDB;
-  private readonly dbState: LevelDB;
+  private readonly dbBlockchain: Level<string, any>;
+  private readonly dbState: Level<string, any>;
 
   private height: number = 0;
   private mapBlocks: Map<number, BlockStruct> = new Map();
@@ -78,14 +77,14 @@ export class Blockchain {
     this.server = server;
     this.publicKey = this.server.getWallet().getPublicKey();
 
-    this.dbBlockchain = Level(path.join(this.server.config.path_blockstore, this.publicKey), {
+    this.dbBlockchain = new Level(path.join(this.server.config.path_blockstore, this.publicKey), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
       cacheSize: 2 * 1024 * 1024, // 2 MB
     });
 
-    this.dbState = Level(path.join(this.server.config.path_state, this.publicKey), {
+    this.dbState = new Level(path.join(this.server.config.path_state, this.publicKey), {
       createIfMissing: true,
       errorIfExists: false,
       compression: true,
@@ -99,17 +98,11 @@ export class Blockchain {
     this.latestBlock = {} as BlockStruct;
     await this.dbState.clear();
 
-    await new Promise((resolve, reject) => {
-      this.dbBlockchain
-        .createReadStream()
-        .on('data', async (data) => {
-          const block: BlockStruct = JSON.parse(data.value) as BlockStruct;
-          this.updateCache(block);
-          await this.processState(block);
-        })
-        .on('end', resolve)
-        .on('error', reject);
-    });
+    for await (const value of this.dbBlockchain.values()) {
+      const block: BlockStruct = JSON.parse(value) as BlockStruct;
+      this.updateCache(block);
+      await this.processState(block);
+    }
   }
 
   async shutdown() {
@@ -178,17 +171,11 @@ export class Blockchain {
     }
 
     const a: Array<BlockStruct> = [];
-    return new Promise((resolve, reject) => {
-      this.dbBlockchain
-        .createValueStream({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })
-        .on('data', (data) => {
-          a.push(JSON.parse(data));
-        })
-        .on('end', () => {
-          resolve(a);
-        })
-        .on('error', reject);
-    });
+    for await (const value of this.dbBlockchain.values({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })) {
+      a.push(JSON.parse(value));
+
+    }
+    return a;
   }
 
   async getPage(page: number, size: number): Promise<Array<BlockStruct>> {
@@ -205,52 +192,35 @@ export class Blockchain {
   }
 
   async searchBlocks(search: string = ''): Promise<Array<BlockStruct>> {
-    return new Promise((resolve, reject) => {
-      const a: Array<BlockStruct> = [];
-      const stream: Readable = this.dbBlockchain.createValueStream({ reverse: true }) as Readable;
-      stream
-        .on('data', (data) => {
-          data.indexOf(search) > -1 && a.push(JSON.parse(data));
-          if (a.length === this.server.config.api_max_query_size) {
-            stream.destroy();
-            resolve(a.reverse());
-          }
-        })
-        .on('end', () => {
-          resolve(a.reverse());
-        })
-        .on('error', reject);
-    });
+    const a: Array<BlockStruct> = [];
+    for await (const value of this.dbBlockchain.values({ reverse: true })) {
+      value.indexOf(search) > -1 && a.push(JSON.parse(value));
+      if (a.length === this.server.config.api_max_query_size) {
+        break;
+      }
+    }
+    return a.reverse();
   }
 
   async getTransaction(origin: string, ident: string): Promise<{ height: number; transaction: TransactionStruct }> {
-    return new Promise((resolve, reject) => {
-      // cache
-      for (const b of [...this.mapBlocks.values()]) {
-        const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
-        if (t) {
-          return resolve({ height: b.height, transaction: t });
-        }
+    // cache
+    for await (const b of [...this.mapBlocks.values()]) {
+      const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+      if (t) {
+        return { height: b.height, transaction: t };
       }
+    }
 
-      // disk
-      let b: BlockStruct = {} as BlockStruct;
-      let t: TransactionStruct = {} as TransactionStruct;
-      this.dbBlockchain
-        .createValueStream()
-        .on('data', (data) => {
-          if (!t.origin) {
-            b = JSON.parse(data) as BlockStruct;
-            t =
-              b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident) ||
-              ({} as TransactionStruct);
-          }
-        })
-        .on('end', () => {
-          t.origin ? resolve({ height: b.height, transaction: t }) : reject(new Error('Not Found'));
-        })
-        .on('error', reject);
-    });
+    // disk
+    for await (const value of this.dbBlockchain.values()) {
+      const b = JSON.parse(value) as BlockStruct;
+      const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
+      if (t) {
+        return { height: b.height, transaction: t };
+      }
+    }
+
+    throw new Error('Not Found');
   }
 
   async getState(key: string): Promise<{ key: string; value: string } | false> {
@@ -262,26 +232,14 @@ export class Blockchain {
   }
 
   async searchState(search: string = ''): Promise<Array<{ key: string; value: any }>> {
-    return new Promise((resolve, reject) => {
-      const a: Array<{ key: string; value: any }> = [];
-      const stream: Readable = this.dbState.createReadStream({ reverse: true }) as Readable;
-      stream
-        .on('data', (data) => {
-          (data.key.toString() + data.value.toString()).indexOf(search) > -1 &&
-            a.push({
-              key: data.key.toString(),
-              value: data.value.toString(),
-            });
-          if (a.length === this.server.config.api_max_query_size) {
-            stream.destroy();
-            resolve(a);
-          }
-        })
-        .on('end', () => {
-          resolve(a);
-        })
-        .on('error', reject);
-    });
+    const a: Array<{ key: string; value: any }> = [];
+    for await (const [key, value] of this.dbState.iterator()) {
+      (key + value).indexOf(search) > -1 && a.push({ key: key, value: value });
+      if (a.length === this.server.config.api_max_query_size) {
+        break;
+      }
+    }
+    return a;
   }
 
   getLatestBlock(): BlockStruct {

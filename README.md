@@ -110,7 +110,8 @@ Default: Maximum
 #### GET /about
 Returns an object containing the version, the license and the public key of the peer.
 
-#### GET /network
+#### GET /network/{stake?}
+Returns the network participants. If stake is given, only network participants with a stake greater than the given threshold will be returned.  
 
 #### GET /state/search/{search?}
 Search states using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE states. 
