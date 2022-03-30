@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2021 diva.exchange
+# Copyright (C) 2021-2022 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -52,10 +52,10 @@ cp ${PROJECT_PATH}build/version ${PROJECT_PATH}dist/version
 if command_exists pkg; then
   info "Packaging..."
 
-  #leveldown prebuilds
-  [[ -d ${PROJECT_PATH}node_modules/leveldown/prebuilds/ ]] &&
+  #classic-level prebuilds
+  [[ -d ${PROJECT_PATH}node_modules/classic-level/prebuilds/ ]] &&
     mkdir -p ${PROJECT_PATH}build/prebuilds &&
-    cp -r ${PROJECT_PATH}node_modules/leveldown/prebuilds/linux-x64 ${PROJECT_PATH}build/prebuilds/linux-x64
+    cp -r ${PROJECT_PATH}node_modules/classic-level/prebuilds/linux-x64 ${PROJECT_PATH}build/prebuilds/linux-x64
 
   pkg --no-bytecode \
     --public \

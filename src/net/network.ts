@@ -94,23 +94,30 @@ export class Network extends EventEmitter {
   }
 
   private init() {
+    Logger.info(`P2P starting on ${toB32(this.server.config.udp)}.b32.i2p`);
+
+    let retry = 0;
     let started = false;
     const i = setInterval(() => {
-      const _c = this.server.config;
+      retry++;
+      if (retry > 60) {
+        throw new Error(`P2P failed on ${toB32(this.server.config.udp)}.b32.i2p`);
+      }
 
       if (started) {
         if (this.hasP2PNetwork()) {
           this.emit('ready');
           clearInterval(i);
+          Logger.info(`P2P ready on ${toB32(this.server.config.udp)}.b32.i2p`);
         }
         return;
       }
 
       started = true;
-      Logger.info(`P2P starting on ${toB32(_c.udp)}.b32.i2p`);
       this.p2pNetwork();
 
       (async () => {
+        const _c = this.server.config;
         this.samForward = (
           await createForward({
             sam: {
@@ -134,6 +141,7 @@ export class Network extends EventEmitter {
       })();
 
       (async () => {
+        const _c = this.server.config;
         this.samUDP = (
           await createDatagram({
             sam: {
@@ -191,14 +199,15 @@ export class Network extends EventEmitter {
   }
 
   private p2pNetwork() {
-    this.timeoutP2P = setTimeout(async () => {
+    this.timeoutP2P = setTimeout(() => {
       this.p2pNetwork();
     }, this.server.config.network_p2p_interval_ms);
 
     const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
-    if (!aNetwork.length || !Object.keys(this.samUDP).length) {
+    if (!aNetwork.length || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
       return;
     }
+
     this.arrayNetwork = aNetwork;
 
     this.arrayBroadcast = Util.shuffleArray(

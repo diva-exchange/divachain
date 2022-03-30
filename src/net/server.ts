@@ -149,8 +149,6 @@ export class Server {
 
     return new Promise((resolve) => {
       this.network.once('ready', async () => {
-        Logger.info('Network ready');
-
         this.bootstrap = Bootstrap.make(this);
         if (this.config.bootstrap) {
           await this.bootstrap.syncWithNetwork();
