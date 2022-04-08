@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v4/transaction/data-decision.json",
+  "$id": "/schema/block/v5/transaction/decision.json",
 
   "type": "object",
   "properties": {
@@ -10,11 +10,15 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^data|decision$"
+      "pattern": "^decision$"
     },
     "ns": {
       "type": "string",
       "pattern": "^([A-Za-z_-]{4,15}:){1,4}[A-Za-z0-9_-]{1,64}$"
+    },
+    "h": {
+      "type": "integer",
+      "minimum": 1
     },
     "d": {
       "type": "string",
@@ -26,6 +30,7 @@
     "seq",
     "command",
     "ns",
+    "h",
     "d"
   ]
 }

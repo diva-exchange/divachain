@@ -68,7 +68,7 @@ export type Configuration = {
   api_max_query_size?: number;
 };
 
-export const BLOCK_VERSION = 4;
+export const BLOCK_VERSION = 5;
 export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
 
 const DEFAULT_IP = '127.0.0.1';

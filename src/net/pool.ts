@@ -76,10 +76,10 @@ export class Pool {
   stack(ident: string, commands: ArrayCommand): string | false {
     ident = ident && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(DEFAULT_LENGTH_IDENT);
 
-    // test for transaction validity, use any valid height - so 1 is just fine
-    const tx = new Transaction(this.server.getWallet(), 1, ident, commands).get();
+    // test for transaction validity
+    const tx = new Transaction(this.server.getWallet(), this.currentHeight, ident, commands).get();
     if (
-      this.server.getValidation().validateTx(1, tx) &&
+      this.server.getValidation().validateTx(this.currentHeight, tx) &&
       this.stackTransaction.push({ ident: ident, commands: commands }) > 0
     ) {
       return ident;
@@ -245,7 +245,7 @@ export class Pool {
         return t.sig === this.ownTx.tx.sig;
       })
     ) {
-      this.stackTransaction.unshift({ ident: this.ownTx.tx.ident, commands: this.ownTx.tx.commands });
+      this.stack(this.ownTx.tx.ident, this.ownTx.tx.commands);
     }
     this.ownTx = {} as recordTx;
     this.currentHeight = block.height + 1;

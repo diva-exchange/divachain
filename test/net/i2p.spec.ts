@@ -131,7 +131,7 @@ class TestServerI2P {
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t)
-        .send([{ seq: 1, command: 'decision', ns: 'test:decision', d: 'SomeDecision' }]);
+        .send([{ seq: 1, command: 'decision', ns: 'test:decision', h: 10, d: 'SomeDecision' }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('decision' + t);
       await TestServerI2P.wait(1000);

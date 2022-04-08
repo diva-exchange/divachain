@@ -120,19 +120,19 @@ Default: Maximum
 Returns an object containing the version, the license and the public key of the peer.
 
 #### GET /network/{stake?}
-Returns the network participants. If stake is given, only network participants with a stake greater than the given threshold will be returned.  
+Returns the network participants. If stake is given and greater than zero, only network participants with a stake greater-or-equal than the given threshold will be returned.  
 
 #### GET /state/search/{search?}
 Search states using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE states. 
 
-_Example:_ `http://url-divachain-api/state/search/`
+_Example:_ `http://url-divachain-api/state/search/DivaExchange:OrderBook:BTC_ETH`
 
 _Remark:_ Not more than API_MAX_QUERY_SIZE states can be requested at once.
 
 #### GET /state/{key}
-Get all or a specific state from the local state database. The local state database is a key/values storage and represents a well-defined set of current states.
+Get a specific state from the local state database. The local state database is a key/values storage and represents a well-defined set of current states.
 
-_Example:_ `http://url-divachain-api/state/`
+_Example:_ `http://url-divachain-api/state/decision:DivaExchange:Auction:BTC_ETH`
 
 #### GET /stack
 Get the stack (queue) of local transactions.
@@ -159,7 +159,7 @@ _Error handling:_ If a block is not yet available, 404 (Not Found) will be retur
 #### GET /blocks/{from?}/{to?}
 Get all blocks between height "from" (inclusive) and height "to" (inclusive). If "to" is not yet available, the blocks until the current height will be returned.
 
-_Example:_ `http://url-divachain-api/blocks/10/19/` will return 10 blocks (block 10 until 19, if all blocks are already).
+_Example:_ `http://url-divachain-api/blocks/10/19/` will return 10 blocks (block 10 until 19, if all blocks are already available).
  
 _Example:_ `http://url-divachain-api/blocks` will return the latest API_MAX_QUERY_SIZE blocks (at most).
 

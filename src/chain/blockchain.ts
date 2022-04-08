@@ -171,9 +171,11 @@ export class Blockchain {
     }
 
     const a: Array<BlockStruct> = [];
-    for await (const value of this.dbBlockchain.values({ gte: String(gte).padStart(16, '0'), lte: String(lte).padStart(16, '0') })) {
+    for await (const value of this.dbBlockchain.values({
+      gte: String(gte).padStart(16, '0'),
+      lte: String(lte).padStart(16, '0'),
+    })) {
       a.push(JSON.parse(value));
-
     }
     return a;
   }
@@ -233,7 +235,7 @@ export class Blockchain {
 
   async searchState(search: string = ''): Promise<Array<{ key: string; value: any }>> {
     const a: Array<{ key: string; value: any }> = [];
-    for await (const [key, value] of this.dbState.iterator()) {
+    for await (const [key, value] of this.dbState.iterator({ reverse: true })) {
       (key + value).indexOf(search) > -1 && a.push({ key: key, value: value });
       if (a.length === this.server.config.api_max_query_size) {
         break;
@@ -335,7 +337,12 @@ export class Blockchain {
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).d);
             break;
           case Blockchain.COMMAND_DECISION:
-            await this.setDecision((c as CommandDecision).ns, t.origin, (c as CommandDecision).d);
+            await this.setDecision(
+              (c as CommandDecision).ns,
+              t.origin,
+              (c as CommandDecision).h,
+              (c as CommandDecision).d
+            );
             break;
         }
       }
@@ -380,7 +387,7 @@ export class Blockchain {
     }
   }
 
-  private async setDecision(ns: string, origin: string, data: string) {
+  private async setDecision(ns: string, origin: string, height: number, data: string) {
     const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
     if (await this.getState(keyTaken)) {
       return;
@@ -389,11 +396,13 @@ export class Blockchain {
     const key = Blockchain.STATE_DECISION_IDENT + ns;
     try {
       const state = await this.getState(key);
-      const mapDecision: Map<string, { stake: number; d: string }> = state
+      const mapDecision: Map<string, { stake: number; h: number; d: string }> = state
         ? new Map(JSON.parse(state.value))
         : new Map();
-      mapDecision.set(origin, { stake: this.getStake(origin), d: data });
-      const stake = [...mapDecision.values()].filter((v) => v.d === data).reduce((p, v) => p + v.stake, 0);
+      mapDecision.set(origin, { stake: this.getStake(origin), h: height, d: data });
+      const stake = [...mapDecision.values()]
+        .filter((v) => v.h === height && v.d === data)
+        .reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
         await this.updateStateData(keyTaken, JSON.stringify([...mapDecision]));
         await this.deleteStateData(key);

@@ -46,6 +46,7 @@ export interface CommandData extends Command {
 
 export interface CommandDecision extends Command {
   ns: string;
+  h: number;
   d: string;
 }
 

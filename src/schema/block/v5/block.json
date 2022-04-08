@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v4/block.json",
+  "$id": "/schema/block/v5/block.json",
 
   "type": "object",
   "properties": {
     "version": {
       "type": "integer",
-      "minimum": 4,
-      "maximum": 4
+      "minimum": 5,
+      "maximum": 5
     },
     "previousHash": {
       "type": "string",
