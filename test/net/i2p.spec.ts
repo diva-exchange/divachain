@@ -111,7 +111,7 @@ class TestServerI2P {
   }
 
   @test
-  @timeout(90000)
+  @timeout(300000)
   async transactionTestLoad() {
     for (let t = 0; t < 3; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
@@ -119,11 +119,21 @@ class TestServerI2P {
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/data' + t)
-        .send([{ seq: 1, command: 'data', ns: 'test:data', d: 'abcABC' + t }]);
+        .send([{ seq: 1, command: 'data', ns: 'test:data', d: '1-abcABC' + t }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('data' + t);
       await TestServerI2P.wait(50);
     }
+
+    // this decision will fail
+    const config = [...TestServerI2P.mapConfigServer.values()][0];
+    Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+    const res = await chai
+      .request(`http://${config.ip}:${config.port}`)
+      .put('/transaction/decision-evil')
+      .send([{ seq: 1, command: 'decision', ns: 'test:fail', h: 1, d: 'SomeDecision' }]);
+    expect(res).to.have.status(403);
+    await TestServerI2P.wait(250);
 
     for (let t = 0; t < [...TestServerI2P.mapConfigServer.values()].length; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
@@ -131,15 +141,31 @@ class TestServerI2P {
       const res = await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t)
-        .send([{ seq: 1, command: 'decision', ns: 'test:decision', h: 10, d: 'SomeDecision' }]);
+        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 10, d: 'SomeDecisionData' }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('decision' + t);
-      await TestServerI2P.wait(1000);
+      await TestServerI2P.wait(750);
     }
 
-    Logger.trace('waiting for a possible sync...');
+    for (let t = 0; t < [...TestServerI2P.mapConfigServer.values()].length; t++) {
+      const config = [...TestServerI2P.mapConfigServer.values()][t];
+      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      const res = await chai
+        .request(`http://${config.ip}:${config.port}`)
+        .put('/transaction/data' + t)
+        .send([{ seq: 1, command: 'data', ns: 'test:data', d: '2-abcABC' + t }]);
+      expect(res).to.have.status(200);
+      expect(res.body.ident).to.be.eq('data' + t);
+      await TestServerI2P.wait(50);
+    }
+
+    Logger.trace('waiting for a possible sync (90s)...');
     // wait for a possible sync
-    await TestServerI2P.wait(60000);
+    await TestServerI2P.wait(90000);
+
+    // test decision should be taken
+    const resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/decision:taken:test:dec');
+    expect(resState).to.have.status(200);
   }
 
   @test
@@ -180,7 +206,7 @@ class TestServerI2P {
       await TestServerI2P.wait(Math.ceil(Math.random() * 500));
     }
 
-    console.debug('waiting 120s to sync');
+    console.debug('waiting 90s to sync');
     // wait for a possible sync
     await TestServerI2P.wait(90000);
 

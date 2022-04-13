@@ -77,6 +77,7 @@ export class Pool {
     ident = ident && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(DEFAULT_LENGTH_IDENT);
 
     // test for transaction validity
+    // this is not strictly required, but convenient for the local node
     const tx = new Transaction(this.server.getWallet(), this.currentHeight, ident, commands).get();
     if (
       this.server.getValidation().validateTx(this.currentHeight, tx) &&

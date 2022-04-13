@@ -41,7 +41,7 @@ RUN cd divachain \
   && mkdir build \
   && mkdir keys \
   && mkdir dist \
-  && npm i -g pkg@5.5.1 \
+  && npm i -g pkg \
   && npm i --production \
   && bin/build.sh
 

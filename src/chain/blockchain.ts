@@ -389,13 +389,23 @@ export class Blockchain {
 
   private async setDecision(ns: string, origin: string, height: number, data: string) {
     const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
-    if (await this.getState(keyTaken)) {
-      return;
+    const stateTaken = await this.getState(keyTaken);
+    if (stateTaken) {
+      try {
+        const o: { stake: number; h: number; d: string } = JSON.parse(stateTaken.value).pop()[1];
+        if (o.h < this.height) {
+          await this.deleteStateData(keyTaken);
+        } else {
+          return;
+        }
+      } catch (error: any) {
+        Logger.trace(`Blockchain.setDecision() ${keyTaken} ${error.toString()}`);
+      }
     }
 
     const key = Blockchain.STATE_DECISION_IDENT + ns;
+    const state = await this.getState(key);
     try {
-      const state = await this.getState(key);
       const mapDecision: Map<string, { stake: number; h: number; d: string }> = state
         ? new Map(JSON.parse(state.value))
         : new Map();
@@ -404,7 +414,10 @@ export class Blockchain {
         .filter((v) => v.h === height && v.d === data)
         .reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
-        await this.updateStateData(keyTaken, JSON.stringify([...mapDecision]));
+        await this.updateStateData(
+          keyTaken,
+          JSON.stringify([...mapDecision].filter((a) => a[1].h === height && a[1].d === data))
+        );
         await this.deleteStateData(key);
       } else {
         await this.updateStateData(key, JSON.stringify([...mapDecision]));
