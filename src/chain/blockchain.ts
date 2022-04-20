@@ -63,6 +63,8 @@ export class Blockchain {
 
   private quorum: number = 0;
 
+  private arrayLockDecision: Array<string> = [];
+
   static async make(server: Server): Promise<Blockchain> {
     const b = new Blockchain(server);
     if (server.config.bootstrap) {
@@ -297,6 +299,10 @@ export class Blockchain {
     return false;
   }
 
+  isDecisionLocked(ns: string): boolean {
+    return this.arrayLockDecision.indexOf(ns) > -1;
+  }
+
   async getPerformance(height: number): Promise<{ timestamp: number }> {
     let ts: number;
     try {
@@ -394,6 +400,8 @@ export class Blockchain {
       try {
         const o: { stake: number; h: number; d: string } = JSON.parse(stateTaken.value).pop()[1];
         if (o.h < this.height) {
+          const i = this.arrayLockDecision.indexOf(ns);
+          i > -1 && this.arrayLockDecision.splice(i, 1);
           await this.deleteStateData(keyTaken);
         } else {
           return;
@@ -414,6 +422,8 @@ export class Blockchain {
         .filter((v) => v.h === height && v.d === data)
         .reduce((p, v) => p + v.stake, 0);
       if (stake >= this.getQuorum()) {
+        const i = this.arrayLockDecision.indexOf(ns);
+        i === -1 && this.arrayLockDecision.push(ns);
         await this.updateStateData(
           keyTaken,
           JSON.stringify([...mapDecision].filter((a) => a[1].h === height && a[1].d === data))

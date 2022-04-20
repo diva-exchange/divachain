@@ -31,7 +31,7 @@ import {
 import { Util } from '../chain/util';
 import crypto from 'crypto';
 import get from 'simple-get';
-import SocksProxyAgent from 'socks-proxy-agent/dist/agent';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Peer } from '../chain/blockchain';
 
 type Options = {
@@ -289,7 +289,7 @@ export class Network extends EventEmitter {
       try {
         return JSON.parse(await this.fetch(urlApi));
       } catch (error: any) {
-        Logger.warn('Network.fetchFromApi() ' + error.toString());
+        Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
       }
     } while (aNetwork.length);
 

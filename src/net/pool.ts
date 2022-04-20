@@ -26,8 +26,6 @@ import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
-import { Logger } from '../logger';
-import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -50,7 +48,7 @@ export class Pool {
   private ownTx: recordTx = {} as recordTx;
 
   private current: Map<string, TransactionStruct> = new Map();
-  private arrayTransaction: Array<TransactionStruct> = [];
+  private arrayPoolTx: Array<TransactionStruct> = [];
 
   private currentHeight: number = 0;
   private currentHash: string = '';
@@ -77,7 +75,7 @@ export class Pool {
     ident = ident && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(DEFAULT_LENGTH_IDENT);
 
     // test for transaction validity
-    // this is not strictly required, but convenient for the local node
+    // not strictly required, but convenient for the local node
     const tx = new Transaction(this.server.getWallet(), this.currentHeight, ident, commands).get();
     if (
       this.server.getValidation().validateTx(this.currentHeight, tx) &&
@@ -101,11 +99,14 @@ export class Pool {
       r.ident,
       r.commands
     ).get();
-    this.ownTx = {
-      height: this.currentHeight,
-      tx: new Transaction(this.server.getWallet(), this.currentHeight, r.ident, r.commands).get(),
-      hash: Util.hash([this.currentHeight, JSON.stringify(tx)].join()),
-    };
+
+    if (this.server.getValidation().validateTx(this.currentHeight, tx)) {
+      this.ownTx = {
+        height: this.currentHeight,
+        tx: tx,
+        hash: Util.hash([this.currentHeight, JSON.stringify(tx)].join()),
+      };
+    }
   }
 
   getStack() {
@@ -133,18 +134,13 @@ export class Pool {
       return false;
     }
 
-    // check Tx validity
-    if (!this.server.getValidation().validateTx(structProposal.height, structProposal.tx)) {
-      return false;
-    }
-
     this.current.set(structProposal.origin, structProposal.tx);
 
     return true;
   }
 
-  getArrayTransaction(): Array<TransactionStruct> {
-    return this.arrayTransaction;
+  getArrayPoolTx(): Array<TransactionStruct> {
+    return this.arrayPoolTx;
   }
 
   lock(): Vote | false {
@@ -153,9 +149,11 @@ export class Pool {
     }
 
     if (!this.currentVote.origin) {
-      this.arrayTransaction = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
+      this.arrayPoolTx = [...this.current.values()]
+        .filter(tx => this.server.getValidation().validateTx(this.currentHeight, tx))
+        .sort((a, b) => (a.sig > b.sig ? 1 : -1));
 
-      this.currentHash = Util.hash(JSON.stringify(this.arrayTransaction));
+      this.currentHash = Util.hash(JSON.stringify(this.arrayPoolTx));
 
       this.currentVote = new Vote().create(
         this.server.getWallet().getPublicKey(),
@@ -208,7 +206,7 @@ export class Pool {
     }
 
     if ((mapStakes.get(this.currentHash) || 0) >= quorum) {
-      this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayTransaction);
+      this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayPoolTx);
       this.block.votes = arrayVotes;
     }
 
@@ -216,10 +214,7 @@ export class Pool {
       return true;
     }
 
-    //@FIXME logging
-    Logger.trace(`${toB32(this.server.config.udp)}.b32.i2p isDeadlocked ${stakeVotes} / ${quorumTotal}`);
-
-    this.arrayTransaction = [];
+    this.arrayPoolTx = [];
     this.currentHash = '';
     this.currentVote = {} as Vote;
     this.mapVote = new Map();
@@ -251,7 +246,7 @@ export class Pool {
     this.ownTx = {} as recordTx;
     this.currentHeight = block.height + 1;
     this.current = new Map();
-    this.arrayTransaction = [];
+    this.arrayPoolTx = [];
     this.currentHash = '';
     this.currentVote = {} as Vote;
     this.block = {} as BlockStruct;

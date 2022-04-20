@@ -30,7 +30,6 @@ import { nanoid } from 'nanoid';
 class TestValidation {
   private static config: Config;
   private static wallet: Wallet;
-  private static validation: Validation;
 
   static async before() {
     process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
@@ -48,7 +47,6 @@ class TestValidation {
 
     TestValidation.config = await Config.make({ path_app: __dirname });
     TestValidation.wallet = Wallet.make(TestValidation.config);
-    TestValidation.validation = Validation.make();
   }
 
   static after() {

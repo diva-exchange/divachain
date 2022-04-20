@@ -25,15 +25,18 @@ import { CommandDecision, TransactionStruct } from '../chain/transaction';
 import path from 'path';
 import { Util } from '../chain/util';
 import { Blockchain } from '../chain/blockchain';
+import { Server } from './server';
 
 export class Validation {
+  private readonly server: Server;
   private readonly message: ValidateFunction;
 
-  static make() {
-    return new Validation();
+  static make(server: Server) {
+    return new Validation(server);
   }
 
-  private constructor() {
+  private constructor(server: Server) {
+    this.server = server;
     const pathSchema = path.join(__dirname, '../schema/');
 
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
@@ -139,7 +142,8 @@ export class Validation {
           case Blockchain.COMMAND_DATA:
             return true;
           case Blockchain.COMMAND_DECISION:
-            return (c as CommandDecision).h >= height;
+            return ((c as CommandDecision).h >= height &&
+              !this.server.getBlockchain().isDecisionLocked((c as CommandDecision).ns));
           default:
             return false;
         }

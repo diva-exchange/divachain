@@ -125,7 +125,7 @@ export class Server {
     }
     Logger.info('Blockchain initialized');
 
-    this.validation = Validation.make();
+    this.validation = Validation.make(this);
     Logger.info('Validation initialized');
 
     this.pool = Pool.make(this);
@@ -237,7 +237,6 @@ export class Server {
     const p: ProposalStruct = proposal.get();
 
     // process only valid proposals
-    // stateful
     if (!Proposal.isValid(p)) {
       return;
     }

@@ -73,11 +73,9 @@ export class Api {
 
     this.server.app.get('/sync/:height', async (req: Request, res: Response) => {
       const h = Math.floor(Number(req.params.height) || 0);
-      try {
-        return res.json(await this.server.getBlockchain().getRange(h, h + this.server.config.network_sync_size));
-      } catch (error) {
-        return res.status(404).end();
-      }
+      return this.server.getBlockchain().getHeight() >= h
+        ? res.json(await this.server.getBlockchain().getRange(h, h + this.server.config.network_sync_size))
+        : res.status(404).end();
     });
 
     this.server.app.get('/about', (req: Request, res: Response) => {
@@ -85,6 +83,7 @@ export class Api {
         version: this.package.version,
         license: this.package.license,
         publicKey: this.server.getWallet().getPublicKey(),
+        height: this.server.getBlockchain().getHeight(),
       });
     });
 
@@ -113,7 +112,7 @@ export class Api {
     });
 
     this.server.app.get('/pool/tx', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayTransaction());
+      return res.json(this.server.getPool().getArrayPoolTx());
     });
 
     this.server.app.get('/pool/votes', (req: Request, res: Response) => {
