@@ -43,7 +43,6 @@ type Options = {
 
 export class Network extends EventEmitter {
   private readonly server: Server;
-  private readonly socksProxyAgent: SocksProxyAgent | false;
   private readonly publicKey: string;
 
   private samForward: I2pSamStream = {} as I2pSamStream;
@@ -71,9 +70,6 @@ export class Network extends EventEmitter {
     this.publicKey = this.server.getWallet().getPublicKey();
     Logger.info(`Network, public key: ${this.publicKey}`);
 
-    this.socksProxyAgent = new SocksProxyAgent(
-      `socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
-    );
     Logger.info(
       `Network, using SOCKS: socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
     );
@@ -289,7 +285,7 @@ export class Network extends EventEmitter {
       try {
         return JSON.parse(await this.fetch(urlApi));
       } catch (error: any) {
-        Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
+        Logger.warn(`Network.fetchFromApi() ${urlApi} - ${JSON.stringify(error)}`);
       }
     } while (aNetwork.length);
 
@@ -299,7 +295,7 @@ export class Network extends EventEmitter {
   private fetch(url: string): Promise<string> {
     const options: Options = {
       url: url,
-      agent: this.socksProxyAgent,
+      agent: new SocksProxyAgent(`socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`),
       timeout: 10000,
       followRedirects: false,
     };

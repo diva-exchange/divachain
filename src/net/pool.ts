@@ -26,6 +26,7 @@ import { nanoid } from 'nanoid';
 import { Util } from '../chain/util';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
+import { Logger } from '../logger';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -50,7 +51,6 @@ export class Pool {
   private current: Map<string, TransactionStruct> = new Map();
   private arrayPoolTx: Array<TransactionStruct> = [];
 
-  private currentHeight: number = 0;
   private currentHash: string = '';
   private currentVote: Vote = {} as Vote;
   private mapVote: Map<string, VoteStruct> = new Map();
@@ -65,47 +65,38 @@ export class Pool {
     this.server = server;
   }
 
-  initHeight() {
-    if (!this.currentHeight) {
-      this.currentHeight = this.server.getBlockchain().getHeight() + 1;
-    }
-  }
-
-  stack(ident: string, commands: ArrayCommand): string | false {
+  stack(commands: ArrayCommand, ident: string = ''): string | false {
+    const height = this.server.getBlockchain().getHeight() + 1;
     ident = ident && ident.length <= MAX_LENGTH_IDENT ? ident : nanoid(DEFAULT_LENGTH_IDENT);
-
-    // test for transaction validity
-    // not strictly required, but convenient for the local node
-    const tx = new Transaction(this.server.getWallet(), this.currentHeight, ident, commands).get();
     if (
-      this.server.getValidation().validateTx(this.currentHeight, tx) &&
-      this.stackTransaction.push({ ident: ident, commands: commands }) > 0
+      !this.server
+        .getValidation()
+        .validateTx(height, new Transaction(this.server.getWallet(), height, ident, commands).get())
     ) {
-      return ident;
+      return false;
     }
 
-    return false;
+    this.stackTransaction.push({ ident: ident, commands: commands });
+    return ident;
   }
 
   release() {
-    if (this.hasBlock() || this.ownTx.height || !this.stackTransaction.length) {
+    if (this.hasBlock()) {
       return;
     }
 
-    const r: recordStack = this.stackTransaction.shift() as recordStack;
-    const tx: TransactionStruct = new Transaction(
-      this.server.getWallet(),
-      this.currentHeight,
-      r.ident,
-      r.commands
-    ).get();
+    const height = this.server.getBlockchain().getHeight() + 1;
+    while (!this.ownTx.height && this.stackTransaction.length) {
+      const r: recordStack = this.stackTransaction.shift() as recordStack;
+      const tx: TransactionStruct = new Transaction(this.server.getWallet(), height, r.ident, r.commands).get();
 
-    if (this.server.getValidation().validateTx(this.currentHeight, tx)) {
-      this.ownTx = {
-        height: this.currentHeight,
-        tx: tx,
-        hash: Util.hash([this.currentHeight, JSON.stringify(tx)].join()),
-      };
+      if (this.server.getValidation().validateTx(height, tx)) {
+        this.ownTx = {
+          height: height,
+          tx: tx,
+          hash: Util.hash([height, JSON.stringify(tx)].join()),
+        };
+      }
     }
   }
 
@@ -125,17 +116,17 @@ export class Pool {
   }
 
   propose(structProposal: ProposalStruct): boolean {
-    if (structProposal.height !== this.currentHeight || this.hasBlock()) {
+    const height = this.server.getBlockchain().getHeight() + 1;
+    if (structProposal.height !== height || this.hasBlock()) {
       return false;
     }
 
-    // pool already contains a tx from this origin
-    if (this.current.has(structProposal.origin)) {
+    // pool already contains a tx from this origin or the tx does not validate
+    if (this.current.has(structProposal.origin) || !this.server.getValidation().validateTx(height, structProposal.tx)) {
       return false;
     }
 
     this.current.set(structProposal.origin, structProposal.tx);
-
     return true;
   }
 
@@ -149,17 +140,24 @@ export class Pool {
     }
 
     if (!this.currentVote.origin) {
+      const height = this.server.getBlockchain().getHeight() + 1;
       this.arrayPoolTx = [...this.current.values()]
-        .filter(tx => this.server.getValidation().validateTx(this.currentHeight, tx))
+        .filter((tx) => {
+          return this.server.getValidation().validateTx(height, tx);
+        })
         .sort((a, b) => (a.sig > b.sig ? 1 : -1));
+
+      if (!this.arrayPoolTx.length) {
+        return false;
+      }
 
       this.currentHash = Util.hash(JSON.stringify(this.arrayPoolTx));
 
       this.currentVote = new Vote().create(
         this.server.getWallet().getPublicKey(),
-        this.currentHeight,
+        height,
         this.currentHash,
-        this.server.getWallet().sign(Util.hash([this.currentHeight, this.currentHash].join()))
+        this.server.getWallet().sign([height, this.currentHash].join())
       );
     }
 
@@ -167,7 +165,7 @@ export class Pool {
   }
 
   vote(structVote: VoteStruct): boolean {
-    if (structVote.height !== this.currentHeight || this.hasBlock()) {
+    if (structVote.height !== this.server.getBlockchain().getHeight() + 1 || this.hasBlock()) {
       return false;
     }
 
@@ -214,6 +212,9 @@ export class Pool {
       return true;
     }
 
+    //@FIXME logging
+    Logger.trace(`${this.server.config.ip}:${this.server.config.port} isDeadlocked ${stakeVotes} / ${quorumTotal}`);
+
     this.arrayPoolTx = [];
     this.currentHash = '';
     this.currentVote = {} as Vote;
@@ -241,10 +242,9 @@ export class Pool {
         return t.sig === this.ownTx.tx.sig;
       })
     ) {
-      this.stack(this.ownTx.tx.ident, this.ownTx.tx.commands);
+      this.stackTransaction.unshift({ ident: this.ownTx.tx.ident, commands: this.ownTx.tx.commands });
     }
     this.ownTx = {} as recordTx;
-    this.currentHeight = block.height + 1;
     this.current = new Map();
     this.arrayPoolTx = [];
     this.currentHash = '';

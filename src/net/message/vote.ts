@@ -46,10 +46,6 @@ export class Vote extends Message {
 
   // stateful
   static isValid(structVote: VoteStruct): boolean {
-    return Util.verifySignature(
-      structVote.origin,
-      structVote.sig,
-      Util.hash([structVote.height, structVote.hash].join())
-    );
+    return Util.verifySignature(structVote.origin, structVote.sig, [structVote.height, structVote.hash].join());
   }
 }

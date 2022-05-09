@@ -128,36 +128,14 @@ class TestServerI2P {
       await TestServerI2P.wait(50);
     }
 
-    const config = [...TestServerI2P.mapConfigServer.values()][3];
-
-    // this decision should fail
-    Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
-    let res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction/decision-evil')
-      .send([{ seq: 1, command: 'decision-evil', ns: 'test:fail', h: 1, d: 'SomeEvilDecision' }]);
-    expect(res).to.have.status(403);
-    await TestServerI2P.wait(250);
-
-    // this decision should fail
-    Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
-    res = await chai
-      .request(`http://${config.ip}:${config.port}`)
-      .put('/transaction/decision-evil-too')
-      .send([{ seq: 1, command: 'decision', ns: 'test:fail', h: 1, d: 'SomeOtherEvilDecision' }]);
-    expect(res).to.have.status(403);
-    await TestServerI2P.wait(250);
-
     // decision tx's
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
-      const res = await chai
+      Logger.trace(`Sending decision tx [h=4] to http://${config.ip}:${config.port}`);
+      await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t)
-        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 10, d: 'SomeDecisionData' }]);
-      expect(res).to.have.status(200);
-      expect(res.body.ident).to.be.eq('decision' + t);
+        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 4, d: 'SomeDecisionData' }]);
       await TestServerI2P.wait(750);
     }
 
@@ -165,10 +143,10 @@ class TestServerI2P {
     for (let t = l - 1; t > l / 2; t--) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
       Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
-      const res = await chai
+      await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t * 10)
-        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 11, d: 'MoreDecisionData' }]);
+        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 5, d: 'MoreDecisionData' }]);
     }
 
     // more data tx's
@@ -184,25 +162,46 @@ class TestServerI2P {
       await TestServerI2P.wait(50);
     }
 
-    Logger.trace('waiting for a possible sync (120s)...');
+    // even more data tx's
+    for (let t = 0; t < l; t++) {
+      const config = [...TestServerI2P.mapConfigServer.values()][t];
+      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      const res = await chai
+        .request(`http://${config.ip}:${config.port}`)
+        .put('/transaction/data' + t * 100)
+        .send([{ seq: 1, command: 'data', ns: 'test:more-data', d: 'more-content' }]);
+      expect(res).to.have.status(200);
+      expect(res.body.ident).to.be.eq('data' + t * 100);
+      await TestServerI2P.wait(5000);
+    }
+
+    // new decision tx's - should eliminate the decision on Block Height 8 above
+    for (let t = 0; t < l; t++) {
+      const config = [...TestServerI2P.mapConfigServer.values()][t];
+      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      await chai
+        .request(`http://${config.ip}:${config.port}`)
+        .put('/transaction/decision' + t * 100)
+        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 30, d: 'SomeNewDecisionData' }]);
+      await TestServerI2P.wait(50);
+    }
+
+    Logger.trace('waiting for a possible sync (90s)...');
     // wait for a possible sync
-    await TestServerI2P.wait(120000);
+    await TestServerI2P.wait(90000);
+
+    const config = [...TestServerI2P.mapConfigServer.values()][3];
 
     // test for data state
-    let resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/search/test:data');
+    const resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/search/test:data');
     expect(resState).to.have.status(200);
     expect(resState.body.filter((a) => a.value === 'tested-content').length).to.be.eq(l);
-
-    // test decision should be taken
-    resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/decision:taken:test:dec');
-    expect(resState).to.have.status(200);
-    expect(JSON.parse(resState.body.value)[0][1].h).to.be.eq(10);
   }
 
   @test
   @timeout(300000)
   async stressMultiTransaction() {
-    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 50;
+    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 150;
     const _inner = 4; // commands
 
     // create blocks containing multiple transactions
@@ -215,31 +214,39 @@ class TestServerI2P {
 
     for (let _i = 0; _i < _outer; _i++) {
       const aT: Array<any> = [];
-      for (let _j = 0; _j < _inner; _j++) {
-        aT.push({ seq: seq++, command: 'data', ns: 'test:test', d: Date.now().toString() });
+      if (_i % 2 === 0) {
+        for (let _j = 0; _j < _inner; _j++) {
+          aT.push({ seq: seq++, command: 'data', ns: 'test:test', d: Date.now().toString() });
+        }
+      } else {
+        const heightDecision = Math.floor(_i / 10) + 20;
+        aT.push({ seq: seq++, command: 'decision', ns: 'test:test', h: heightDecision, d: 'dec' });
+        aT.push({ seq: seq++, command: 'decision', ns: 'test:test:' + heightDecision, h: heightDecision, d: 'dec' });
       }
-      const i = crypto.randomInt(0, arrayConfig.length);
 
+      const i = crypto.randomInt(0, arrayConfig.length);
       try {
         const res = await chai
           .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
           .put('/transaction')
           .send(aT);
-        arrayTimestamp.push(new Date().getTime());
-        arrayRequests.push(arrayOrigin[i]);
-        arrayIdents.push(res.body.ident);
-        console.debug(
-          `${_i} http://${arrayConfig[i].ip}:${arrayConfig[i].port}/transaction/${arrayOrigin[i]}/${res.body.ident}`
-        );
+        if (res.status === 200) {
+          arrayTimestamp.push(new Date().getTime());
+          arrayRequests.push(arrayOrigin[i]);
+          arrayIdents.push(res.body.ident);
+          console.debug(
+            `${_i} http://${arrayConfig[i].ip}:${arrayConfig[i].port}/transaction/${arrayOrigin[i]}/${res.body.ident}`
+          );
+        }
       } catch (error) {
         console.error(error);
       }
-      await TestServerI2P.wait(Math.ceil(Math.random() * 500));
+      await TestServerI2P.wait(Math.ceil(Math.random() * 200));
     }
 
-    console.debug('waiting 120s to sync');
+    console.debug('waiting 240s to sync');
     // wait for a possible sync
-    await TestServerI2P.wait(120000);
+    await TestServerI2P.wait(240000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];

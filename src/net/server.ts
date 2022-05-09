@@ -157,8 +157,6 @@ export class Server {
           }
         }
 
-        this.pool.initHeight();
-
         resolve(this);
       });
     });
@@ -206,10 +204,13 @@ export class Server {
     return this.network;
   }
 
-  stackTx(arrayCommand: ArrayCommand, ident: string = ''): string | false {
-    const s = this.pool.stack(ident, arrayCommand);
+  stackTx(commands: ArrayCommand, ident: string = '') {
+    const i = this.pool.stack(commands, ident);
+    if (!i) {
+      return false;
+    }
     this.doPropose();
-    return s || false;
+    return i;
   }
 
   private doPropose() {
@@ -246,7 +247,7 @@ export class Server {
       return;
     }
 
-    // re-distribute proposal
+    // distribute proposal
     this.network.broadcast(proposal);
   }
 

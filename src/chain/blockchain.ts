@@ -46,9 +46,7 @@ export class Blockchain {
   public static readonly COMMAND_MODIFY_STAKE = 'modifyStake';
   public static readonly COMMAND_DATA = 'data';
   public static readonly COMMAND_DECISION = 'decision';
-  public static readonly STATE_DECISION_IDENT = 'decision:';
   public static readonly STATE_PEER_IDENT = 'peer:';
-  public static readonly STATE_DECISION_TAKEN = 'decision:taken:';
 
   private readonly server: Server;
   private readonly publicKey: string;
@@ -63,7 +61,9 @@ export class Blockchain {
 
   private quorum: number = 0;
 
-  private arrayLockDecision: Array<string> = [];
+  private arrayDecision: { [ns: string]: Map<string, { stake: number; h: number; d: string }> } = {};
+  private arrayWipDecision: { [height: number]: Array<string> } = {};
+  private arrayTakenDecision: { [height: number]: Array<string> } = {};
 
   static async make(server: Server): Promise<Blockchain> {
     const b = new Blockchain(server);
@@ -138,6 +138,7 @@ export class Blockchain {
     }
 
     this.updateCache(block);
+    this.processDecision(block);
 
     (async (b: BlockStruct) => {
       await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b));
@@ -156,6 +157,53 @@ export class Blockchain {
     if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
       this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
     }
+  }
+
+  private processDecision(block: BlockStruct) {
+    // clean taken decisions
+    if (this.arrayTakenDecision[block.height]) {
+      this.arrayTakenDecision[block.height].forEach((ns) => {
+        delete this.arrayDecision[ns];
+      });
+      delete this.arrayTakenDecision[block.height];
+    }
+
+    block.tx.forEach((tx: TransactionStruct) => {
+      tx.commands
+        .filter((c) => c.command === Blockchain.COMMAND_DECISION && !this.isDecisionTaken(c as CommandDecision))
+        .forEach((c) => {
+          const height = (c as CommandDecision).h;
+          if (!this.arrayTakenDecision[height]) {
+            const ns = (c as CommandDecision).ns;
+            const data = (c as CommandDecision).d;
+            const mapDecision = this.arrayDecision[ns] || new Map();
+
+            mapDecision.set(tx.origin, {
+              stake: this.getStake(tx.origin),
+              h: height,
+              d: data,
+            });
+            this.arrayDecision[ns] = mapDecision;
+            this.arrayWipDecision[height]
+              ? this.arrayWipDecision[height].push(ns)
+              : (this.arrayWipDecision[height] = [ns]);
+
+            if (
+              [...mapDecision.values()]
+                .filter((v) => v.h === height && v.d === data)
+                .reduce((p, v) => p + v.stake, 0) >= this.getQuorum()
+            ) {
+              this.arrayTakenDecision[height]
+                ? this.arrayTakenDecision[height].push(ns)
+                : (this.arrayTakenDecision[height] = [ns]);
+              this.arrayWipDecision[height].forEach((ns) => {
+                delete this.arrayDecision[ns];
+              });
+              delete this.arrayWipDecision[height];
+            }
+          }
+        });
+    });
   }
 
   async getRange(gte: number, lte: number): Promise<Array<BlockStruct>> {
@@ -197,11 +245,11 @@ export class Blockchain {
 
   async searchBlocks(search: string = ''): Promise<Array<BlockStruct>> {
     const a: Array<BlockStruct> = [];
-    for await (const value of this.dbBlockchain.values({ reverse: true })) {
-      value.indexOf(search) > -1 && a.push(JSON.parse(value));
-      if (a.length === this.server.config.api_max_query_size) {
-        break;
-      }
+    for await (const value of this.dbBlockchain.values({
+      reverse: true,
+      limit: this.server.config.api_max_query_size,
+    })) {
+      (!search.length || value.indexOf(search) > -1) && a.push(JSON.parse(value));
     }
     return a.reverse();
   }
@@ -237,11 +285,11 @@ export class Blockchain {
 
   async searchState(search: string = ''): Promise<Array<{ key: string; value: any }>> {
     const a: Array<{ key: string; value: any }> = [];
-    for await (const [key, value] of this.dbState.iterator({ reverse: true })) {
-      (key + value).indexOf(search) > -1 && a.push({ key: key, value: value });
-      if (a.length === this.server.config.api_max_query_size) {
-        break;
-      }
+    for await (const [key, value] of this.dbState.iterator({
+      reverse: true,
+      limit: this.server.config.api_max_query_size,
+    })) {
+      (!search.length || (key + value).indexOf(search) > -1) && a.push({ key: key, value: value });
     }
     return a;
   }
@@ -299,8 +347,13 @@ export class Blockchain {
     return false;
   }
 
-  isDecisionLocked(ns: string): boolean {
-    return this.arrayLockDecision.indexOf(ns) > -1;
+  isDecisionTaken(c: CommandDecision): boolean {
+    for (const h in Object.keys(this.arrayTakenDecision)) {
+      if (Number(h) >= c.h && this.arrayTakenDecision[h].indexOf(c.ns) > -1) {
+        return true;
+      }
+    }
+    return false;
   }
 
   async getPerformance(height: number): Promise<{ timestamp: number }> {
@@ -342,14 +395,6 @@ export class Blockchain {
           case Blockchain.COMMAND_DATA:
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).d);
             break;
-          case Blockchain.COMMAND_DECISION:
-            await this.setDecision(
-              (c as CommandDecision).ns,
-              t.origin,
-              (c as CommandDecision).h,
-              (c as CommandDecision).d
-            );
-            break;
         }
       }
     }
@@ -390,50 +435,6 @@ export class Blockchain {
       peer.stake = peer.stake + command.stake;
       this.mapPeer.set(command.publicKey, peer);
       await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
-    }
-  }
-
-  private async setDecision(ns: string, origin: string, height: number, data: string) {
-    const keyTaken = Blockchain.STATE_DECISION_TAKEN + ns;
-    const stateTaken = await this.getState(keyTaken);
-    if (stateTaken) {
-      try {
-        const o: { stake: number; h: number; d: string } = JSON.parse(stateTaken.value).pop()[1];
-        if (o.h < this.height) {
-          const i = this.arrayLockDecision.indexOf(ns);
-          i > -1 && this.arrayLockDecision.splice(i, 1);
-          await this.deleteStateData(keyTaken);
-        } else {
-          return;
-        }
-      } catch (error: any) {
-        Logger.trace(`Blockchain.setDecision() ${keyTaken} ${error.toString()}`);
-      }
-    }
-
-    const key = Blockchain.STATE_DECISION_IDENT + ns;
-    const state = await this.getState(key);
-    try {
-      const mapDecision: Map<string, { stake: number; h: number; d: string }> = state
-        ? new Map(JSON.parse(state.value))
-        : new Map();
-      mapDecision.set(origin, { stake: this.getStake(origin), h: height, d: data });
-      const stake = [...mapDecision.values()]
-        .filter((v) => v.h === height && v.d === data)
-        .reduce((p, v) => p + v.stake, 0);
-      if (stake >= this.getQuorum()) {
-        const i = this.arrayLockDecision.indexOf(ns);
-        i === -1 && this.arrayLockDecision.push(ns);
-        await this.updateStateData(
-          keyTaken,
-          JSON.stringify([...mapDecision].filter((a) => a[1].h === height && a[1].d === data))
-        );
-        await this.deleteStateData(key);
-      } else {
-        await this.updateStateData(key, JSON.stringify([...mapDecision]));
-      }
-    } catch (error: any) {
-      Logger.warn(`Blockchain.setDecision() ${key} ${error.toString()}`);
     }
   }
 

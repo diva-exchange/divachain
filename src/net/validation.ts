@@ -94,9 +94,14 @@ export class Validation {
 
     let _aOrigin: Array<string>;
 
+    if (!tx.length || !votes.length) {
+      Logger.trace(`Validation.validateBlock() - empty tx or votes: ${height}`);
+      return false;
+    }
+
     // vote validation
     _aOrigin = [];
-    const voteHash = Util.hash([height, Util.hash(JSON.stringify(tx))].join());
+    const voteHash = [height, Util.hash(JSON.stringify(tx))].join();
     for (const vote of votes) {
       if (_aOrigin.includes(vote.origin)) {
         Logger.trace(`Validation.validateBlock() - Multiple votes from same origin: ${height}`);
@@ -142,8 +147,9 @@ export class Validation {
           case Blockchain.COMMAND_DATA:
             return true;
           case Blockchain.COMMAND_DECISION:
-            return ((c as CommandDecision).h >= height &&
-              !this.server.getBlockchain().isDecisionLocked((c as CommandDecision).ns));
+            return (
+              (c as CommandDecision).h >= height && !this.server.getBlockchain().isDecisionTaken(c as CommandDecision)
+            );
           default:
             return false;
         }

@@ -45,7 +45,6 @@ export class Proposal extends Message {
     return this.message.data as ProposalStruct;
   }
 
-  // stateful
   static isValid(structProposal: ProposalStruct): boolean {
     return Util.verifySignature(
       structProposal.origin,
