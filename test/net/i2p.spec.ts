@@ -131,23 +131,17 @@ class TestServerI2P {
     // decision tx's
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending decision tx [h=4] to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending decision tx [h=6] to http://${config.ip}:${config.port}`);
       await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t)
-        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 4, d: 'SomeDecisionData' }]);
+        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 6, d: 'SomeDecisionData' }]);
       await TestServerI2P.wait(750);
     }
 
-    // more decisions tx's
-    for (let t = l - 1; t > l / 2; t--) {
-      const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
-      await chai
-        .request(`http://${config.ip}:${config.port}`)
-        .put('/transaction/decision' + t * 10)
-        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 5, d: 'MoreDecisionData' }]);
-    }
+    Logger.trace('waiting for sync (30s)...');
+    // wait for sync
+    await TestServerI2P.wait(30000);
 
     // more data tx's
     for (let t = 0; t < l; t++) {
@@ -172,30 +166,29 @@ class TestServerI2P {
         .send([{ seq: 1, command: 'data', ns: 'test:more-data', d: 'more-content' }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('data' + t * 100);
-      await TestServerI2P.wait(5000);
+      await TestServerI2P.wait(10000);
     }
 
-    // new decision tx's - should eliminate the decision on Block Height 8 above
+    // new decision tx's - should eliminate the decision on Block Height 6
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending decision tx [h=30] to http://${config.ip}:${config.port}`);
       await chai
         .request(`http://${config.ip}:${config.port}`)
         .put('/transaction/decision' + t * 100)
-        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 30, d: 'SomeNewDecisionData' }]);
+        .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 30, d: 'TestedNewDecisionData' }]);
       await TestServerI2P.wait(50);
     }
 
-    Logger.trace('waiting for a possible sync (90s)...');
-    // wait for a possible sync
-    await TestServerI2P.wait(90000);
-
-    const config = [...TestServerI2P.mapConfigServer.values()][3];
+    Logger.trace('waiting for sync (60s)...');
+    // wait for sync
+    await TestServerI2P.wait(60000);
 
     // test for data state
-    const resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/search/test:data');
+    const config = [...TestServerI2P.mapConfigServer.values()][3];
+    const resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/test:dec');
     expect(resState).to.have.status(200);
-    expect(resState.body.filter((a) => a.value === 'tested-content').length).to.be.eq(l);
+    expect(JSON.parse(resState.body.value).h).to.be.eq(30);
   }
 
   @test

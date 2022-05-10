@@ -59,6 +59,7 @@ export type Configuration = {
   http?: string;
   udp?: string;
 
+  network_timeout_ms?: number;
   network_p2p_interval_ms?: number;
   network_clean_interval_ms?: number;
   network_sync_size?: number;
@@ -82,7 +83,10 @@ const DEFAULT_I2P_SAM_UDP_PORT = 7655;
 const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = DEFAULT_PORT;
 const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_PORT + 2;
 const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
+const DEFAULT_NETWORK_TIMEOUT_MS = 3000;
 
+const MIN_NETWORK_TIMEOUT_MS = 1000;
+const MAX_NETWORK_TIMEOUT_MS = 30000;
 const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
 const MIN_NETWORK_CLEAN_INTERVAL_MS = 1500;
@@ -132,6 +136,7 @@ export class Config {
   public i2p_public_key_udp: string = '';
   public i2p_private_key_udp: string = '';
 
+  public network_timeout_ms: number = DEFAULT_NETWORK_TIMEOUT_MS;
   public network_p2p_interval_ms: number = MIN_NETWORK_P2P_INTERVAL_MS;
   public network_clean_interval_ms: number = MIN_NETWORK_CLEAN_INTERVAL_MS;
   public network_sync_size: number = MIN_NETWORK_SYNC_SIZE;
@@ -286,6 +291,12 @@ export class Config {
     if (!fs.existsSync(self.path_state)) {
       throw new Error(`Path to the state database not found: ${self.path_state}`);
     }
+
+    self.network_timeout_ms = Config.b(
+      c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS,
+      MIN_NETWORK_TIMEOUT_MS,
+      MAX_NETWORK_TIMEOUT_MS
+    );
 
     self.network_p2p_interval_ms = Config.b(
       c.network_p2p_interval_ms || process.env.NETWORK_P2P_INTERVAL_MS,

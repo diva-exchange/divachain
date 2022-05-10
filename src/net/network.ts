@@ -44,6 +44,7 @@ type Options = {
 export class Network extends EventEmitter {
   private readonly server: Server;
   private readonly publicKey: string;
+  private readonly agent: SocksProxyAgent;
 
   private samForward: I2pSamStream = {} as I2pSamStream;
   private samUDP: I2pSamDatagram = {} as I2pSamDatagram;
@@ -54,7 +55,8 @@ export class Network extends EventEmitter {
   private arrayBroadcasted: Array<string> = [];
   private arrayProcessed: Array<string> = [];
 
-  private readonly _onMessage: Function | false;
+  private readonly _onMessage: Function;
+  private isClosing: boolean = false;
 
   private timeoutP2P: NodeJS.Timeout = {} as NodeJS.Timeout;
   private timeoutClean: NodeJS.Timeout = {} as NodeJS.Timeout;
@@ -70,6 +72,11 @@ export class Network extends EventEmitter {
     this.publicKey = this.server.getWallet().getPublicKey();
     Logger.info(`Network, public key: ${this.publicKey}`);
 
+    this.agent = new SocksProxyAgent(
+      `socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`,
+      { timeout: this.server.config.network_timeout_ms }
+    );
+
     Logger.info(
       `Network, using SOCKS: socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`
     );
@@ -79,12 +86,14 @@ export class Network extends EventEmitter {
     }
     this.init();
 
-    this._onMessage = onMessage || false;
+    this._onMessage = onMessage;
 
     this.timeoutClean = setTimeout(() => this.clean(), this.server.config.network_clean_interval_ms);
   }
 
   shutdown() {
+    this.isClosing = true;
+    this.agent.destroy();
     clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
   }
@@ -175,6 +184,10 @@ export class Network extends EventEmitter {
   }
 
   private incomingData(data: Buffer, from: string) {
+    if (this.isClosing) {
+      return;
+    }
+
     const msg = data.toString().trim();
     if (!msg || !from) {
       return;
@@ -187,7 +200,13 @@ export class Network extends EventEmitter {
       }
     } else {
       try {
-        this.processMessage(new Message(msg));
+        const m: Message = new Message(msg);
+        // stateless validation
+        if (this.server.getValidation().validateMessage(m) && !this.arrayProcessed.includes(m.ident())) {
+          this.arrayProcessed.push(m.ident());
+          // process message
+          this._onMessage(m);
+        }
       } catch (error: any) {
         Logger.warn(`Network.incomingData() ${error.toString()}`);
       }
@@ -222,21 +241,6 @@ export class Network extends EventEmitter {
       }, int);
       int = int + step;
     });
-  }
-
-  private processMessage(m: Message) {
-    // stateless validation
-    if (!this.server.getValidation().validateMessage(m)) {
-      return;
-    }
-
-    if (this.arrayProcessed.includes(m.ident())) {
-      return;
-    }
-    this.arrayProcessed.push(m.ident());
-
-    // process message
-    this._onMessage && this._onMessage(m);
   }
 
   private clean() {
@@ -295,8 +299,8 @@ export class Network extends EventEmitter {
   private fetch(url: string): Promise<string> {
     const options: Options = {
       url: url,
-      agent: new SocksProxyAgent(`socks://${this.server.config.i2p_socks_host}:${this.server.config.i2p_socks_port}`),
-      timeout: 10000,
+      agent: this.agent,
+      timeout: this.server.config.network_timeout_ms,
       followRedirects: false,
     };
 

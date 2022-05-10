@@ -134,7 +134,7 @@ export class Server {
     await this.httpServer.listen(this.config.port, this.config.ip);
 
     this.network = Network.make(this, (m: Message) => {
-      return this.onMessage(m);
+      this.onMessage(m);
     });
 
     // schedule proposing

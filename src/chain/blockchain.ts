@@ -62,8 +62,7 @@ export class Blockchain {
   private quorum: number = 0;
 
   private arrayDecision: { [ns: string]: Map<string, { stake: number; h: number; d: string }> } = {};
-  private arrayWipDecision: { [height: number]: Array<string> } = {};
-  private arrayTakenDecision: { [height: number]: Array<string> } = {};
+  private arrayTakenDecision: { [height: number]: Array<{ ns: string; d: string }> } = {};
 
   static async make(server: Server): Promise<Blockchain> {
     const b = new Blockchain(server);
@@ -138,7 +137,6 @@ export class Blockchain {
     }
 
     this.updateCache(block);
-    this.processDecision(block);
 
     (async (b: BlockStruct) => {
       await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b));
@@ -157,23 +155,22 @@ export class Blockchain {
     if (this.mapBlocks.size > this.server.config.blockchain_max_blocks_in_memory) {
       this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
     }
-  }
 
-  private processDecision(block: BlockStruct) {
-    // clean taken decisions
-    if (this.arrayTakenDecision[block.height]) {
-      this.arrayTakenDecision[block.height].forEach((ns) => {
-        delete this.arrayDecision[ns];
+    // remove outdated decisions
+    if (this.arrayTakenDecision[block.height - 1]) {
+      this.arrayTakenDecision[block.height - 1].forEach(async (o) => {
+        await this.deleteStateData(o.ns);
       });
-      delete this.arrayTakenDecision[block.height];
+      delete this.arrayTakenDecision[block.height - 1];
     }
 
+    // decisions in cache
     block.tx.forEach((tx: TransactionStruct) => {
       tx.commands
-        .filter((c) => c.command === Blockchain.COMMAND_DECISION && !this.isDecisionTaken(c as CommandDecision))
+        .filter((c) => c.command === Blockchain.COMMAND_DECISION)
         .forEach((c) => {
-          const height = (c as CommandDecision).h;
-          if (!this.arrayTakenDecision[height]) {
+          if (!this.isDecisionTaken(c as CommandDecision)) {
+            const height = (c as CommandDecision).h;
             const ns = (c as CommandDecision).ns;
             const data = (c as CommandDecision).d;
             const mapDecision = this.arrayDecision[ns] || new Map();
@@ -184,9 +181,6 @@ export class Blockchain {
               d: data,
             });
             this.arrayDecision[ns] = mapDecision;
-            this.arrayWipDecision[height]
-              ? this.arrayWipDecision[height].push(ns)
-              : (this.arrayWipDecision[height] = [ns]);
 
             if (
               [...mapDecision.values()]
@@ -194,12 +188,9 @@ export class Blockchain {
                 .reduce((p, v) => p + v.stake, 0) >= this.getQuorum()
             ) {
               this.arrayTakenDecision[height]
-                ? this.arrayTakenDecision[height].push(ns)
-                : (this.arrayTakenDecision[height] = [ns]);
-              this.arrayWipDecision[height].forEach((ns) => {
-                delete this.arrayDecision[ns];
-              });
-              delete this.arrayWipDecision[height];
+                ? this.arrayTakenDecision[height].push({ ns: ns, d: data })
+                : (this.arrayTakenDecision[height] = [{ ns: ns, d: data }]);
+              delete this.arrayDecision[ns];
             }
           }
         });
@@ -348,12 +339,9 @@ export class Blockchain {
   }
 
   isDecisionTaken(c: CommandDecision): boolean {
-    for (const h in Object.keys(this.arrayTakenDecision)) {
-      if (Number(h) >= c.h && this.arrayTakenDecision[h].indexOf(c.ns) > -1) {
-        return true;
-      }
-    }
-    return false;
+    return Object.values(this.arrayTakenDecision)
+      .flat()
+      .some((o) => o.ns === c.ns);
   }
 
   async getPerformance(height: number): Promise<{ timestamp: number }> {
@@ -394,6 +382,13 @@ export class Blockchain {
             break;
           case Blockchain.COMMAND_DATA:
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).d);
+            break;
+          case Blockchain.COMMAND_DECISION:
+            this.isDecisionTaken(c as CommandDecision) &&
+              (await this.updateStateData(
+                (c as CommandDecision).ns,
+                JSON.stringify({ h: (c as CommandDecision).h, d: (c as CommandDecision).d })
+              ));
             break;
         }
       }
