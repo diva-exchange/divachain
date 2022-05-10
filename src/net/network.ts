@@ -296,11 +296,11 @@ export class Network extends EventEmitter {
     throw new Error('Fetch failed: ' + urlApi);
   }
 
-  private fetch(url: string): Promise<string> {
+  private fetch(url: string, timeout: number = 0): Promise<string> {
     const options: Options = {
       url: url,
       agent: this.agent,
-      timeout: this.server.config.network_timeout_ms,
+      timeout: timeout > 0 ? timeout : this.server.config.network_timeout_ms,
       followRedirects: false,
     };
 
@@ -321,7 +321,7 @@ export class Network extends EventEmitter {
     const _i = setInterval(async () => {
       try {
         this.arrayNetwork = JSON.parse(
-          await this.server.getNetwork().fetchFromApi(this.server.config.bootstrap + '/network')
+          await this.fetch(this.server.config.bootstrap + '/network')
         );
       } catch (error: any) {
         Logger.warn('Network.populateNetwork() ' + error.toString());
