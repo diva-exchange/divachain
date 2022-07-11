@@ -147,13 +147,14 @@ export class Server {
       this.doVote();
     }, Math.floor(this.config.network_clean_interval_ms * 1.5));
 
+    // bootstrapping (entering the network)
     return new Promise((resolve) => {
       this.network.once('ready', async () => {
         this.bootstrap = Bootstrap.make(this);
         if (this.config.bootstrap) {
           await this.bootstrap.syncWithNetwork();
           if (!this.blockchain.hasNetworkHttp(this.config.http)) {
-            await this.bootstrap.enterNetwork(this.wallet.getPublicKey());
+            await this.bootstrap.joinNetwork(this.wallet.getPublicKey());
           }
         }
 
@@ -176,8 +177,9 @@ export class Server {
           resolve();
         });
       });
+    } else {
+      return Promise.resolve();
     }
-    return Promise.resolve();
   }
 
   getBootstrap(): Bootstrap {

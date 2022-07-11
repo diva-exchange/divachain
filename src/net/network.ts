@@ -93,7 +93,9 @@ export class Network extends EventEmitter {
 
   shutdown() {
     this.isClosing = true;
-    this.agent.destroy();
+    this.agent && this.agent.destroy();
+    this.samForward && this.samForward.close();
+    this.samUDP && this.samUDP.close();
     clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
   }
@@ -174,12 +176,11 @@ export class Network extends EventEmitter {
     }, 1000);
   }
 
-  private hasP2PNetwork() {
+  private hasP2PNetwork(): Boolean {
     return (
-      (this.server.config.bootstrap ||
-        this.arrayNetwork.length > [...this.server.getBlockchain().getMapPeer().values()].length * 0.5) &&
-      Object.keys(this.samForward).length &&
-      Object.keys(this.samUDP).length
+      this.arrayNetwork.length > [...this.server.getBlockchain().getMapPeer().values()].length * 0.5 &&
+      Object.keys(this.samForward).length > 0 &&
+      Object.keys(this.samUDP).length > 0
     );
   }
 
@@ -273,27 +274,29 @@ export class Network extends EventEmitter {
       });
   }
 
-  async fetchFromApi(endpoint: string) {
+  async fetchFromApi(endpoint: string, timeout: number = 0): Promise<any> {
     if (endpoint.indexOf('http://') === 0) {
-      return await this.fetch(endpoint);
+      const json = await this.fetch(endpoint);
+      return JSON.parse(json);
     }
 
     if (!this.arrayNetwork.length) {
       throw new Error('Network unavailable');
     }
 
-    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
+    let aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
     let urlApi = '';
     do {
       urlApi = `http://${toB32(aNetwork.pop().http)}.b32.i2p/${endpoint}`;
       try {
-        return JSON.parse(await this.fetch(urlApi));
+        const json = await this.fetch(urlApi, timeout);
+        return JSON.parse(json);
       } catch (error: any) {
-        Logger.warn(`Network.fetchFromApi() ${urlApi} - ${JSON.stringify(error)}`);
+        Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
       }
-    } while (aNetwork.length);
+    } while (aNetwork.length > 0);
 
-    throw new Error('Fetch failed: ' + urlApi);
+    throw new Error('fetchFromApi failed');
   }
 
   private fetch(url: string, timeout: number = 0): Promise<string> {

@@ -52,7 +52,8 @@ export class Bootstrap {
       await this.server.getBlockchain().reset(genesis);
       let h = 1;
       while (blockNetwork.height > h) {
-        const arrayBlocks: Array<BlockStruct> = await this.server.getNetwork().fetchFromApi('sync/' + (h + 1));
+        const arrayBlocks: Array<BlockStruct> = await this.server.getNetwork()
+          .fetchFromApi('sync/' + (h + 1), this.server.config.network_timeout_ms * 2);
         for (const b of arrayBlocks) {
           this.server.getBlockchain().add(b);
         }
@@ -60,7 +61,8 @@ export class Bootstrap {
       }
     }
   }
-  async enterNetwork(publicKey: string) {
+
+  async joinNetwork(publicKey: string) {
     await this.server
       .getNetwork()
       .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
@@ -86,9 +88,7 @@ export class Bootstrap {
     setTimeout(async () => {
       let res: { token: string } = { token: '' };
       try {
-        res = JSON.parse(
-          await this.server.getNetwork().fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`)
-        );
+        res = await this.server.getNetwork().fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`);
         this.confirm(http, udp, publicKey, res.token);
       } catch (error: any) {
         Logger.warn('Bootstrap.join() / challenge ' + error.toString());

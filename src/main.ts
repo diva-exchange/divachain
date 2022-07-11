@@ -19,6 +19,7 @@
 
 import { Server } from './net/server';
 import { Config, Configuration } from './config';
+import { Logger } from './logger';
 
 class Main {
   private config: Config = {} as Config;
@@ -31,6 +32,8 @@ class Main {
 
   private async start() {
     const server = new Server(this.config);
+
+    // termination handlers
     process.once('SIGINT', async () => {
       await server.shutdown();
       process.exit(0);
@@ -39,6 +42,23 @@ class Main {
       await server.shutdown();
       process.exit(0);
     });
+
+    // (unhandled) exception handlers
+    process.on('uncaughtException', async (err) => {
+      Logger.fatal(err, 'uncaughtException');
+      if (process.env.NODE_ENV !== 'test') {
+        await server.shutdown();
+        process.exit(1);
+      }
+    });
+    process.on('unhandledRejection', async (err) => {
+      Logger.fatal(err, 'unhandledRejection');
+      if (process.env.NODE_ENV !== 'test') {
+        await server.shutdown();
+        process.exit(1);
+      }
+    });
+
     await server.start();
   }
 }

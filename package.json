@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.34.0",
+  "version": "0.34.1",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "bin": "dist/main.js",
   "keywords": [
