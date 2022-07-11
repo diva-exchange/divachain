@@ -22,7 +22,7 @@ import fs from 'fs';
 import path from 'path';
 import { Config } from '../config';
 import { base64url } from 'rfc4648';
-import crypto from 'crypto';
+import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 export class Wallet {
   private config: Config;
@@ -41,7 +41,7 @@ export class Wallet {
   }
 
   open(): Wallet {
-    this.ident = crypto.createHash('md5').update([this.config.http, this.config.udp].join()).digest('hex');
+    this.ident = toB32(this.config.http) + '.wallet';
 
     sodium.sodium_mlock(this.secretKey);
 

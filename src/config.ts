@@ -20,7 +20,6 @@
 import path from 'path';
 import fs from 'fs';
 import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
-import crypto from 'crypto';
 import { Genesis } from './genesis';
 
 export type Configuration = {
@@ -238,8 +237,7 @@ export class Config {
 
     if (self.http.length > 0) {
       const _b32 = /\.b32\.i2p$/.test(self.http) ? self.http : toB32(self.http) + '.b32.i2p';
-      const _fn = crypto.createHash('md5').update(_b32).digest('hex');
-      const _p = path.join(self.path_keys, _fn);
+      const _p = path.join(self.path_keys, _b32);
       self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
       self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
     } else {
@@ -251,8 +249,7 @@ export class Config {
 
     if (self.udp.length > 0) {
       const _b32 = /\.b32\.i2p$/.test(self.udp) ? self.udp : toB32(self.udp) + '.b32.i2p';
-      const _fn = crypto.createHash('md5').update(_b32).digest('hex');
-      const _p = path.join(self.path_keys, _fn);
+      const _p = path.join(self.path_keys, _b32);
       self.i2p_public_key_udp = fs.readFileSync(_p + '.public').toString();
       self.i2p_private_key_udp = fs.readFileSync(_p + '.private').toString();
     } else {
@@ -341,8 +338,10 @@ export class Config {
       },
     });
 
-    const _fn = crypto.createHash('md5').update(obj.address).digest('hex');
-    const pathDestination = path.join(self.path_keys, _fn);
+    const pathDestination = path.join(self.path_keys, obj.address);
+    if (fs.existsSync(pathDestination + '.public') || fs.existsSync(pathDestination + '.private')) {
+      throw new Error(`Address already exists: ${pathDestination}`);
+    }
     fs.writeFileSync(pathDestination + '.public', obj.public, { mode: '0644' });
     fs.writeFileSync(pathDestination + '.private', obj.private, { mode: '0600' });
 

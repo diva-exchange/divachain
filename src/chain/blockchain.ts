@@ -254,7 +254,7 @@ export class Blockchain {
       }
     }
 
-    // disk
+    // db
     for await (const value of this.dbBlockchain.values()) {
       const b = JSON.parse(value) as BlockStruct;
       const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);

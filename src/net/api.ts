@@ -41,10 +41,7 @@ export class Api {
   private constructor(server: Server) {
     this.server = server;
 
-    this.pathToken = path.join(
-      this.server.config.path_keys,
-      crypto.createHash('md5').update(this.server.config.http).digest('hex') + '.token'
-    );
+    this.pathToken = path.join(this.server.config.path_keys, toB32(this.server.config.http) + '.token');
     this.createToken();
     this.route();
   }

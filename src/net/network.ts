@@ -320,9 +320,7 @@ export class Network extends EventEmitter {
 
     const _i = setInterval(async () => {
       try {
-        this.arrayNetwork = JSON.parse(
-          await this.fetch(this.server.config.bootstrap + '/network')
-        );
+        this.arrayNetwork = JSON.parse(await this.fetch(this.server.config.bootstrap + '/network'));
       } catch (error: any) {
         Logger.warn('Network.populateNetwork() ' + error.toString());
         this.arrayNetwork = [];
