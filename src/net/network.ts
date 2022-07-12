@@ -93,9 +93,9 @@ export class Network extends EventEmitter {
 
   shutdown() {
     this.isClosing = true;
-    this.agent && this.agent.destroy();
-    this.samForward && this.samForward.close();
-    this.samUDP && this.samUDP.close();
+    typeof this.agent.destroy === 'function' && this.agent.destroy();
+    typeof this.samForward.close === 'function' && this.samForward.close();
+    typeof this.samUDP.close === 'function' && this.samUDP.close();
     clearTimeout(this.timeoutP2P);
     clearTimeout(this.timeoutClean);
   }
@@ -105,16 +105,16 @@ export class Network extends EventEmitter {
 
     let retry = 0;
     let started = false;
-    const i = setInterval(() => {
+    const i = setInterval(async () => {
       retry++;
-      if (retry > 60) {
+      if (retry > 10) {
         throw new Error(`P2P failed on ${toB32(this.server.config.udp)}.b32.i2p`);
       }
 
       if (started) {
         if (this.hasP2PNetwork()) {
-          this.emit('ready');
           clearInterval(i);
+          this.emit('ready');
           Logger.info(`P2P ready on ${toB32(this.server.config.udp)}.b32.i2p`);
         }
         return;
@@ -123,57 +123,50 @@ export class Network extends EventEmitter {
       started = true;
       this.p2pNetwork();
 
-      (async () => {
-        const _c = this.server.config;
-        this.samForward = (
-          await createForward({
-            sam: {
-              host: _c.i2p_sam_http_host,
-              portTCP: _c.i2p_sam_http_port_tcp,
-              publicKey: _c.i2p_public_key_http,
-              privateKey: _c.i2p_private_key_http,
-            },
-            forward: {
-              host: _c.i2p_sam_forward_http_host,
-              port: _c.i2p_sam_forward_http_port,
-              silent: true,
-            },
-          })
-        ).on('error', (error: any) => {
-          Logger.warn('SAM HTTP ' + error.toString());
-        });
-        Logger.info(
-          `HTTP ${toB32(_c.http)}.b32.i2p to ${_c.i2p_sam_forward_http_host}:${_c.i2p_sam_forward_http_port}`
-        );
-      })();
+      const _c = this.server.config;
+      this.samForward = (
+        await createForward({
+          sam: {
+            host: _c.i2p_sam_http_host,
+            portTCP: _c.i2p_sam_http_port_tcp,
+            publicKey: _c.i2p_public_key_http,
+            privateKey: _c.i2p_private_key_http,
+          },
+          forward: {
+            host: _c.i2p_sam_forward_http_host,
+            port: _c.i2p_sam_forward_http_port,
+            silent: true,
+          },
+        })
+      ).on('error', (error: any) => {
+        Logger.warn('SAM HTTP ' + error.toString());
+      });
+      Logger.info(`HTTP ${toB32(_c.http)}.b32.i2p to ${_c.i2p_sam_forward_http_host}:${_c.i2p_sam_forward_http_port}`);
 
-      (async () => {
-        const _c = this.server.config;
-        this.samUDP = (
-          await createDatagram({
-            sam: {
-              host: _c.i2p_sam_udp_host,
-              portTCP: _c.i2p_sam_udp_port_tcp,
-              publicKey: _c.i2p_public_key_udp,
-              privateKey: _c.i2p_private_key_udp,
-            },
-            listen: {
-              address: _c.i2p_sam_listen_udp_host,
-              port: _c.i2p_sam_listen_udp_port,
-              hostForward: _c.i2p_sam_forward_udp_host,
-              portForward: _c.i2p_sam_forward_udp_port,
-            },
-          })
-        )
-          .on('data', (data: Buffer, from: string) => {
-            this.incomingData(data, from);
-          })
-          .on('error', (error: any) => {
-            Logger.warn('SAM UDP ' + error.toString());
-          });
-        Logger.info(`UDP ${toB32(_c.udp)}.b32.i2p to ${_c.i2p_sam_forward_udp_host}:${_c.i2p_sam_forward_udp_port}`);
-      })();
-    }, 1000);
+      this.samUDP = (
+        await createDatagram({
+          sam: {
+            host: _c.i2p_sam_udp_host,
+            portTCP: _c.i2p_sam_udp_port_tcp,
+            publicKey: _c.i2p_public_key_udp,
+            privateKey: _c.i2p_private_key_udp,
+          },
+          listen: {
+            address: _c.i2p_sam_listen_udp_host,
+            port: _c.i2p_sam_listen_udp_port,
+            hostForward: _c.i2p_sam_forward_udp_host,
+            portForward: _c.i2p_sam_forward_udp_port,
+          },
+        })
+      )
+        .on('data', (data: Buffer, from: string) => {
+          this.incomingData(data, from);
+        })
+        .on('error', (error: any) => {
+          Logger.warn('SAM UDP ' + error.toString());
+        });
+      Logger.info(`UDP ${toB32(_c.udp)}.b32.i2p to ${_c.i2p_sam_forward_udp_host}:${_c.i2p_sam_forward_udp_port}`);
+    }, 10000);
   }
 
   private hasP2PNetwork(): Boolean {
@@ -286,16 +279,16 @@ export class Network extends EventEmitter {
 
     const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
     let urlApi = '';
-    do {
-      urlApi = `http://${toB32(aNetwork.pop().http)}.b32.i2p/${endpoint}`;
+    let n = aNetwork.pop();
+    while (n) {
+      urlApi = `http://${toB32(n.http)}.b32.i2p/${endpoint}`;
       try {
-        const json = await this.fetch(urlApi, timeout);
-        return JSON.parse(json);
+        return JSON.parse(await this.fetch(urlApi, timeout));
       } catch (error: any) {
         Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
       }
-    } while (aNetwork.length > 0);
-
+      n = aNetwork.pop();
+    }
     throw new Error('fetchFromApi failed');
   }
 
