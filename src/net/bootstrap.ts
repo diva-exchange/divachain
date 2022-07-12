@@ -26,13 +26,13 @@ import { nanoid } from 'nanoid';
 import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 
 const LENGTH_TOKEN = 32;
-const MIN_WAIT_JOIN_MS = 10000;
-const MAX_WAIT_JOIN_MS = 30000;
+const WAIT_JOIN_MS = 30000;
 const MAX_RETRY_JOIN = 10;
 
 export class Bootstrap {
   private readonly server: Server;
   private mapToken: Map<string, string>;
+  private timeoutChallenge: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   static make(server: Server): Bootstrap {
     return new Bootstrap(server);
@@ -52,7 +52,8 @@ export class Bootstrap {
       await this.server.getBlockchain().reset(genesis);
       let h = 1;
       while (blockNetwork.height > h) {
-        const arrayBlocks: Array<BlockStruct> = await this.server.getNetwork()
+        const arrayBlocks: Array<BlockStruct> = await this.server
+          .getNetwork()
           .fetchFromApi('sync/' + (h + 1), this.server.config.network_timeout_ms * 2);
         for (const b of arrayBlocks) {
           this.server.getBlockchain().add(b);
@@ -68,7 +69,9 @@ export class Bootstrap {
       .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
   }
 
-  join(http: string, udp: string, publicKey: string, t: number = MIN_WAIT_JOIN_MS, r: number = 0): boolean {
+  join(http: string, udp: string, publicKey: string, r: number = 0): boolean {
+    clearTimeout(this.timeoutChallenge);
+
     if (
       !http.length ||
       !udp.length ||
@@ -76,16 +79,14 @@ export class Bootstrap {
       this.mapToken.has(publicKey) ||
       this.server.getBlockchain().hasPeer(publicKey)
     ) {
+      this.mapToken.delete(publicKey);
       return false;
     }
-
-    t = Math.floor(t);
-    t = t < MIN_WAIT_JOIN_MS ? MIN_WAIT_JOIN_MS : t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t;
 
     const token = nanoid(LENGTH_TOKEN);
     this.mapToken.set(publicKey, token);
 
-    setTimeout(async () => {
+    this.timeoutChallenge = setTimeout(async () => {
       let res: { token: string } = { token: '' };
       try {
         res = await this.server.getNetwork().fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`);
@@ -96,15 +97,14 @@ export class Bootstrap {
         // retry
         if (r < MAX_RETRY_JOIN) {
           this.mapToken.delete(publicKey);
-          t = t + MIN_WAIT_JOIN_MS;
-          setTimeout(() => {
-            this.join(http, udp, publicKey, t > MAX_WAIT_JOIN_MS ? MAX_WAIT_JOIN_MS : t, r++);
-          }, t);
+          setImmediate(() => {
+            this.join(http, udp, publicKey, r++);
+          });
         } else {
           Logger.info('Bootstrap.join() / giving up');
         }
       }
-    }, t);
+    }, WAIT_JOIN_MS);
 
     return true;
   }

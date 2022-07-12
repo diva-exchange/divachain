@@ -284,7 +284,7 @@ export class Network extends EventEmitter {
       throw new Error('Network unavailable');
     }
 
-    let aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
+    const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
     let urlApi = '';
     do {
       urlApi = `http://${toB32(aNetwork.pop().http)}.b32.i2p/${endpoint}`;
