@@ -29,7 +29,6 @@ import {
   toB32,
 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
 import { Util } from '../chain/util';
-import crypto from 'crypto';
 import get from 'simple-get';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Peer } from '../chain/blockchain';
@@ -213,7 +212,7 @@ export class Network extends EventEmitter {
     }, this.server.config.network_p2p_interval_ms);
 
     const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
-    if (!aNetwork.length || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
+    if (aNetwork.length < 2 || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
       return;
     }
 
@@ -225,16 +224,17 @@ export class Network extends EventEmitter {
       })
     );
 
-    // pinging: rectangular distribution of pings over time
-    const step = Math.floor(this.server.config.network_p2p_interval_ms / (this.arrayBroadcast.length + 2));
-    let int = crypto.randomInt(step) + 1;
-    const buf = Buffer.from(this.server.getBlockchain().getHeight() + '\n');
-    this.arrayBroadcast.forEach((pk) => {
-      setTimeout(() => {
+    // ping: rectangular distribution of pings over time
+    // random function might be skewed - not relevant in this context
+    setTimeout(() => {
+      const buf = Buffer.from(this.server.getBlockchain().getHeight() + '\n');
+      this.arrayBroadcast.slice(0, Math.ceil(this.arrayBroadcast.length / 3)).forEach((pk) => {
         this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
-      }, int);
-      int = int + step;
-    });
+      });
+    }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms));
+
+    // availability
+
   }
 
   private clean() {

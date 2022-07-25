@@ -64,6 +64,7 @@ export class Bootstrap {
   }
 
   async joinNetwork(publicKey: string) {
+    Logger.trace('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
     await this.server
       .getNetwork()
       .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
