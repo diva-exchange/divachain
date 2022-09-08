@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/block/v6/block.json",
+
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 6,
+      "maximum": 6
+    },
+    "previousHash": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "tx": {
+      "type": "array",
+      "items": {
+        "$ref": "transaction/tx.json"
+      },
+      "minItems": 1,
+      "maxItems": 23,
+      "uniqueItems": true
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "votes": {
+      "type": "array",
+      "items": {
+        "$ref": "votes.json"
+      },
+      "maxItems": 23,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "version",
+    "previousHash",
+    "hash",
+    "tx",
+    "height",
+    "votes"
+  ],
+  "additionalProperties": false
+}

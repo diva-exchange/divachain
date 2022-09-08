@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
@@ -26,10 +26,12 @@ import path from 'path';
 import { Util } from '../chain/util';
 import { Blockchain } from '../chain/blockchain';
 import { Server } from './server';
+import { MAX_NETWORK_SIZE } from '../config';
 
 export class Validation {
   private readonly server: Server;
   private readonly message: ValidateFunction;
+  private readonly tx: ValidateFunction;
 
   static make(server: Server) {
     return new Validation(server);
@@ -42,32 +44,38 @@ export class Validation {
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
     const schemaProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/proposal.json');
     const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
+    const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
 
-    const schemaBlockV5: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v5/block.json');
-    const schemaVotesV5: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v5/votes.json');
-    const schemaTxV5: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v5/transaction/tx.json');
-    const schemaAddPeerV5: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v5/transaction/add-peer.json');
-    const schemaRemovePeerV5: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v5/transaction/remove-peer.json');
-    const schemaModifyStakeV5: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v5/transaction/modify-stake.json');
-    const schemaDataV5: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v5/transaction/data.json');
-    const schemaDecisionV5: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v5/transaction/decision.json');
+    const schemaBlockV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/block.json');
+    const schemaVotesV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/votes.json');
+    const schemaTxV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/tx.json');
+    const schemaAddPeerV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/add-peer.json');
+    const schemaRemovePeerV6: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v6/transaction/remove-peer.json');
+    const schemaModifyStakeV6: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v6/transaction/modify-stake.json');
+    const schemaDataV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/data.json');
+    const schemaDecisionV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/decision.json');
 
     this.message = new Ajv({
       schemas: [
         schemaProposal,
         schemaVote,
-        schemaBlockV5,
-        schemaVotesV5,
-        schemaTxV5,
-        schemaAddPeerV5,
-        schemaRemovePeerV5,
-        schemaModifyStakeV5,
-        schemaDataV5,
-        schemaDecisionV5,
+        schemaSync,
+        schemaBlockV6,
+        schemaVotesV6,
+        schemaTxV6,
+        schemaAddPeerV6,
+        schemaRemovePeerV6,
+        schemaModifyStakeV6,
+        schemaDataV6,
+        schemaDecisionV6,
       ],
     }).compile(schemaMessage);
+
+    this.tx = new Ajv({
+      schemas: [schemaAddPeerV6, schemaRemovePeerV6, schemaModifyStakeV6, schemaDataV6, schemaDecisionV6],
+    }).compile(schemaTxV6);
   }
 
   // stateless
@@ -75,6 +83,7 @@ export class Validation {
     switch (m.type()) {
       case Message.TYPE_PROPOSAL:
       case Message.TYPE_VOTE:
+      case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
           Logger.trace('Validation.validateMessage() failed');
           Logger.trace(`${JSON.stringify(m)}`);
@@ -133,15 +142,18 @@ export class Validation {
     return Util.hash(previousHash + version + height + JSON.stringify(tx)) === hash;
   }
 
-  // stateful
+  // stateless && stateful
   validateTx(height: number, tx: TransactionStruct): boolean {
     return (
+      this.tx(tx) &&
       height > 0 &&
       Array.isArray(tx.commands) &&
       Util.verifySignature(tx.origin, tx.sig, height + JSON.stringify(tx.commands)) &&
       tx.commands.filter((c) => {
         switch (c.command || '') {
           case Blockchain.COMMAND_ADD_PEER:
+            // respect maximum network size
+            return this.server.getBlockchain().getMapPeer().size < MAX_NETWORK_SIZE;
           case Blockchain.COMMAND_REMOVE_PEER:
           case Blockchain.COMMAND_MODIFY_STAKE:
           case Blockchain.COMMAND_DATA:

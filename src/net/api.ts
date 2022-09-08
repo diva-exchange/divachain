@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { Server } from './server';
@@ -113,11 +113,11 @@ export class Api {
     });
 
     this.server.app.get('/pool/votes', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayVote());
+      return res.json(this.server.getPool().getArrayPoolVotes());
     });
 
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {
-      return res.json((await this.server.getBlockchain().getRange(1, 1))[0]);
+      return res.json((await this.server.getBlockchain().getRange(1))[0]);
     });
 
     this.server.app.get('/block/latest', async (req: Request, res: Response) => {
@@ -129,7 +129,7 @@ export class Api {
       if (h < 1 || h > this.server.getBlockchain().getHeight()) {
         return res.status(404).end();
       }
-      return res.json((await this.server.getBlockchain().getRange(h, h))[0]);
+      return res.json((await this.server.getBlockchain().getRange(h))[0]);
     });
 
     this.server.app.get('/blocks/search/:q?', async (req: Request, res: Response) => {

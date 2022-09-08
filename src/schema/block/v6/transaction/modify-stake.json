@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v5/transaction/decision.json",
+  "$id": "/schema/block/v6/transaction/modify-stake.json",
 
   "type": "object",
   "properties": {
@@ -10,27 +10,23 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^decision$"
+      "pattern": "^modifyStake$"
     },
-    "ns": {
+    "publicKey": {
       "type": "string",
-      "pattern": "^([A-Za-z_-]{4,15}:){1,4}[A-Za-z0-9_-]{1,64}$"
+      "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "h": {
+    "stake": {
       "type": "integer",
-      "minimum": 1
-    },
-    "d": {
-      "type": "string",
-      "maxLength": 8192
+      "minimum": -1000,
+      "maximum": 1000
     }
   },
   "additionalProperties": false,
   "required": [
     "seq",
     "command",
-    "ns",
-    "h",
-    "d"
+    "publicKey",
+    "stake"
   ]
 }

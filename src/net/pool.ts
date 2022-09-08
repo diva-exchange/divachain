@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 'use strict';
@@ -39,7 +39,6 @@ type recordStack = {
 export type recordTx = {
   height: number;
   tx: TransactionStruct;
-  hash: string;
 };
 
 export class Pool {
@@ -47,13 +46,14 @@ export class Pool {
 
   private stackTransaction: Array<recordStack> = [];
   private ownTx: recordTx = {} as recordTx;
+  private ownProposal: Proposal = {} as Proposal;
 
-  private current: Map<string, TransactionStruct> = new Map();
   private arrayPoolTx: Array<TransactionStruct> = [];
 
+  private current: Map<string, TransactionStruct> = new Map(); // Map<origin, TransactionStruct>
   private currentHash: string = '';
   private currentVote: Vote = {} as Vote;
-  private mapVote: Map<string, VoteStruct> = new Map();
+  private mapVotes: Map<number, Map<string, VoteStruct>> = new Map(); // Map<txlength, Map<origin, VoteStruct>>
 
   private block: BlockStruct = {} as BlockStruct;
 
@@ -80,11 +80,11 @@ export class Pool {
     return ident;
   }
 
-  release() {
-    if (this.hasBlock()) {
-      return;
-    }
+  getStack() {
+    return this.stackTransaction;
+  }
 
+  getOwnProposal(): Proposal | false {
     const height = this.server.getBlockchain().getHeight() + 1;
     while (!this.ownTx.height && this.stackTransaction.length) {
       const r: recordStack = this.stackTransaction.shift() as recordStack;
@@ -94,30 +94,22 @@ export class Pool {
         this.ownTx = {
           height: height,
           tx: tx,
-          hash: Util.hash([height, JSON.stringify(tx)].join()),
         };
+        this.updateOwnProposal();
       }
     }
+
+    return this.ownTx.height > 0 ? this.ownProposal : false;
   }
 
-  getStack() {
-    return this.stackTransaction;
-  }
-
-  getProposal(): Proposal | false {
-    return this.ownTx.height
-      ? new Proposal().create(
-          this.server.getWallet().getPublicKey(),
-          this.ownTx.height,
-          this.ownTx.tx,
-          this.server.getWallet().sign(this.ownTx.hash)
-        )
-      : false;
+  updateOwnProposal() {
+    this.ownTx.height > 0 &&
+      (this.ownProposal = new Proposal().create(this.server.getWallet(), this.ownTx.height, this.ownTx.tx));
   }
 
   propose(structProposal: ProposalStruct): boolean {
     const height = this.server.getBlockchain().getHeight() + 1;
-    if (structProposal.height !== height || this.hasBlock()) {
+    if (structProposal.height !== height) {
       return false;
     }
 
@@ -125,114 +117,80 @@ export class Pool {
     if (this.current.has(structProposal.origin) || !this.server.getValidation().validateTx(height, structProposal.tx)) {
       return false;
     }
-
     this.current.set(structProposal.origin, structProposal.tx);
+    this.arrayPoolTx = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
+    this.currentHash = Util.hash(JSON.stringify(this.arrayPoolTx));
+    this.currentVote = new Vote().create(this.server.getWallet(), height, this.arrayPoolTx.length, this.currentHash);
+
     return true;
   }
 
-  getArrayPoolTx(): Array<TransactionStruct> {
-    return this.arrayPoolTx;
-  }
-
-  lock(): Vote | false {
-    if (!this.current.size) {
+  public getCurrentVote(): Vote | false {
+    if (this.current.size === 0) {
       return false;
-    }
-
-    if (!this.currentVote.origin) {
-      const height = this.server.getBlockchain().getHeight() + 1;
-      this.arrayPoolTx = [...this.current.values()]
-        .filter((tx) => {
-          return this.server.getValidation().validateTx(height, tx);
-        })
-        .sort((a, b) => (a.sig > b.sig ? 1 : -1));
-
-      if (!this.arrayPoolTx.length) {
-        return false;
-      }
-
-      this.currentHash = Util.hash(JSON.stringify(this.arrayPoolTx));
-
-      this.currentVote = new Vote().create(
-        this.server.getWallet().getPublicKey(),
-        height,
-        this.currentHash,
-        this.server.getWallet().sign([height, this.currentHash].join())
-      );
     }
 
     return this.currentVote;
   }
 
   vote(structVote: VoteStruct): boolean {
-    if (structVote.height !== this.server.getBlockchain().getHeight() + 1 || this.hasBlock()) {
+    const height = this.server.getBlockchain().getHeight() + 1;
+    if (structVote.height !== height) {
       return false;
     }
 
-    // no double voting
-    if (this.mapVote.has(structVote.origin)) {
+    const mapOrigins = this.mapVotes.get(structVote.txlength) || new Map(); // Map<origin, VoteStruct>
+
+    // no double voting, VERY important for PBFT to function
+    if (mapOrigins.has(structVote.origin)) {
       return false;
     }
+    mapOrigins.set(structVote.origin, structVote);
+    this.mapVotes.set(structVote.txlength, mapOrigins);
 
-    this.mapVote.set(structVote.origin, structVote);
-    const stakeVotes = [...this.mapVote.keys()].reduce((s, pk) => {
-      return s + this.server.getBlockchain().getStake(pk);
-    }, 0);
-
-    // not enough votes yet
-    if (stakeVotes < this.server.getBlockchain().getQuorum()) {
-      return true;
-    }
-
+    //@TODO weighted PBFT
+    // PBFT
     const quorum = this.server.getBlockchain().getQuorum();
-    const quorumTotal = this.server.getBlockchain().getTotalQuorum();
-    let isDeadlocked = true;
-    const mapStakes: Map<string, number> = new Map();
-    const arrayVotes: Array<{ origin: string; sig: string }> = [];
-    for (const v of [...this.mapVote.values()]) {
-      let stake = mapStakes.get(v.hash) || 0;
-      stake += this.server.getBlockchain().getStake(v.origin);
-      if (v.hash === this.currentHash) {
-        arrayVotes.push({ origin: v.origin, sig: v.sig });
-      }
-      mapStakes.set(v.hash, stake);
-      if (stake >= quorum) {
-        isDeadlocked = false;
-        break;
-      }
-      isDeadlocked = isDeadlocked && quorum - stake > quorumTotal - stakeVotes;
+    if (structVote.txlength !== this.arrayPoolTx.length || mapOrigins.size < quorum) {
+      return false;
     }
 
-    if ((mapStakes.get(this.currentHash) || 0) >= quorum) {
+    const arrayVotes = [...mapOrigins.values()].filter((v) => v.hash === this.currentHash);
+    if (arrayVotes.length >= quorum) {
       this.block = Block.make(this.server.getBlockchain().getLatestBlock(), this.arrayPoolTx);
-      this.block.votes = arrayVotes;
-    }
-
-    if (!isDeadlocked) {
+      this.block.votes = arrayVotes.map((v) => {
+        return { origin: v.origin, sig: v.sig };
+      });
       return true;
     }
 
-    //@FIXME logging
-    Logger.trace(`${this.server.config.ip}:${this.server.config.port} isDeadlocked ${stakeVotes} / ${quorumTotal}`);
-
-    this.arrayPoolTx = [];
-    this.currentHash = '';
-    this.currentVote = {} as Vote;
-    this.mapVote = new Map();
+    //@TODO test for deadlocks here
+    if (arrayVotes.length + (quorum * 1.5 - mapOrigins.size) < quorum) {
+      //@TODO handle deadlock
+      //@FIXME logging
+      Logger.trace(`${this.server.config.port}: deadlocked ${this.arrayPoolTx.length}`);
+    }
 
     return false;
   }
 
-  getArrayVote(): Array<any> {
-    return [...this.mapVote];
+  getArrayPoolTx(): Array<TransactionStruct> {
+    return this.arrayPoolTx;
   }
 
-  hasBlock(): boolean {
-    return !!this.block.hash;
+  getArrayPoolVotes(): Array<Array<VoteStruct>> {
+    const a: Array<any> = [];
+    this.mapVotes.forEach((v: Map<string, VoteStruct>, txlength: number) => {
+      a[txlength] = [];
+      v.forEach((vs: VoteStruct) => {
+        a[txlength].push(vs);
+      });
+    });
+    return a;
   }
 
   getBlock(): BlockStruct {
-    return this.block.hash ? this.block : ({} as BlockStruct);
+    return this.block;
   }
 
   clear(block: BlockStruct) {
@@ -244,12 +202,16 @@ export class Pool {
     ) {
       this.stackTransaction.unshift({ ident: this.ownTx.tx.ident, commands: this.ownTx.tx.commands });
     }
+
     this.ownTx = {} as recordTx;
+    this.ownProposal = {} as Proposal;
+
     this.current = new Map();
     this.arrayPoolTx = [];
     this.currentHash = '';
     this.currentVote = {} as Vote;
+    this.mapVotes = new Map();
+
     this.block = {} as BlockStruct;
-    this.mapVote = new Map();
   }
 }

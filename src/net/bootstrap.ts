@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { Logger } from '../logger';
@@ -44,6 +44,8 @@ export class Bootstrap {
   }
 
   async syncWithNetwork() {
+    Logger.trace('Bootstrap: syncWithNetwork()');
+
     const blockNetwork: BlockStruct = await this.server.getNetwork().fetchFromApi('block/latest');
     const blockLocal: BlockStruct = this.server.getBlockchain().getLatestBlock();
 
@@ -52,15 +54,15 @@ export class Bootstrap {
       await this.server.getBlockchain().reset(genesis);
       let h = 1;
       while (blockNetwork.height > h) {
-        const arrayBlocks: Array<BlockStruct> = await this.server
-          .getNetwork()
-          .fetchFromApi('sync/' + (h + 1), this.server.config.network_timeout_ms * 2);
+        const arrayBlocks: Array<BlockStruct> = await this.server.getNetwork().fetchFromApi('sync/' + (h + 1));
         for (const b of arrayBlocks) {
           this.server.getBlockchain().add(b);
         }
         h = this.server.getBlockchain().getLatestBlock().height;
       }
     }
+
+    Logger.trace('Bootstrap: syncWithNetwork() done');
   }
 
   async joinNetwork(publicKey: string) {
@@ -93,7 +95,7 @@ export class Bootstrap {
         res = await this.server.getNetwork().fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`);
         this.confirm(http, udp, publicKey, res.token);
       } catch (error: any) {
-        Logger.warn('Bootstrap.join() / challenge ' + error.toString());
+        Logger.warn(`Bootstrap.join(): challenging error - ${error.toString()}`);
 
         // retry
         if (r < MAX_RETRY_JOIN) {
@@ -102,7 +104,7 @@ export class Bootstrap {
             this.join(http, udp, publicKey, r++);
           });
         } else {
-          Logger.info('Bootstrap.join() / giving up');
+          Logger.info(`Bootstrap.join(): max retries to get challenge confirmation reached (${MAX_RETRY_JOIN})`);
         }
       }
     }, WAIT_JOIN_MS);
@@ -119,7 +121,7 @@ export class Bootstrap {
     const token = this.mapToken.get(publicKey) || '';
 
     if (!token || !Util.verifySignature(publicKey, signedToken, token)) {
-      throw new Error('Bootstrap.confirm() - Util.verifySignature() failed: ' + signedToken + ' / ' + token);
+      throw new Error('Bootstrap.confirm(): Util.verifySignature() failed');
     }
 
     if (
@@ -133,7 +135,7 @@ export class Bootstrap {
         } as CommandAddPeer,
       ])
     ) {
-      throw new Error('Bootstrap.confirm() - stackTransaction(addPeer) failed');
+      throw new Error('Bootstrap.confirm(): stackTransaction(addPeer) failed');
     }
     this.mapToken.delete(publicKey);
   }

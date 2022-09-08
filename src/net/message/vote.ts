@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,28 +14,36 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
+import { Wallet } from '../../chain/wallet';
 
 export type VoteStruct = {
   type: number;
+  seq: number;
   origin: string;
   height: number;
+  txlength: number;
   hash: string;
   sig: string;
+  sigMsg: string;
 };
 
 export class Vote extends Message {
-  create(origin: string, height: number, hash: string, sig: string): Vote {
+  create(wallet: Wallet, height: number, txlength: number, hash: string): Vote {
+    const seq: number = Date.now();
     this.message.data = {
       type: Message.TYPE_VOTE,
-      origin: origin,
+      seq: seq,
+      origin: wallet.getPublicKey(),
       height: height,
+      txlength: txlength,
       hash: hash,
-      sig: sig,
+      sig: wallet.sign([height, hash].join()),
+      sigMsg: wallet.sign([Message.TYPE_VOTE, seq, height, txlength, hash].join()),
     };
     return this;
   }
@@ -46,6 +54,10 @@ export class Vote extends Message {
 
   // stateful
   static isValid(structVote: VoteStruct): boolean {
-    return Util.verifySignature(structVote.origin, structVote.sig, [structVote.height, structVote.hash].join());
+    return Util.verifySignature(
+      structVote.origin,
+      structVote.sigMsg,
+      [structVote.type, structVote.seq, structVote.height, structVote.txlength, structVote.hash].join()
+    );
   }
 }

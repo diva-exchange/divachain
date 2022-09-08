@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { Config } from '../config';
@@ -36,6 +36,7 @@ import { Api } from './api';
 import { ArrayCommand } from '../chain/transaction';
 import { Vote, VoteStruct } from './message/vote';
 import { Proposal, ProposalStruct } from './message/proposal';
+import { Sync, SyncStruct } from './message/sync';
 
 export class Server {
   public readonly config: Config;
@@ -52,8 +53,8 @@ export class Server {
   private blockchain: Blockchain = {} as Blockchain;
   private validation: Validation = {} as Validation;
 
-  private intervalProposal: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private intervalVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutUpdateOwnProposal: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -100,15 +101,19 @@ export class Server {
     this.webSocketServerBlockFeed = new WebSocket.Server({
       host: this.config.ip,
       port: this.config.port_block_feed,
+      perMessageDeflate: false,
     });
     this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
       ws.on('error', (error: any) => {
-        Logger.warn('Server webSocketServerBlockFeed.error: ' + error.toString());
+        Logger.warn('WebSocketServerBlockFeed.error: ' + error.toString());
         ws.terminate();
       });
     });
     this.webSocketServerBlockFeed.on('close', () => {
-      Logger.info('WebSocketServerBlockFeed closing');
+      Logger.info(`WebSocket Server closing on ${this.config.ip}:${this.config.port_block_feed}`);
+    });
+    this.webSocketServerBlockFeed.on('listening', () => {
+      Logger.info(`WebSocket Server listening on ${this.config.ip}:${this.config.port_block_feed}`);
     });
   }
 
@@ -137,21 +142,11 @@ export class Server {
       this.onMessage(m);
     });
 
-    // schedule proposing
-    this.intervalProposal = setInterval(() => {
-      this.doPropose();
-    }, this.config.network_clean_interval_ms);
-
-    // schedule voting
-    this.intervalVote = setInterval(() => {
-      this.doVote();
-    }, Math.floor(this.config.network_clean_interval_ms * 1.5));
-
-    // bootstrapping (entering the network)
     return new Promise((resolve) => {
       this.network.once('ready', async () => {
         this.bootstrap = Bootstrap.make(this);
         if (this.config.bootstrap) {
+          // bootstrapping (entering the network)
           await this.bootstrap.syncWithNetwork();
           if (!this.blockchain.hasNetworkHttp(this.config.http)) {
             await this.bootstrap.joinNetwork(this.wallet.getPublicKey());
@@ -164,8 +159,8 @@ export class Server {
   }
 
   async shutdown(): Promise<void> {
-    clearInterval(this.intervalProposal);
-    clearInterval(this.intervalVote);
+    clearTimeout(this.timeoutUpdateOwnProposal);
+    clearTimeout(this.timeoutVote);
 
     this.network.shutdown();
     this.wallet.close();
@@ -216,24 +211,18 @@ export class Server {
   }
 
   private doPropose() {
-    this.pool.release();
-    const p = this.pool.getProposal();
+    const p: Proposal | false = this.pool.getOwnProposal();
     if (p) {
       this.processProposal(p);
-      // distribute own proposal
       this.network.broadcast(p);
     }
-  }
 
-  sync() {
-    (async () => {
-      const arrayBlocks: Array<BlockStruct> = await this.getNetwork().fetchFromApi(
-        'sync/' + this.getBlockchain().getHeight()
-      );
-      for (const b of arrayBlocks) {
-        this.addBlock(b);
-      }
-    })();
+    // re-schedule own proposal
+    clearTimeout(this.timeoutUpdateOwnProposal);
+    this.timeoutUpdateOwnProposal = setTimeout(() => {
+      this.pool.updateOwnProposal();
+      this.doPropose();
+    }, this.network.getArrayNetwork().length * 500);
   }
 
   private processProposal(proposal: Proposal) {
@@ -244,21 +233,20 @@ export class Server {
       return;
     }
 
-    // add proposal to pool
-    if (!this.pool.propose(p)) {
-      return;
+    // add proposal to pool,
+    if (this.pool.propose(p)) {
+      // schedule voting
+      clearTimeout(this.timeoutVote);
+      this.timeoutVote = setTimeout(() => {
+        this.doVote();
+      }, this.network.getArrayNetwork().length * 50);
     }
-
-    // distribute proposal
-    this.network.broadcast(proposal);
   }
 
   private doVote() {
-    const v = this.pool.lock();
-
+    const v = this.pool.getCurrentVote();
     if (v) {
       this.processVote(v);
-      // distribute own vote
       this.network.broadcast(v);
     }
   }
@@ -273,16 +261,24 @@ export class Server {
     }
 
     // add vote to pool
-    if (!this.pool.vote(v)) {
+    if (this.pool.vote(v)) {
+      // broadcast new block
+      this.network.broadcast(new Sync().create(this.wallet, this.pool.getBlock()));
+      this.addBlock(this.pool.getBlock());
       return;
     }
 
-    // re-distribute vote
-    this.network.broadcast(vote);
+    // re-schedule voting
+    clearTimeout(this.timeoutVote);
+    this.timeoutVote = setTimeout(() => {
+      this.doVote();
+    }, this.network.getArrayNetwork().length * 200);
+  }
 
-    // if a block is available, add it to the chain
-    if (this.pool.hasBlock()) {
-      this.addBlock(this.pool.getBlock());
+  private processSync(sync: Sync) {
+    const s: SyncStruct = sync.get();
+    if (this.getBlockchain().getHeight() + 1 === s.block.height) {
+      this.addBlock(s.block);
     }
   }
 
@@ -294,12 +290,11 @@ export class Server {
     this.pool.clear(block);
 
     setImmediate((s: string) => {
-      this.webSocketServerBlockFeed.clients.forEach((ws) => ws.send(s));
+      this.webSocketServerBlockFeed.clients.forEach((ws) => ws.readyState === WebSocket.OPEN && ws.send(s));
     }, JSON.stringify(block));
 
-    setTimeout(() => {
-      this.doPropose();
-    }, 0);
+    // new proposal
+    this.doPropose();
   }
 
   private onMessage(m: Message) {
@@ -309,6 +304,9 @@ export class Server {
         break;
       case Message.TYPE_VOTE:
         this.processVote(new Vote(m.pack()));
+        break;
+      case Message.TYPE_SYNC:
+        this.processSync(new Sync(m.pack()));
         break;
       default:
         throw new Error('Invalid message type');

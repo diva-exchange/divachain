@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { base64url } from 'rfc4648';
@@ -36,6 +36,7 @@ export class Message {
 
   static readonly TYPE_PROPOSAL = 1;
   static readonly TYPE_VOTE = 2;
+  static readonly TYPE_SYNC = 3;
 
   protected message: MessageStruct = {} as MessageStruct;
 
@@ -49,24 +50,16 @@ export class Message {
     return this.message;
   }
 
-  ident(): string {
-    return this.message.ident;
-  }
-
   type(): number {
     return this.message.data.type;
   }
 
+  seq(): number {
+    return this.message.data.seq;
+  }
+
   origin(): string {
-    return this.message.data.origin || '';
-  }
-
-  sig(): string {
-    return this.message.data.sig || '';
-  }
-
-  hash(): string {
-    return this.message.data.block ? this.message.data.block.hash : '';
+    return this.message.data.origin;
   }
 
   pack(version?: number): string {
@@ -91,7 +84,7 @@ export class Message {
       .toString()
       .trim()
       .match(/^([0-9]+);(.+)$/);
-    if (m && m.length > 2) {
+    if (m && m.length === 3) {
       version = Number(m[1]);
       message = m[2];
     }

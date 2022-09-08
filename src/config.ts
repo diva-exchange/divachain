@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021 diva.exchange
+ * Copyright (C) 2021-2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import path from 'path';
@@ -68,8 +68,9 @@ export type Configuration = {
   api_max_query_size?: number;
 };
 
-export const BLOCK_VERSION = 5;
+export const BLOCK_VERSION = 6;
 export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
+export const MAX_NETWORK_SIZE = 16;
 
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;

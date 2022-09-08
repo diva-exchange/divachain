@@ -1,13 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v5/block.json",
+  "$id": "/schema/block/v6/block.json",
 
   "type": "object",
   "properties": {
     "version": {
       "type": "integer",
-      "minimum": 5,
-      "maximum": 5
+      "minimum": 6,
+      "maximum": 6
     },
     "previousHash": {
       "type": "string",
@@ -23,7 +23,7 @@
         "$ref": "transaction/tx.json"
       },
       "minItems": 1,
-      "maxItems": 15,
+      "maxItems": 23,
       "uniqueItems": true
     },
     "height": {
@@ -35,7 +35,7 @@
       "items": {
         "$ref": "votes.json"
       },
-      "maxItems": 15,
+      "maxItems": 23,
       "uniqueItems": true
     }
   },

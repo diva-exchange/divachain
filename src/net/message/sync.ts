@@ -19,41 +19,39 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { TransactionStruct } from '../../chain/transaction';
 import { Wallet } from '../../chain/wallet';
+import { BlockStruct } from '../../chain/block';
 
-export type ProposalStruct = {
+export type SyncStruct = {
   type: number;
   seq: number;
   origin: string;
-  height: number;
-  tx: TransactionStruct;
+  block: BlockStruct;
   sig: string;
 };
 
-export class Proposal extends Message {
-  create(wallet: Wallet, height: number, tx: TransactionStruct): Proposal {
+export class Sync extends Message {
+  create(wallet: Wallet, block: BlockStruct): Sync {
     const seq = Date.now();
     this.message.data = {
-      type: Message.TYPE_PROPOSAL,
+      type: Message.TYPE_SYNC,
       seq: seq,
       origin: wallet.getPublicKey(),
-      height: height,
-      tx: tx,
-      sig: wallet.sign([Message.TYPE_PROPOSAL, seq, height, JSON.stringify(tx)].join()),
+      block: block,
+      sig: wallet.sign([Message.TYPE_SYNC, seq, block.hash].join()),
     };
     return this;
   }
 
-  get(): ProposalStruct {
-    return this.message.data as ProposalStruct;
+  get(): SyncStruct {
+    return this.message.data as SyncStruct;
   }
 
-  static isValid(structProposal: ProposalStruct): boolean {
+  static isValid(structSync: SyncStruct): boolean {
     return Util.verifySignature(
-      structProposal.origin,
-      structProposal.sig,
-      [structProposal.type, structProposal.seq, structProposal.height, JSON.stringify(structProposal.tx)].join()
+      structSync.origin,
+      structSync.sig,
+      [structSync.type, structSync.seq, structSync.block.hash].join()
     );
   }
 }

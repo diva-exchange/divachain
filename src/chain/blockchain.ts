@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { BlockStruct } from './block';
@@ -58,7 +58,10 @@ export class Blockchain {
   private latestBlock: BlockStruct = {} as BlockStruct;
 
   private mapPeer: Map<string, Peer> = new Map();
+  private mapHttp: Map<string, string> = new Map();
+  private mapUdp: Map<string, string> = new Map();
 
+  private quorumWeighted: number = 0;
   private quorum: number = 0;
 
   private arrayDecision: { [ns: string]: Map<string, { stake: number; h: number; d: string }> } = {};
@@ -185,7 +188,7 @@ export class Blockchain {
             if (
               [...mapDecision.values()]
                 .filter((v) => v.h === height && v.d === data)
-                .reduce((p, v) => p + v.stake, 0) >= this.getQuorum()
+                .reduce((p, v) => p + v.stake, 0) >= this.getQuorumWeighted()
             ) {
               this.arrayTakenDecision[height]
                 ? this.arrayTakenDecision[height].push({ ns: ns, d: data })
@@ -197,9 +200,9 @@ export class Blockchain {
     });
   }
 
-  async getRange(gte: number, lte: number): Promise<Array<BlockStruct>> {
-    lte = Math.floor(lte < 1 ? this.height : lte);
+  async getRange(gte: number, lte: number = -1): Promise<Array<BlockStruct>> {
     gte = gte <= this.height ? (gte < 1 ? 1 : Math.floor(gte)) : this.height;
+    lte = lte < 0 ? gte : Math.floor(lte < 1 ? this.height : lte);
     lte = lte <= this.height ? lte : this.height;
     gte = lte - gte > 0 ? gte : lte;
     gte = lte - gte >= this.server.config.api_max_query_size ? lte - this.server.config.api_max_query_size + 1 : gte;
@@ -301,20 +304,20 @@ export class Blockchain {
     }
   }
 
-  getTotalQuorum(): number {
-    if (this.quorum <= 0) {
-      throw new Error('Invalid network quorum');
-    }
-
-    return this.quorum;
-  }
-
   getQuorum(): number {
     if (this.quorum <= 0) {
-      throw new Error('Invalid network quorum');
+      throw new Error('Invalid quorum');
     }
 
-    return (2 * this.quorum) / 3; // PBFT, PoS
+    return this.quorum * (2 / 3); // PBFT
+  }
+
+  getQuorumWeighted(): number {
+    if (this.quorumWeighted <= 0) {
+      throw new Error('Invalid weighted quorum');
+    }
+
+    return this.quorumWeighted * 0.5; // PoS
   }
 
   getMapPeer(): Map<string, Peer> {
@@ -329,16 +332,17 @@ export class Blockchain {
     return this.mapPeer.get(publicKey) as Peer;
   }
 
-  hasNetworkHttp(http: string): boolean {
-    for (const v of [...this.mapPeer]) {
-      if (v[1].http === http) {
-        return true;
-      }
-    }
-    return false;
+  getPublicKeyByUdp(udp: string): string {
+    return this.mapUdp.get(udp) || '';
   }
 
+  hasNetworkHttp(http: string): boolean {
+    return this.mapHttp.has(http);
+  }
+
+  //@FIXME this is only considering the name space
   isDecisionTaken(c: CommandDecision): boolean {
+    //@TODO this is in-memory
     return Object.values(this.arrayTakenDecision)
       .flat()
       .some((o) => o.ns === c.ns);
@@ -407,15 +411,21 @@ export class Blockchain {
       stake: 0,
     };
     this.mapPeer.set(command.publicKey, peer);
+    this.mapHttp.set(peer.http, command.publicKey);
+    this.mapUdp.set(peer.udp, command.publicKey);
     await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
   }
 
   private async removePeer(command: CommandRemovePeer) {
     if (this.mapPeer.has(command.publicKey)) {
       const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
-      this.quorum = this.quorum - peer.stake;
-
+      this.quorumWeighted = this.quorumWeighted - peer.stake;
+      if (peer.stake > 0) {
+        this.quorum--;
+      }
       this.mapPeer.delete(command.publicKey);
+      this.mapHttp.delete(peer.http);
+      this.mapUdp.delete(peer.udp);
       await this.deleteStateData(Blockchain.STATE_PEER_IDENT + command.publicKey);
     }
   }
@@ -426,8 +436,14 @@ export class Blockchain {
       if (peer.stake + command.stake < 0) {
         command.stake = -1 * peer.stake;
       }
-      this.quorum = this.quorum + command.stake;
+      this.quorumWeighted = this.quorumWeighted + command.stake;
+      const _s = peer.stake;
       peer.stake = peer.stake + command.stake;
+      if (_s === 0 && peer.stake > 0) {
+        this.quorum++;
+      } else if (peer.stake === 0 && _s > 0) {
+        this.quorum--;
+      }
       this.mapPeer.set(command.publicKey, peer);
       await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
     }
