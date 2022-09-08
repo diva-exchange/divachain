@@ -60,7 +60,6 @@ export type Configuration = {
 
   network_timeout_ms?: number;
   network_p2p_interval_ms?: number;
-  network_clean_interval_ms?: number;
   network_sync_size?: number;
 
   blockchain_max_blocks_in_memory?: number;
@@ -83,14 +82,12 @@ const DEFAULT_I2P_SAM_UDP_PORT = 7655;
 const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = DEFAULT_PORT;
 const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_PORT + 2;
 const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
-const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
 
-const MIN_NETWORK_TIMEOUT_MS = 5000;
+const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
+const MIN_NETWORK_TIMEOUT_MS = 1000;
 const MAX_NETWORK_TIMEOUT_MS = 60000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
-const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
-const MIN_NETWORK_CLEAN_INTERVAL_MS = 1500;
-const MAX_NETWORK_CLEAN_INTERVAL_MS = 10000;
+const MIN_NETWORK_P2P_INTERVAL_MS = 1000;
+const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
 
@@ -136,14 +133,13 @@ export class Config {
   public i2p_public_key_udp: string = '';
   public i2p_private_key_udp: string = '';
 
-  public network_timeout_ms: number = DEFAULT_NETWORK_TIMEOUT_MS;
-  public network_p2p_interval_ms: number = MIN_NETWORK_P2P_INTERVAL_MS;
-  public network_clean_interval_ms: number = MIN_NETWORK_CLEAN_INTERVAL_MS;
-  public network_sync_size: number = MIN_NETWORK_SYNC_SIZE;
+  public network_timeout_ms: number = 0;
+  public network_p2p_interval_ms: number = 0;
+  public network_sync_size: number = 0;
 
-  public blockchain_max_blocks_in_memory: number = MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY;
+  public blockchain_max_blocks_in_memory: number = 0;
 
-  public api_max_query_size: number = MAX_API_MAX_QUERY_SIZE;
+  public api_max_query_size: number = 0;
 
   static async make(c: Configuration): Promise<Config> {
     const self = new Config();
@@ -291,7 +287,7 @@ export class Config {
     }
 
     self.network_timeout_ms = Config.b(
-      c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS,
+      c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS || DEFAULT_NETWORK_TIMEOUT_MS,
       MIN_NETWORK_TIMEOUT_MS,
       MAX_NETWORK_TIMEOUT_MS
     );
@@ -302,11 +298,6 @@ export class Config {
       MAX_NETWORK_P2P_INTERVAL_MS
     );
 
-    self.network_clean_interval_ms = Config.b(
-      c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS,
-      MIN_NETWORK_CLEAN_INTERVAL_MS,
-      MAX_NETWORK_CLEAN_INTERVAL_MS
-    );
     self.network_sync_size = Config.b(
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
       MIN_NETWORK_SYNC_SIZE,

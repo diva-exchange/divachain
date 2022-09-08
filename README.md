@@ -1,6 +1,8 @@
 # DIVA Blockchain
 
-A blockchain implementation using Practical Byzantine Fault Tolerance (PBFT) in combination with Proof-of-Stake (PoS) as a consensus algorithm. It is therefore a "Weighted Practical Byzantine Fault Tolerance" consensus.
+See it in action: [DIVA Testnet](https://testnet.diva.exchange) 
+
+This is a Blockchain implementation using Practical Byzantine Fault Tolerance (PBFT) in combination with Proof-of-Stake (PoS) as a consensus algorithm. It is therefore a "Weighted Practical Byzantine Fault Tolerance" consensus.
 
 This is a fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
@@ -13,8 +15,8 @@ The peers in the network communicate over I2P. The peers build the tunnels betwe
 The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
 1. New proposal: each peer in the network may anytime propose a transaction, by sending it to the network. Per round, each peer can only add one own transaction.
-2. Voting: each peer receiving a proposal may send a vote to the network. Such a vote represents an agreement of a peer with a specific stack of proposals. Each peer can vote only once. If the peers in the network do not agree (2/3 of the total stake of all peers) on a specific stack of proposals, the voting will go into a new round and all peers can vote again.  
-3. Creation of a new block: as soon as consensus is reached through voting for a specific stack of proposals, peers will create the new block. 
+2. Voting: each peer receiving a proposal may send a vote to the network. Such a vote represents an agreement of a peer with a specific stack of proposals. Each peer can vote only once per stack.
+3. Creation of a new block: as soon as consensus (2/3 of the network peers) is reached through voting for a specific stack of proposals, peers will create the new block. 
  
 ## API Overview
 Divachain supports two API's:
@@ -25,7 +27,7 @@ In a nutshell: use the REST API to write transaction proposals to the chain or u
  
 ## Create Your Local Environment
 
-To create a docker based local environment use the project https://codeberg.org/diva.exchange/diva-dockerized.
+To create a docker based local environment use the project https://github.com/diva-exchange/diva-dockerized.
 
 ## Configuration
 The configuration can be controlled using environment variables.
@@ -52,44 +54,56 @@ Default: 17469
 Websocket Feed, broadcasting block data to its listeners.
 
 ### I2P_SOCKS_HOST
+Default: [IP](#IP)
 
 ### I2P_SOCKS_PORT
+Default: 4445
 
 ### I2P_SAM_HTTP_HOST
+Default: [IP](#IP)
 
 ### I2P_SAM_HTTP_PORT_TCP
+Default: 7656
 
 ### I2P_SAM_UDP_HOST
+Default: as IP above
 
 ### I2P_SAM_UDP_PORT_TCP
+Default: 7656
 
 ### I2P_SAM_UDP_PORT_UDP
+Default: 7655
 
 ### I2P_SAM_FORWARD_HTTP_HOST
+Default: 127.0.0.1
 
 ### I2P_SAM_FORWARD_HTTP_PORT
+Default: 17468
 
 ### I2P_SAM_LISTEN_UDP_HOST
+Default: 127.0.0.1
 
 ### I2P_SAM_LISTEN_UDP_PORT
+Default: 17470
 
 ### I2P_SAM_FORWARD_UDP_HOST
+Default: 127.0.0.1
 
 ### I2P_SAM_FORWARD_UDP_PORT
+Default: [I2P_SAM_LISTEN_UDP_PORT](#I2P_SAM_LISTEN_UDP_PORT)
 
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
-Minimum: 10000\
-Maximum: 60000\
+Minimum: 1000\
+Maximum: 30000\
 Default: Minimum
 
-### NETWORK_CLEAN_INTERVAL_MS
-Interval, in milliseconds, to clean up the network environment (like gossiping data).
+### NETWORK_TIMEOUT_MS
 
-Minimum: 30000\
+Minimum: 1000\
 Maximum: 60000\
-Default: Minimum
+Default: 5000
 
 ### NETWORK_SYNC_SIZE
 Maximum number of blocks of synchronization message might contain. Must not exceed API_MAX_QUERY_SIZE.
@@ -257,18 +271,18 @@ npm run lint
 
 On [DIVA.EXCHANGE](https://www.diva.exchange) you'll find various options to get in touch with the team.
 
-Talk to us via Telegram [https://t.me/diva_exchange_chat_de]() (English or German).
+Talk to us via [Telegram](https://t.me/diva_exchange_chat_de) (English or German).
 
 ## Donations
 
 Your donation goes entirely to the project. Your donation makes the development of DIVA.EXCHANGE faster.
 
-XMR: 42QLvHvkc9bahHadQfEzuJJx4ZHnGhQzBXa8C9H3c472diEvVRzevwpN7VAUpCPePCiDhehH4BAWh8kYicoSxpusMmhfwgx
+XMR: [42QLvHvkc9bahHadQfEzuJJx4ZHnGhQzBXa8C9H3c472diEvVRzevwpN7VAUpCPePCiDhehH4BAWh8kYicoSxpusMmhfwgx](monero:42QLvHvkc9bahHadQfEzuJJx4ZHnGhQzBXa8C9H3c472diEvVRzevwpN7VAUpCPePCiDhehH4BAWh8kYicoSxpusMmhfwgx)
 
-BTC: 3Ebuzhsbs6DrUQuwvMu722LhD8cNfhG1gs
+BTC: [3Ebuzhsbs6DrUQuwvMu722LhD8cNfhG1gs](bitcoin:3Ebuzhsbs6DrUQuwvMu722LhD8cNfhG1gs)
 
 Awesome, thank you!
 
 ## License
 
-[AGPLv3](LICENSE)
+[AGPLv3](https://github.com/diva-exchange/divachain/blob/main/LICENSE)

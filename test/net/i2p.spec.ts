@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: Konrad Bächler <konrad@diva.exchange>
+ * Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
  */
 
 import { suite, test, timeout } from '@testdeck/mocha';
@@ -37,7 +37,7 @@ class TestServerI2P {
   static mapServer: Map<string, Server> = new Map();
 
   static async before(): Promise<void> {
-    process.env.SIZE_TESTNET = process.env.SIZE_TESTNET || '9';
+    process.env.SIZE_NETWORK = process.env.SIZE_NETWORK || '13';
     process.env.IP = process.env.IP || '0.0.0.0';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
@@ -83,6 +83,9 @@ class TestServerI2P {
       const i = setInterval(async () => {
         if (TestServerI2P.mapConfigServer.size === TestServerI2P.mapServer.size) {
           clearInterval(i);
+          // wait for 20 seconds
+          Logger.trace('Test servers available, waiting 20s to let them integrate...');
+          await TestServerI2P.wait(20000);
           resolve();
         }
       }, 1000);
@@ -106,8 +109,65 @@ class TestServerI2P {
   @test
   async default404() {
     const config = [...TestServerI2P.mapConfigServer.values()][0];
-    const res = await chai.request(`http://${config.ip}:${config.port}`).get('/');
+    const res = await chai.request(`http://localhost:${config.port}`).get('/');
     expect(res).to.have.status(404);
+  }
+
+  @test
+  @timeout(90000)
+  async singleTransaction() {
+    const i = Math.floor(Math.random() * TestServerI2P.mapConfigServer.size);
+    const origin = [...TestServerI2P.mapConfigServer.keys()][i];
+    const config = [...TestServerI2P.mapConfigServer.values()][i];
+    const baseUrl = `http://localhost:${config.port}`;
+
+    Logger.trace(`Sending singleTx to http://localhost:${config.port}`);
+    let res = await chai
+      .request(baseUrl)
+      .put('/transaction/singleTx')
+      .send([{ seq: 1, command: 'data', ns: 'test:data:singleTx', d: '1-singleTx' }]);
+    expect(res).to.have.status(200);
+    expect(res.body.ident).to.be.eq('singleTx');
+
+    Logger.trace('waiting for sync (20s)...');
+    await TestServerI2P.wait(20000);
+
+    res = await chai.request(baseUrl).get(`/transaction/${origin}/singleTx`);
+    expect(res.status).eq(200);
+  }
+
+  @test
+  @timeout(300000)
+  async multiTransaction() {
+    let baseUrl, res;
+    const arrayOrigin: Array<string> = [];
+
+    const nTx = 60;
+
+    for (let x = 0; x < nTx; x++) {
+      const i = Math.floor(Math.random() * TestServerI2P.mapConfigServer.size);
+      const config = [...TestServerI2P.mapConfigServer.values()][i];
+      arrayOrigin.push([...TestServerI2P.mapConfigServer.keys()][i]);
+      baseUrl = `http://localhost:${config.port}`;
+
+      Logger.trace(`Sending multiTx${x} to http://localhost:${config.port}`);
+
+      res = await chai
+        .request(baseUrl)
+        .put('/transaction/multiTx' + x)
+        .send([{ seq: 1, command: 'data', ns: 'test:data:multiTx', d: `multiTx${x}` }]);
+      expect(res).to.have.status(200);
+      expect(res.body.ident).to.be.eq(`multiTx${x}`);
+      await TestServerI2P.wait(Math.ceil(Math.random() * 100));
+    }
+
+    Logger.trace('waiting for sync (90s)...');
+    await TestServerI2P.wait(90000);
+
+    for (let x = 0; x < nTx; x++) {
+      res = await chai.request(baseUrl).get(`/transaction/${arrayOrigin[x]}/multiTx${x}`);
+      expect(res.status).eq(200);
+    }
   }
 
   @test
@@ -118,37 +178,33 @@ class TestServerI2P {
     // some data tx's
     for (let t = l - 1; t > l / 2; t--) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending tx to http://localhost:${config.port}`);
       const res = await chai
-        .request(`http://${config.ip}:${config.port}`)
+        .request(`http://localhost:${config.port}`)
         .put('/transaction/data' + t)
         .send([{ seq: 1, command: 'data', ns: 'test:data', d: '1-abcABC' + t }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('data' + t);
-      await TestServerI2P.wait(50);
     }
 
     // decision tx's
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending decision tx [h=6] to http://${config.ip}:${config.port}`);
-      await chai
-        .request(`http://${config.ip}:${config.port}`)
+      Logger.trace(`Sending decision tx [h=6] to http://localhost:${config.port}`);
+      const res = await chai
+        .request(`http://localhost:${config.port}`)
         .put('/transaction/decision' + t)
         .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 6, d: 'SomeDecisionData' }]);
+      Logger.trace(`${res.status} - ${res.body.ident}`);
       await TestServerI2P.wait(750);
     }
-
-    Logger.trace('waiting for sync (30s)...');
-    // wait for sync
-    await TestServerI2P.wait(30000);
 
     // more data tx's
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending tx to http://localhost:${config.port}`);
       const res = await chai
-        .request(`http://${config.ip}:${config.port}`)
+        .request(`http://localhost:${config.port}`)
         .put('/transaction/data' + t * 10)
         .send([{ seq: 1, command: 'data', ns: 'test:data', d: 'tested-content' }]);
       expect(res).to.have.status(200);
@@ -159,43 +215,43 @@ class TestServerI2P {
     // even more data tx's
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending tx to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending tx to http://localhost:${config.port}`);
       const res = await chai
-        .request(`http://${config.ip}:${config.port}`)
+        .request(`http://localhost:${config.port}`)
         .put('/transaction/data' + t * 100)
         .send([{ seq: 1, command: 'data', ns: 'test:more-data', d: 'more-content' }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq('data' + t * 100);
-      await TestServerI2P.wait(10000);
+      await TestServerI2P.wait(Math.ceil(Math.random() * 5000));
     }
 
-    // new decision tx's - should eliminate the decision on Block Height 6
+    // new decision tx's - must fail, since the decision has been taken (height=6)
     for (let t = 0; t < l; t++) {
       const config = [...TestServerI2P.mapConfigServer.values()][t];
-      Logger.trace(`Sending decision tx [h=30] to http://${config.ip}:${config.port}`);
+      Logger.trace(`Sending decision tx [h=30] to http://localhost:${config.port}`);
       await chai
-        .request(`http://${config.ip}:${config.port}`)
+        .request(`http://localhost:${config.port}`)
         .put('/transaction/decision' + t * 100)
         .send([{ seq: 1, command: 'decision', ns: 'test:dec', h: 30, d: 'TestedNewDecisionData' }]);
-      await TestServerI2P.wait(50);
+      await TestServerI2P.wait(Math.ceil(Math.random() * 200));
     }
 
-    Logger.trace('waiting for sync (60s)...');
+    Logger.trace('waiting for sync (30s)...');
     // wait for sync
-    await TestServerI2P.wait(60000);
+    await TestServerI2P.wait(30000);
 
     // test for data state
     const config = [...TestServerI2P.mapConfigServer.values()][3];
-    const resState = await chai.request(`http://${config.ip}:${config.port}`).get('/state/test:dec');
+    const resState = await chai.request(`http://localhost:${config.port}`).get('/state/test:dec');
     expect(resState).to.have.status(200);
-    expect(JSON.parse(resState.body.value).h).to.be.eq(30);
+    expect(JSON.parse(resState.body.value).h).to.be.eq(6);
   }
 
   @test
-  @timeout(300000)
+  @timeout(6000000)
   async stressMultiTransaction() {
-    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 150;
-    const _inner = 4; // commands
+    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 250;
+    const _inner = 6; // commands
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -234,17 +290,17 @@ class TestServerI2P {
       } catch (error) {
         console.error(error);
       }
-      await TestServerI2P.wait(Math.ceil(Math.random() * 200));
+      await TestServerI2P.wait(Math.ceil(Math.random() * 5000));
     }
 
-    console.debug('waiting 240s to sync');
+    console.debug('waiting 120s to sync');
     // wait for a possible sync
-    await TestServerI2P.wait(240000);
+    await TestServerI2P.wait(120000);
 
     // all blockchains have to be equal
     const arrayBlocks: Array<any> = [];
     for (const config of arrayConfig) {
-      const res = await chai.request(`http://${config.ip}:${config.port}`).get('/block/latest');
+      const res = await chai.request(`http://localhost:${config.port}`).get('/block/latest');
       arrayBlocks.push(res.body);
     }
     const _h = arrayBlocks[0].hash;

@@ -230,7 +230,7 @@ export class Network extends EventEmitter {
       const avgLatency = Math.ceil(this.arrayLatency.reduce((p, l) => p + l, 0) / this.arrayLatency.length);
       this.arrayLatency = this.arrayLatency.slice(0, this.arrayBroadcast.length * 2);
       //@FIXME logging
-      // Logger.trace(`${this.server.config.port}: height ${fromPublicKey}: ${h} --- avgLatency ${avgLatency}`);
+      Logger.trace(`${this.server.config.port}: height ${fromPublicKey}: ${h} --- avgLatency ${avgLatency}`);
     }
 
     // PoS influence: availability

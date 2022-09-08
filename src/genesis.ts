@@ -21,7 +21,7 @@ import path from 'path';
 import { BlockStruct } from './chain/block';
 import { Blockchain } from './chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from './chain/transaction';
-import { Config, DEFAULT_NAME_GENESIS_BLOCK } from './config';
+import { Config, DEFAULT_NAME_GENESIS_BLOCK, MAX_NETWORK_SIZE } from './config';
 import { Wallet } from './chain/wallet';
 import crypto from 'crypto';
 import { Util } from './chain/util';
@@ -31,6 +31,9 @@ export class Genesis {
     process.env.GENESIS = '0';
 
     const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
+    if (SIZE_NETWORK > MAX_NETWORK_SIZE) {
+      throw new Error(`Maximum network size: ${MAX_NETWORK_SIZE}. Larger network not supported.`);
+    }
 
     const IP = process.env.IP || '127.27.27.1';
     const BASE_PORT = Number(process.env.BASE_PORT || 17000);
