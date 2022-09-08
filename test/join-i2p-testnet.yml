@@ -1,8 +1,27 @@
+#
+# Copyright (C) 2021-2022 diva.exchange
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
+#
+
 version: "3.7"
 services:
   i2p.http.join.testnet.diva.i2p:
     container_name: i2p.http.join.testnet.diva.i2p
-    image: divax/i2p:latest
+    image: divax/i2p:current
     restart: unless-stopped
     environment:
       ENABLE_SOCKSPROXY: 1
@@ -16,7 +35,7 @@ services:
 
   i2p.udp.join.testnet.diva.i2p:
     container_name: i2p.udp.join.testnet.diva.i2p
-    image: divax/i2p:latest
+    image: divax/i2p:current
     restart: unless-stopped
     environment:
       ENABLE_SAM: 1
@@ -29,7 +48,7 @@ services:
 
   explorer.join.testnet.diva.i2p:
     container_name: explorer.join.testnet.diva.i2p
-    image: divax/explorer:latest
+    image: divax/explorer:current
     restart: unless-stopped
     environment:
       HTTP_IP: 172.19.79.200

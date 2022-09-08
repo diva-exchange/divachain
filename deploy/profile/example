@@ -1,0 +1,12 @@
+
+git config --unset user.name
+git config --unset user.email
+git config --unset committer.email
+
+USER_NAME="Some One"
+USER_EMAIL="some.one@example.com"
+COMMITTER_EMAIL=${USER_EMAIL}
+
+git config user.name "${USER_NAME}"
+git config user.email "${USER_EMAIL}"
+git config committer.email "${COMMITTER_EMAIL}"

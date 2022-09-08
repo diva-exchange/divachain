@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021 diva.exchange
+# Copyright (C) 2021-2022 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,7 +21,7 @@ version: "3.7"
 services:
   local-i2p-testnet-http:
     container_name: local-i2p-testnet-http
-    image: divax/i2p:latest
+    image: divax/i2p:current
     restart: unless-stopped
     environment:
       ENABLE_SOCKSPROXY: 1
@@ -35,7 +35,7 @@ services:
 
   local-i2p-testnet-udp:
     container_name: local-i2p-testnet-udp
-    image: divax/i2p:latest
+    image: divax/i2p:current
     restart: unless-stopped
     environment:
       ENABLE_SAM: 1

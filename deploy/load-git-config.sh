@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2021 diva.exchange
+# Copyright (C) 2022 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -15,28 +15,28 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
+# Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
 #
-
-# -e  Exit immediately if a simple command exits with a non-zero status
-set -e
 
 PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
 cd ${PROJECT_PATH}
-PROJECT_PATH=`pwd`/
+PROJECT_PATH=`pwd`
 
-source "${PROJECT_PATH}bin/echos.sh"
-source "${PROJECT_PATH}bin/helpers.sh"
+NAME_PROFILE=${1:-}
 
-if ! command_exists docker; then
-  error "docker not available. Please install it first.";
-  exit 1
+if [[ ! -f "${PROJECT_PATH}/deploy/profile/${NAME_PROFILE}" ]]; then
+    echo "${PROJECT_PATH}/deploy/profile/${NAME_PROFILE} not found"
+    exit 1
 fi
 
-TAG=$(<${PROJECT_PATH}/build/version)
-info "Building docker image divax/divachain:${TAG}..."
-sudo docker build --force-rm --pull --no-cache -f ${PROJECT_PATH}Dockerfile -t divax/divachain:${TAG} .
+source "${PROJECT_PATH}/deploy/profile/${NAME_PROFILE}"
 
-TAG=current
-info "Building  docker image divax/divachain:${TAG}..."
-sudo docker build --force-rm --pull --no-cache -f ${PROJECT_PATH}Dockerfile -t divax/divachain:${TAG} .
+git checkout develop
+git fetch --all
+git merge main
+
+USER_NAME=${USER_NAME:-}
+USER_EMAIL=${USER_EMAIL:-}
+echo "Loaded: \"${USER_NAME} <${USER_EMAIL}>\""
+
+echo ${NAME_PROFILE} >${PROJECT_PATH}/deploy/profile/.loaded

@@ -37,7 +37,7 @@ class TestServerI2P {
   static mapServer: Map<string, Server> = new Map();
 
   static async before(): Promise<void> {
-    process.env.SIZE_NETWORK = process.env.SIZE_NETWORK || '13';
+    process.env.SIZE_NETWORK = process.env.SIZE_NETWORK || '9';
     process.env.IP = process.env.IP || '0.0.0.0';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
