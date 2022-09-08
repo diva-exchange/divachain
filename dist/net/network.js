@@ -153,6 +153,7 @@ class Network extends events_1.default {
         if (this.arrayLatency.length > this.arrayBroadcast.length * 3) {
             const avgLatency = Math.ceil(this.arrayLatency.reduce((p, l) => p + l, 0) / this.arrayLatency.length);
             this.arrayLatency = this.arrayLatency.slice(0, this.arrayBroadcast.length * 2);
+            logger_1.Logger.trace(`${this.server.config.port}: height ${fromPublicKey}: ${h} --- avgLatency ${avgLatency}`);
         }
     }
     incomingMessage(msg) {

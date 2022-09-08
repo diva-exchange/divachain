@@ -14,6 +14,9 @@ class Genesis {
     static async create(pathApplication = '') {
         process.env.GENESIS = '0';
         const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
+        if (SIZE_NETWORK > config_1.MAX_NETWORK_SIZE) {
+            throw new Error(`Maximum network size: ${config_1.MAX_NETWORK_SIZE}. Larger network not supported.`);
+        }
         const IP = process.env.IP || '127.27.27.1';
         const BASE_PORT = Number(process.env.BASE_PORT || 17000);
         const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || 18000);

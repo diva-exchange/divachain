@@ -21,12 +21,10 @@ const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = DEFAULT_PORT;
 const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_PORT + 2;
 const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
 const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
-const MIN_NETWORK_TIMEOUT_MS = 5000;
+const MIN_NETWORK_TIMEOUT_MS = 1000;
 const MAX_NETWORK_TIMEOUT_MS = 60000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
-const MAX_NETWORK_P2P_INTERVAL_MS = 60000;
-const MIN_NETWORK_CLEAN_INTERVAL_MS = 1500;
-const MAX_NETWORK_CLEAN_INTERVAL_MS = 10000;
+const MIN_NETWORK_P2P_INTERVAL_MS = 1000;
+const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
 const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
@@ -65,12 +63,11 @@ class Config {
         this.i2p_private_key_http = '';
         this.i2p_public_key_udp = '';
         this.i2p_private_key_udp = '';
-        this.network_timeout_ms = DEFAULT_NETWORK_TIMEOUT_MS;
-        this.network_p2p_interval_ms = MIN_NETWORK_P2P_INTERVAL_MS;
-        this.network_clean_interval_ms = MIN_NETWORK_CLEAN_INTERVAL_MS;
-        this.network_sync_size = MIN_NETWORK_SYNC_SIZE;
-        this.blockchain_max_blocks_in_memory = MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY;
-        this.api_max_query_size = MAX_API_MAX_QUERY_SIZE;
+        this.network_timeout_ms = 0;
+        this.network_p2p_interval_ms = 0;
+        this.network_sync_size = 0;
+        this.blockchain_max_blocks_in_memory = 0;
+        this.api_max_query_size = 0;
     }
     static async make(c) {
         const self = new Config();
@@ -201,9 +198,8 @@ class Config {
         if (!fs_1.default.existsSync(self.path_state)) {
             throw new Error(`Path to the state database not found: ${self.path_state}`);
         }
-        self.network_timeout_ms = Config.b(c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS, MIN_NETWORK_TIMEOUT_MS, MAX_NETWORK_TIMEOUT_MS);
+        self.network_timeout_ms = Config.b(c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS || DEFAULT_NETWORK_TIMEOUT_MS, MIN_NETWORK_TIMEOUT_MS, MAX_NETWORK_TIMEOUT_MS);
         self.network_p2p_interval_ms = Config.b(c.network_p2p_interval_ms || process.env.NETWORK_P2P_INTERVAL_MS, MIN_NETWORK_P2P_INTERVAL_MS, MAX_NETWORK_P2P_INTERVAL_MS);
-        self.network_clean_interval_ms = Config.b(c.network_clean_interval_ms || process.env.NETWORK_CLEAN_INTERVAL_MS, MIN_NETWORK_CLEAN_INTERVAL_MS, MAX_NETWORK_CLEAN_INTERVAL_MS);
         self.network_sync_size = Config.b(c.network_sync_size || process.env.NETWORK_SYNC_SIZE, MIN_NETWORK_SYNC_SIZE, MAX_NETWORK_SYNC_SIZE);
         self.blockchain_max_blocks_in_memory = Config.b(c.blockchain_max_blocks_in_memory ||
             process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY ||
