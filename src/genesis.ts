@@ -23,7 +23,6 @@ import { Blockchain } from './chain/blockchain';
 import { CommandAddPeer, CommandModifyStake } from './chain/transaction';
 import { Config, DEFAULT_NAME_GENESIS_BLOCK, MAX_NETWORK_SIZE } from './config';
 import { Wallet } from './chain/wallet';
-import crypto from 'crypto';
 import { Util } from './chain/util';
 
 export class Genesis {
@@ -63,7 +62,7 @@ export class Genesis {
     const map = new Map();
     const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
     let s = 1;
-    let config = {} as Config;
+    let config: Config = {} as Config;
     for (let i = 1; i <= SIZE_NETWORK; i++) {
       config = await Config.make({
         no_bootstrapping: 1,
@@ -101,14 +100,8 @@ export class Genesis {
         publicKey: publicKey,
       } as CommandAddPeer);
       s++;
-      cmds.push({
-        seq: s,
-        command: 'modifyStake',
-        publicKey: publicKey,
-        stake: Math.floor(crypto.randomInt(1, 1000) / Math.sqrt(i)),
-      } as CommandModifyStake);
-      s++;
     }
+
     genesis.tx = [
       {
         ident: 'genesis',
@@ -117,7 +110,9 @@ export class Genesis {
         sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
       },
     ];
-    genesis.hash = Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
+    genesis.hash = Util.hash(
+      [genesis.version, genesis.previousHash, JSON.stringify(genesis.tx), genesis.height].join()
+    );
 
     return Promise.resolve({ genesis: genesis, config: [...map] });
   }

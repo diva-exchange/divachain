@@ -22,19 +22,19 @@ import { Util } from '../../chain/util';
 import { Wallet } from '../../chain/wallet';
 import { BlockStruct } from '../../chain/block';
 
-type SyncStruct = {
+type ProposeBlockStruct = {
   type: number;
   block: BlockStruct;
 };
 
-export class Sync extends Message {
-  create(wallet: Wallet, block: BlockStruct): Sync {
+export class ProposeBlock extends Message {
+  create(wallet: Wallet, block: BlockStruct): ProposeBlock {
     this.init(wallet.getPublicKey());
     this.message.data = {
-      type: Message.TYPE_SYNC,
+      type: Message.TYPE_PROPOSE_BLOCK,
       block: block,
-    } as SyncStruct;
-    this.message.sig = wallet.sign([Message.TYPE_SYNC, this.message.seq, block.hash].join());
+    } as ProposeBlockStruct;
+    this.message.sig = wallet.sign([Message.TYPE_PROPOSE_BLOCK, this.message.seq, block.hash].join());
     return this;
   }
 
@@ -42,7 +42,19 @@ export class Sync extends Message {
     return this.message.data.block;
   }
 
-  static isValid(sync: Sync): boolean {
-    return Util.verifySignature(sync.origin(), sync.sig(), [sync.type(), sync.seq(), sync.block().hash].join());
+  hash(): string {
+    return this.message.data.block.hash;
+  }
+
+  height(): number {
+    return this.message.data.block.height;
+  }
+
+  static isValid(proposeBlock: ProposeBlock): boolean {
+    return Util.verifySignature(
+      proposeBlock.origin(),
+      proposeBlock.sig(),
+      [proposeBlock.type(), proposeBlock.seq(), proposeBlock.hash()].join()
+    );
   }
 }

@@ -19,45 +19,40 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
+import { TransactionStruct } from '../../chain/transaction';
 import { Wallet } from '../../chain/wallet';
 
-export type VoteStruct = {
+type AddTxStruct = {
   type: number;
-  seq: number;
-  origin: string;
   height: number;
-  txlength: number;
-  hash: string;
-  sig: string;
-  sigMsg: string;
+  tx: TransactionStruct;
 };
 
-export class Vote extends Message {
-  create(wallet: Wallet, height: number, txlength: number, hash: string): Vote {
-    const seq: number = Date.now();
+export class AddTx extends Message {
+  create(wallet: Wallet, dest: string, height: number, tx: TransactionStruct): AddTx {
+    this.init(wallet.getPublicKey(), dest);
     this.message.data = {
-      type: Message.TYPE_VOTE,
-      seq: seq,
-      origin: wallet.getPublicKey(),
+      type: Message.TYPE_ADD_TX,
       height: height,
-      txlength: txlength,
-      hash: hash,
-      sig: wallet.sign([height, hash].join()),
-      sigMsg: wallet.sign([Message.TYPE_VOTE, seq, height, txlength, hash].join()),
-    };
+      tx: tx,
+    } as AddTxStruct;
+    this.message.sig = wallet.sign([Message.TYPE_ADD_TX, this.message.seq, height, JSON.stringify(tx)].join());
     return this;
   }
 
-  get(): VoteStruct {
-    return this.message.data as VoteStruct;
+  height(): number {
+    return this.message.data.height;
   }
 
-  // stateful
-  static isValid(structVote: VoteStruct): boolean {
+  tx(): TransactionStruct {
+    return this.message.data.tx;
+  }
+
+  static isValid(addTx: AddTx): boolean {
     return Util.verifySignature(
-      structVote.origin,
-      structVote.sigMsg,
-      [structVote.type, structVote.seq, structVote.height, structVote.txlength, structVote.hash].join()
+      addTx.origin(),
+      addTx.sig(),
+      [addTx.type(), addTx.seq(), addTx.height(), JSON.stringify(addTx.tx())].join()
     );
   }
 }

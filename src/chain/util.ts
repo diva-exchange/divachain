@@ -46,7 +46,7 @@ export class Util {
    * @param {Array<any>} array
    * @return {Array<any>}
    */
-  static shuffleArray(array: Array<any>) {
+  static shuffleArray(array: Array<any>): Array<any> {
     const a = array.slice();
     for (let i = array.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -54,5 +54,20 @@ export class Util {
     }
 
     return a;
+  }
+
+  /**
+   * Calculate quartile coefficient of dispersion of an array of numbers
+   * https://en.wikipedia.org/wiki/Quartile_coefficient_of_dispersion
+   */
+  static QuartileCoeff(array: Array<number>): number {
+    if (array.length < 4) {
+      throw new Error('Invalid Argument');
+    }
+
+    const as = array.sort((a, b) => a - b);
+    const qi1 = as[Math.floor(array.length * 0.25)] - as[0];
+    const qi3 = as[Math.floor(array.length * 0.75)] - as[0];
+    return (qi3 - qi1) / (qi3 + qi1);
   }
 }

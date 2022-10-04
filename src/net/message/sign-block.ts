@@ -20,29 +20,38 @@
 import { Message } from './message';
 import { Util } from '../../chain/util';
 import { Wallet } from '../../chain/wallet';
-import { BlockStruct } from '../../chain/block';
 
-type SyncStruct = {
+type SignBlockStruct = {
   type: number;
-  block: BlockStruct;
+  hash: string;
+  sigBlock: string;
 };
 
-export class Sync extends Message {
-  create(wallet: Wallet, block: BlockStruct): Sync {
-    this.init(wallet.getPublicKey());
+export class SignBlock extends Message {
+  create(wallet: Wallet, dest: string, hash: string): SignBlock {
+    this.init(wallet.getPublicKey(), dest);
     this.message.data = {
-      type: Message.TYPE_SYNC,
-      block: block,
-    } as SyncStruct;
-    this.message.sig = wallet.sign([Message.TYPE_SYNC, this.message.seq, block.hash].join());
+      type: Message.TYPE_SIGN_BLOCK,
+      hash: hash,
+      sigBlock: wallet.sign(hash),
+    } as SignBlockStruct;
+    this.message.sig = wallet.sign([Message.TYPE_SIGN_BLOCK, this.message.seq, hash].join());
     return this;
   }
 
-  block(): BlockStruct {
-    return this.message.data.block;
+  hash(): string {
+    return this.message.data.hash;
   }
 
-  static isValid(sync: Sync): boolean {
-    return Util.verifySignature(sync.origin(), sync.sig(), [sync.type(), sync.seq(), sync.block().hash].join());
+  sigBlock(): string {
+    return this.message.data.sigBlock;
+  }
+
+  static isValid(signBlock: SignBlock): boolean {
+    return Util.verifySignature(
+      signBlock.origin(),
+      signBlock.sig(),
+      [signBlock.type(), signBlock.seq(), signBlock.hash()].join()
+    );
   }
 }

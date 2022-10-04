@@ -19,41 +19,44 @@
 
 import { Message } from './message';
 import { Util } from '../../chain/util';
-import { TransactionStruct } from '../../chain/transaction';
 import { Wallet } from '../../chain/wallet';
 
-export type ProposalStruct = {
-  type: number;
-  seq: number;
+export type VoteStruct = {
   origin: string;
-  height: number;
-  tx: TransactionStruct;
   sig: string;
 };
 
-export class Proposal extends Message {
-  create(wallet: Wallet, height: number, tx: TransactionStruct): Proposal {
-    const seq = Date.now();
+type ConfirmBlockStruct = {
+  type: number;
+  hash: string;
+  votes: Array<VoteStruct>;
+};
+
+export class ConfirmBlock extends Message {
+  create(wallet: Wallet, hash: string, votes: Array<VoteStruct>): ConfirmBlock {
+    this.init(wallet.getPublicKey());
     this.message.data = {
-      type: Message.TYPE_PROPOSAL,
-      seq: seq,
-      origin: wallet.getPublicKey(),
-      height: height,
-      tx: tx,
-      sig: wallet.sign([Message.TYPE_PROPOSAL, seq, height, JSON.stringify(tx)].join()),
-    };
+      type: Message.TYPE_CONFIRM_BLOCK,
+      hash: hash,
+      votes: votes,
+    } as ConfirmBlockStruct;
+    this.message.sig = wallet.sign([Message.TYPE_CONFIRM_BLOCK, this.message.seq, hash, JSON.stringify(votes)].join());
     return this;
   }
 
-  get(): ProposalStruct {
-    return this.message.data as ProposalStruct;
+  hash(): string {
+    return this.message.data.hash;
   }
 
-  static isValid(structProposal: ProposalStruct): boolean {
+  votes(): Array<VoteStruct> {
+    return this.message.data.votes;
+  }
+
+  static isValid(confirmBlock: ConfirmBlock): boolean {
     return Util.verifySignature(
-      structProposal.origin,
-      structProposal.sig,
-      [structProposal.type, structProposal.seq, structProposal.height, JSON.stringify(structProposal.tx)].join()
+      confirmBlock.origin(),
+      confirmBlock.sig(),
+      [confirmBlock.type(), confirmBlock.seq(), confirmBlock.hash(), JSON.stringify(confirmBlock.votes())].join()
     );
   }
 }

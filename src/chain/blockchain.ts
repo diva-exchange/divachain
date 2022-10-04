@@ -32,6 +32,7 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
+import { STAKE_VOTE_AMOUNT, STAKE_VOTE_BLOCK_DISTANCE, STAKE_VOTE_IDENT } from '../config';
 
 export type Peer = {
   publicKey: string;
@@ -63,6 +64,9 @@ export class Blockchain {
 
   private quorumWeighted: number = 0;
   private quorum: number = 0;
+
+  private mapModifyStake: Map<string, Array<string>> = new Map();
+  private mapVoteStake: Map<string, number> = new Map();
 
   private arrayDecision: { [ns: string]: Map<string, { stake: number; h: number; d: string }> } = {};
   private arrayTakenDecision: { [height: number]: Array<{ ns: string; d: string }> } = {};
@@ -138,7 +142,6 @@ export class Blockchain {
     ) {
       return false;
     }
-
     this.updateCache(block);
 
     (async (b: BlockStruct) => {
@@ -159,6 +162,23 @@ export class Blockchain {
       this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
     }
 
+    // voting stake
+    block.votes.forEach((v) => {
+      this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
+    });
+    if (this.mapVoteStake.size > 0) {
+      if (this.height % STAKE_VOTE_BLOCK_DISTANCE === 0) {
+        const vs = [...this.mapVoteStake.entries()].filter((a) => {
+          return a[0] !== this.publicKey;
+        });
+        vs.sort((a, b) => (a[1] > b[1] ? -1 : a[1] === b[1] && a[0] > b[0] ? -1 : 1));
+        this.server.proposeModifyStake(vs[0][0], STAKE_VOTE_IDENT, STAKE_VOTE_AMOUNT);
+        this.mapVoteStake.delete(vs[0][0]);
+      }
+    }
+
+    //@TODO review decisions
+    /*
     // remove outdated decisions
     if (this.arrayTakenDecision[block.height - 1]) {
       this.arrayTakenDecision[block.height - 1].forEach(async (o) => {
@@ -198,6 +218,7 @@ export class Blockchain {
           }
         });
     });
+*/
   }
 
   async getRange(gte: number, lte: number = -1): Promise<Array<BlockStruct>> {
@@ -363,7 +384,7 @@ export class Blockchain {
       throw new Error('Genesis Block not found at: ' + p);
     }
     const b: BlockStruct = JSON.parse(fs.readFileSync(p).toString());
-    b.hash = Util.hash(b.previousHash + b.version + b.height + JSON.stringify(b.tx));
+    b.hash = Util.hash([b.version, b.previousHash, JSON.stringify(b.tx), b.height].join());
     return b;
   }
 
@@ -382,7 +403,7 @@ export class Blockchain {
             await this.removePeer(c as CommandRemovePeer);
             break;
           case Blockchain.COMMAND_MODIFY_STAKE:
-            await this.modifyStake(c as CommandModifyStake);
+            await this.modifyStake(t.origin, c as CommandModifyStake);
             break;
           case Blockchain.COMMAND_DATA:
             await this.updateStateData((c as CommandData).ns + ':' + t.origin, (c as CommandData).d);
@@ -408,8 +429,10 @@ export class Blockchain {
       publicKey: command.publicKey,
       http: command.http,
       udp: command.udp,
-      stake: 0,
+      stake: 1,
     };
+    this.quorum++;
+
     this.mapPeer.set(command.publicKey, peer);
     this.mapHttp.set(peer.http, command.publicKey);
     this.mapUdp.set(peer.udp, command.publicKey);
@@ -417,36 +440,48 @@ export class Blockchain {
   }
 
   private async removePeer(command: CommandRemovePeer) {
-    if (this.mapPeer.has(command.publicKey)) {
-      const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
-      this.quorumWeighted = this.quorumWeighted - peer.stake;
-      if (peer.stake > 0) {
-        this.quorum--;
-      }
-      this.mapPeer.delete(command.publicKey);
-      this.mapHttp.delete(peer.http);
-      this.mapUdp.delete(peer.udp);
-      await this.deleteStateData(Blockchain.STATE_PEER_IDENT + command.publicKey);
+    if (!this.mapPeer.has(command.publicKey)) {
+      return;
     }
+    const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
+    this.quorumWeighted = this.quorumWeighted - peer.stake;
+    this.quorum--;
+
+    this.mapPeer.delete(command.publicKey);
+    this.mapHttp.delete(peer.http);
+    this.mapUdp.delete(peer.udp);
+    await this.deleteStateData(Blockchain.STATE_PEER_IDENT + command.publicKey);
   }
 
-  private async modifyStake(command: CommandModifyStake) {
-    if (this.mapPeer.has(command.publicKey)) {
-      const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
-      if (peer.stake + command.stake < 0) {
-        command.stake = -1 * peer.stake;
-      }
-      this.quorumWeighted = this.quorumWeighted + command.stake;
-      const _s = peer.stake;
-      peer.stake = peer.stake + command.stake;
-      if (_s === 0 && peer.stake > 0) {
-        this.quorum++;
-      } else if (peer.stake === 0 && _s > 0) {
-        this.quorum--;
-      }
-      this.mapPeer.set(command.publicKey, peer);
-      await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
+  private async modifyStake(origin: string, command: CommandModifyStake) {
+    if (!this.mapPeer.has(command.publicKey) || command.publicKey === origin) {
+      return;
     }
+
+    // if voted for own node: the origin gets some credits
+    command.publicKey === this.publicKey && this.server.incStakeCredit(origin);
+
+    const i = [command.publicKey, command.ident, command.stake].join('');
+    const a: Array<string> = this.mapModifyStake.get(i) || [];
+    if (a.includes(origin)) {
+      return;
+    }
+
+    a.push(origin);
+    this.mapModifyStake.set(i, a);
+    if (a.length < this.getQuorum()) {
+      return;
+    }
+    this.mapModifyStake.delete(i);
+
+    const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
+    if (peer.stake + command.stake < 1) {
+      command.stake = -1 * peer.stake;
+    }
+    this.quorumWeighted = this.quorumWeighted + command.stake;
+    peer.stake = peer.stake + command.stake;
+    this.mapPeer.set(command.publicKey, peer);
+    await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
   }
 
   private async updateBlockData(key: string, data: string) {

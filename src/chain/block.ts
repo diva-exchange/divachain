@@ -20,6 +20,7 @@
 import { Util } from './util';
 import { TransactionStruct } from './transaction';
 import { BLOCK_VERSION } from '../config';
+import { VoteStruct } from '../net/message/confirm-block';
 
 export type BlockStruct = {
   version: number;
@@ -27,16 +28,16 @@ export type BlockStruct = {
   hash: string;
   tx: Array<TransactionStruct>;
   height: number;
-  votes: Array<{ origin: string; sig: string }>;
+  votes: Array<VoteStruct>;
 };
 
 export class Block {
   readonly previousBlock: BlockStruct;
   readonly version: number;
-  readonly height: number;
   readonly previousHash: string;
   readonly hash: string;
   readonly tx: Array<TransactionStruct>;
+  readonly height: number;
 
   static make(previousBlock: BlockStruct, tx: Array<TransactionStruct>): BlockStruct {
     return new Block(previousBlock, tx).get();
@@ -48,7 +49,7 @@ export class Block {
     this.previousHash = previousBlock.hash;
     this.height = previousBlock.height + 1;
     this.tx = tx;
-    this.hash = Util.hash(this.previousHash + this.version + this.height + JSON.stringify(this.tx));
+    this.hash = Util.hash([this.version, this.previousHash, JSON.stringify(this.tx), this.height].join());
   }
 
   get(): BlockStruct {
