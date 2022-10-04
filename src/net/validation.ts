@@ -42,47 +42,53 @@ export class Validation {
     const pathSchema = path.join(__dirname, '../schema/');
 
     const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
-    const schemaProposal: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/proposal.json');
-    const schemaVote: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/vote.json');
+    const schemaAddTx: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/add-tx.json');
+    const schemaProposeBlock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/propose-block.json');
+    const schemaSignBlock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sign-block.json');
+    const schemaConfirmBlock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/confirm-block.json');
     const schemaSync: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sync.json');
 
-    const schemaBlockV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/block.json');
-    const schemaVotesV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/votes.json');
-    const schemaTxV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/tx.json');
-    const schemaAddPeerV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/add-peer.json');
-    const schemaRemovePeerV6: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v6/transaction/remove-peer.json');
-    const schemaModifyStakeV6: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v6/transaction/modify-stake.json');
-    const schemaDataV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/data.json');
-    const schemaDecisionV6: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v6/transaction/decision.json');
+    const schemaBlockv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/block.json');
+    const schemaTxv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/tx.json');
+    const schemaVotev7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/vote.json');
+    const schemaAddPeerv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/add-peer.json');
+    const schemaRemovePeerv7: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v7/transaction/remove-peer.json');
+    const schemaModifyStakev7: JSONSchemaType<BlockStruct> = require(pathSchema +
+      'block/v7/transaction/modify-stake.json');
+    const schemaDatav7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/data.json');
+    const schemaDecisionv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/decision.json');
 
     this.message = new Ajv({
       schemas: [
-        schemaProposal,
-        schemaVote,
+        schemaAddTx,
+        schemaProposeBlock,
+        schemaSignBlock,
+        schemaConfirmBlock,
         schemaSync,
-        schemaBlockV6,
-        schemaVotesV6,
-        schemaTxV6,
-        schemaAddPeerV6,
-        schemaRemovePeerV6,
-        schemaModifyStakeV6,
-        schemaDataV6,
-        schemaDecisionV6,
+        schemaBlockv7,
+        schemaTxv7,
+        schemaVotev7,
+        schemaAddPeerv7,
+        schemaRemovePeerv7,
+        schemaModifyStakev7,
+        schemaDatav7,
+        schemaDecisionv7,
       ],
     }).compile(schemaMessage);
 
     this.tx = new Ajv({
-      schemas: [schemaAddPeerV6, schemaRemovePeerV6, schemaModifyStakeV6, schemaDataV6, schemaDecisionV6],
-    }).compile(schemaTxV6);
+      schemas: [schemaAddPeerv7, schemaRemovePeerv7, schemaModifyStakev7, schemaDatav7, schemaDecisionv7],
+    }).compile(schemaTxv7);
   }
 
   // stateless
   validateMessage(m: Message): boolean {
     switch (m.type()) {
-      case Message.TYPE_PROPOSAL:
-      case Message.TYPE_VOTE:
+      case Message.TYPE_ADD_TX:
+      case Message.TYPE_PROPOSE_BLOCK:
+      case Message.TYPE_SIGN_BLOCK:
+      case Message.TYPE_CONFIRM_BLOCK:
       case Message.TYPE_SYNC:
         if (!this.message(m.getMessage())) {
           Logger.trace('Validation.validateMessage() failed');
@@ -98,29 +104,37 @@ export class Validation {
   }
 
   // stateful
-  validateBlock(structBlock: BlockStruct): boolean {
+  validateBlock(structBlock: BlockStruct, doVoteValidation: boolean = true): boolean {
     const { version, previousHash, hash, height, tx, votes } = structBlock;
 
-    let _aOrigin: Array<string>;
-
-    if (!tx.length || !votes.length) {
-      Logger.trace(`Validation.validateBlock() - empty tx or votes: ${height}`);
+    if (!tx.length) {
+      Logger.trace(`Validation.validateBlock() - empty tx, block #${height}`);
+      return false;
+    }
+    if (Util.hash([version, previousHash, JSON.stringify(tx), height].join()) !== hash) {
+      Logger.trace(`Validation.validateBlock() - invalid hash, block #${height}`);
       return false;
     }
 
+    let _aOrigin: Array<string> = [];
+
     // vote validation
-    _aOrigin = [];
-    const voteHash = [height, Util.hash(JSON.stringify(tx))].join();
-    for (const vote of votes) {
-      if (_aOrigin.includes(vote.origin)) {
-        Logger.trace(`Validation.validateBlock() - Multiple votes from same origin: ${height}`);
+    if (doVoteValidation) {
+      if (votes.length < this.server.getBlockchain().getQuorum()) {
+        Logger.trace(`Validation.validateBlock() - not enough votes, block #${height}`);
         return false;
       }
-      _aOrigin.push(vote.origin);
+      for (const vote of votes) {
+        if (_aOrigin.includes(vote.origin)) {
+          Logger.trace(`Validation.validateBlock() - Multiple votes from same origin, block #${height}`);
+          return false;
+        }
+        _aOrigin.push(vote.origin);
 
-      if (!Util.verifySignature(vote.origin, vote.sig, voteHash)) {
-        Logger.trace(`Validation.validateBlock() - invalid vote: ${height}`);
-        return false;
+        if (!Util.verifySignature(vote.origin, vote.sig, hash)) {
+          Logger.trace(`Validation.validateBlock() - invalid vote, block #${height}, origin ${vote.origin}`);
+          return false;
+        }
       }
     }
 
@@ -128,18 +142,18 @@ export class Validation {
     _aOrigin = [];
     for (const transaction of tx) {
       if (_aOrigin.includes(transaction.origin)) {
-        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin: ${height}`);
+        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
         return false;
       }
       _aOrigin.push(transaction.origin);
 
       if (!this.validateTx(height, transaction)) {
-        Logger.trace(`Validation.validateBlock() - invalid tx: ${height}`);
+        Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
         return false;
       }
     }
 
-    return Util.hash(previousHash + version + height + JSON.stringify(tx)) === hash;
+    return true;
   }
 
   // stateless && stateful

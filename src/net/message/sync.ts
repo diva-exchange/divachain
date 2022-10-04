@@ -22,36 +22,27 @@ import { Util } from '../../chain/util';
 import { Wallet } from '../../chain/wallet';
 import { BlockStruct } from '../../chain/block';
 
-export type SyncStruct = {
+type SyncStruct = {
   type: number;
-  seq: number;
-  origin: string;
   block: BlockStruct;
-  sig: string;
 };
 
 export class Sync extends Message {
   create(wallet: Wallet, block: BlockStruct): Sync {
-    const seq = Date.now();
+    this.init(wallet.getPublicKey());
     this.message.data = {
       type: Message.TYPE_SYNC,
-      seq: seq,
-      origin: wallet.getPublicKey(),
       block: block,
-      sig: wallet.sign([Message.TYPE_SYNC, seq, block.hash].join()),
-    };
+    } as SyncStruct;
+    this.message.sig = wallet.sign([Message.TYPE_SYNC, this.message.seq, block.hash].join());
     return this;
   }
 
-  get(): SyncStruct {
-    return this.message.data as SyncStruct;
+  block(): BlockStruct {
+    return this.message.data.block;
   }
 
-  static isValid(structSync: SyncStruct): boolean {
-    return Util.verifySignature(
-      structSync.origin,
-      structSync.sig,
-      [structSync.type, structSync.seq, structSync.block.hash].join()
-    );
+  static isValid(sync: Sync): boolean {
+    return Util.verifySignature(sync.origin(), sync.sig(), [sync.type(), sync.seq(), sync.block().hash].join());
   }
 }

@@ -8,7 +8,6 @@ const path_1 = __importDefault(require("path"));
 const blockchain_1 = require("./chain/blockchain");
 const config_1 = require("./config");
 const wallet_1 = require("./chain/wallet");
-const crypto_1 = __importDefault(require("crypto"));
 const util_1 = require("./chain/util");
 class Genesis {
     static async create(pathApplication = '') {
@@ -77,13 +76,6 @@ class Genesis {
                 publicKey: publicKey,
             });
             s++;
-            cmds.push({
-                seq: s,
-                command: 'modifyStake',
-                publicKey: publicKey,
-                stake: Math.floor(crypto_1.default.randomInt(1, 1000) / Math.sqrt(i)),
-            });
-            s++;
         }
         genesis.tx = [
             {
@@ -93,7 +85,7 @@ class Genesis {
                 sig: '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
             },
         ];
-        genesis.hash = util_1.Util.hash(genesis.previousHash + genesis.version + genesis.height + JSON.stringify(genesis.tx));
+        genesis.hash = util_1.Util.hash([genesis.version, genesis.previousHash, JSON.stringify(genesis.tx), genesis.height].join());
         return Promise.resolve({ genesis: genesis, config: [...map] });
     }
 }

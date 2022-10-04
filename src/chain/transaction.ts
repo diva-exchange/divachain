@@ -19,40 +19,40 @@
 
 import { Wallet } from './wallet';
 
-interface Command {
+interface Cmd {
   seq: number;
   command: string;
 }
 
-export interface CommandAddPeer extends Command {
+export interface CommandAddPeer extends Cmd {
   http: string;
   udp: string;
   publicKey: string;
 }
 
-export interface CommandRemovePeer extends Command {
+export interface CommandRemovePeer extends Cmd {
   publicKey: string;
 }
 
-export interface CommandModifyStake extends Command {
+export interface CommandModifyStake extends Cmd {
   publicKey: string;
+  ident: string;
   stake: number;
 }
 
-export interface CommandData extends Command {
+export interface CommandData extends Cmd {
   ns: string;
   d: string;
 }
 
-export interface CommandDecision extends Command {
+export interface CommandDecision extends Cmd {
   ns: string;
   h: number;
   d: string;
 }
 
-export type ArrayCommand = Array<
-  CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData | CommandDecision
->;
+export type Command = CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData | CommandDecision;
+export type ArrayCommand = Array<Command>;
 
 export type TransactionStruct = {
   ident: string;

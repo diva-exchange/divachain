@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/message/propose-block.json",
+
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 2
+    },
+    "block": {
+      "$ref": "/schema/block/v7/block.json"
+    }
+  },
+  "required": [
+    "type",
+    "block"
+  ],
+  "additionalProperties": false
+}

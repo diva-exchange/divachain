@@ -34,6 +34,13 @@ import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Peer } from '../chain/blockchain';
 import { Sync } from './message/sync';
 import { BlockStruct } from '../chain/block';
+import {
+  STAKE_PING_AMOUNT,
+  STAKE_PING_IDENT,
+  STAKE_PING_QUARTILE_COEFF_MAX,
+  STAKE_PING_QUARTILE_COEFF_MIN,
+  STAKE_PING_SAMPLE_SIZE,
+} from '../config';
 
 type Options = {
   url: string;
@@ -50,14 +57,13 @@ export class Network extends EventEmitter {
   private samForward: I2pSamStream = {} as I2pSamStream;
   private samUDP: I2pSamDatagram = {} as I2pSamDatagram;
 
+  private identNetwork: string = '';
   private arrayNetwork: Array<Peer> = [];
   private arrayBroadcast: Array<string> = [];
 
-  private arrayLatency: Array<number> = [];
-
   private mapPingSeq: Map<string, number> = new Map();
   private mapMsgSeq: Map<string, number> = new Map();
-  private mapAvailability: Map<string, Array<{ t: number; a: boolean }>> = new Map();
+  private mapAvailability: Map<string, Array<number>> = new Map();
 
   private readonly _onMessage: Function;
   private isClosing: boolean = false;
@@ -190,82 +196,91 @@ export class Network extends EventEmitter {
     }
 
     if (/^[\d]{1,32}![\d]+$/.test(msg)) {
-      this.incomingPing(msg, pk);
+      this.incomingPing(pk, msg);
     } else {
-      this.incomingMessage(msg);
+      this.incomingMessage(pk, msg);
     }
   }
 
-  private incomingPing(msg: string, fromPublicKey: string) {
+  private incomingPing(fromPublicKey: string, msg: string) {
     const [_d, _h] = msg.split('!');
+    // unix timestamp contained within the ping message, not to be trusted
     const dt: number = Number(_d);
 
-    // flood & old ping protection
+    // protection from flooding and outdated pings
     const _n: number = Date.now();
     const _s: number = this.mapPingSeq.get(fromPublicKey) || 0;
     const _f = this.server.config.network_p2p_interval_ms * (Math.floor(this.arrayBroadcast.length / 3) + 1);
-    if (dt < _n - (_f ^ 3) || dt > _n + (_f ^ 2) || _s > _n - _f || _s >= dt) {
+    if (_s > _n - _f || _s >= dt) {
       return;
     }
     this.mapPingSeq.set(fromPublicKey, dt);
 
+    // send sync packets
     const h: number = Number(_h);
-    // send sync packets?
-    for (let sh = h; sh < this.server.getBlockchain().getHeight(); sh++) {
-      (async (_h: number, toPublicKey: string) => {
-        const b: BlockStruct = (await this.server.getBlockchain().getRange(_h))[0];
-        const buf: Buffer = Buffer.from(new Sync().create(this.server.getWallet(), b).pack());
-        this.samUDP.send(this.server.getBlockchain().getPeer(toPublicKey).udp, buf);
-      })(sh + 1, fromPublicKey);
-      if (sh - h > this.server.config.network_sync_size) {
-        break;
-      }
-    }
-
-    //@TODO just some stats...
-    // average network latency
-    const diff = Date.now() - dt;
-    diff > 0 && diff < 60000 && this.arrayLatency.unshift(diff);
-    if (this.arrayLatency.length > this.arrayBroadcast.length * 3) {
-      const avgLatency = Math.ceil(this.arrayLatency.reduce((p, l) => p + l, 0) / this.arrayLatency.length);
-      this.arrayLatency = this.arrayLatency.slice(0, this.arrayBroadcast.length * 2);
+    const diff = this.server.getBlockchain().getHeight() - h;
+    if (diff > 0) {
       //@FIXME logging
-      Logger.trace(`${this.server.config.port}: height ${fromPublicKey}: ${h} --- avgLatency ${avgLatency}`);
+      Logger.trace(`${this.server.config.port} / ${this.publicKey}: Send SYNC to ${fromPublicKey} - Diff: ${diff}`);
+      for (let hsync = h + 1; hsync <= this.server.getBlockchain().getHeight(); hsync++) {
+        (async (_h: number, toPublicKey: string) => {
+          const b: BlockStruct = (await this.server.getBlockchain().getRange(_h))[0];
+          const buf: Buffer = Buffer.from(new Sync().create(this.server.getWallet(), b).pack());
+          this.samUDP.send(this.server.getBlockchain().getPeer(toPublicKey).udp, buf);
+        })(hsync, fromPublicKey);
+        if (hsync - h > this.server.config.network_sync_size) {
+          break;
+        }
+      }
+      return;
     }
 
     // PoS influence: availability
     // statistical dispersion of pings of a peer. Desired behaviour?
+    // holding a local map of the availability of other peers and create a vote
+    let a: Array<number> = this.mapAvailability.get(fromPublicKey) || [];
+    a.push(dt);
+
+    // compare mapAvailability with a wanted behaviour (=dispersion of values)
+    if (a.length === STAKE_PING_SAMPLE_SIZE) {
+      // calculate quartile coefficient
+      const qc = Util.QuartileCoeff(a);
+      if (qc >= STAKE_PING_QUARTILE_COEFF_MIN && qc <= STAKE_PING_QUARTILE_COEFF_MAX) {
+        // place a vote for stake increase
+        this.server.proposeModifyStake(fromPublicKey, STAKE_PING_IDENT, STAKE_PING_AMOUNT);
+      }
+
+      // remove 2/3rd of the data
+      a = a.slice(-1 * Math.floor((a.length / 3) * 2));
+    }
+
+    this.mapAvailability.set(fromPublicKey, a);
   }
 
-  private incomingMessage(msg: string) {
-    try {
-      const m: Message = new Message(msg);
-      // stateless validation
-      if (!this.server.getValidation().validateMessage(m)) {
-        return;
-      }
-
-      //@TODO this is not strictly true for sync messages, it might even hinder synchronization
-      // messages with an older sequence must be ignored
-      if ((this.mapMsgSeq.get([m.type(), m.origin()].join()) || 0) >= m.seq()) {
-        return;
-      }
-      this.mapMsgSeq.set([m.type(), m.origin()].join(), m.seq());
-
-      // process message
-      this._onMessage(m);
-
-      //gossipping
-      this.broadcast(m);
-    } catch (error: any) {
-      Logger.warn(`Network.incomingData() ${error.toString()}`);
+  private incomingMessage(fromPublicKey: string, msg: string) {
+    const m: Message = new Message(msg);
+    // stateless validation
+    if (!this.server.getValidation().validateMessage(m)) {
+      return;
     }
+
+    // messages with an older sequence must be ignored
+    if ((this.mapMsgSeq.get([m.type(), m.origin()].join()) || 0) >= m.seq()) {
+      return;
+    }
+    this.mapMsgSeq.set([m.type(), m.origin()].join(), m.seq());
+
+    // process message
+    this._onMessage(m);
+
+    //gossipping, only once
+    fromPublicKey === m.origin() && this.broadcast(m, fromPublicKey);
   }
 
   // update network, randomize broadcast peers and ping 1/3rd of the network peers
   private p2pNetwork() {
     const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
-    const tTimeout = this.server.config.network_p2p_interval_ms * (Math.floor(aNetwork.length / 3) + 1);
+    const tTimeout = this.server.config.network_p2p_interval_ms;
     this.timeoutP2P = setTimeout(() => {
       this.p2pNetwork();
     }, tTimeout);
@@ -273,12 +288,16 @@ export class Network extends EventEmitter {
     if (aNetwork.length < 2 || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
       return;
     }
-    this.arrayNetwork = aNetwork;
 
+    const _i = [...this.server.getBlockchain().getMapPeer().keys()].join('');
+    if (this.identNetwork !== _i) {
+      this.identNetwork = _i;
+      // sorted by public key
+      this.arrayNetwork = aNetwork.sort((a, b) => (a.publicKey > b.publicKey ? 1 : -1));
+      Logger.info('Network updated');
+    }
     this.arrayBroadcast = Util.shuffleArray(
-      [...this.server.getBlockchain().getMapPeer().keys()].filter((pk) => {
-        return pk !== this.publicKey;
-      })
+      [...this.server.getBlockchain().getMapPeer().keys()].filter((pk: string) => pk !== this.publicKey)
     );
 
     // ping: rectangular distribution of number of pings to network peers over time
@@ -288,24 +307,35 @@ export class Network extends EventEmitter {
       this.arrayBroadcast.slice(0, Math.ceil(this.arrayBroadcast.length / 3)).forEach((pk) => {
         this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
       });
-    }, Math.ceil(Math.random() * tTimeout));
+    }, Math.floor(Math.random() * tTimeout * 0.99));
   }
 
   getArrayNetwork(): Array<Peer> {
     return this.arrayNetwork;
   }
 
-  broadcast(m: Message) {
+  broadcast(m: Message, fromPublicKey: string = '') {
     const buf: Buffer = Buffer.from(m.pack());
-    let a = this.arrayBroadcast.filter((pk) => m.origin() !== pk);
-    a = m.origin() === this.publicKey ? a : a.slice(0, 2); // gossipping
-    a.forEach((pk) => {
+    if (fromPublicKey !== '' && m.dest() !== '') {
+      // gossipping with a destination
       try {
-        this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
+        this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, buf);
       } catch (error: any) {
         Logger.warn(`Network.broadcast() ${error.toString()}`);
       }
-    });
+    } else {
+      // broadcasting
+      const o: string = m.origin();
+      this.arrayBroadcast
+        .filter((pk) => o !== pk && fromPublicKey !== pk)
+        .forEach((pk) => {
+          try {
+            this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
+          } catch (error: any) {
+            Logger.warn(`Network.broadcast() ${error.toString()}`);
+          }
+        });
+    }
   }
 
   async fetchFromApi(endpoint: string, timeout: number = 0): Promise<any> {

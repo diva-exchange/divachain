@@ -25,18 +25,15 @@ import http from 'http';
 import WebSocket from 'ws';
 import compression from 'compression';
 import { Bootstrap } from './bootstrap';
-import { BlockStruct } from '../chain/block';
 import { Blockchain } from '../chain/blockchain';
 import { Validation } from './validation';
-import { Pool } from './pool';
 import { Wallet } from '../chain/wallet';
 import { Network } from './network';
 import { Message } from './message/message';
 import { Api } from './api';
-import { ArrayCommand } from '../chain/transaction';
-import { Vote, VoteStruct } from './message/vote';
-import { Proposal, ProposalStruct } from './message/proposal';
-import { Sync, SyncStruct } from './message/sync';
+import { ArrayCommand, CommandModifyStake } from '../chain/transaction';
+import { BlockFactory } from './block-factory';
+import { BlockStruct } from '../chain/block';
 
 export class Server {
   public readonly config: Config;
@@ -45,7 +42,7 @@ export class Server {
   private readonly httpServer: http.Server;
   private readonly webSocketServerBlockFeed: WebSocket.Server;
 
-  private pool: Pool = {} as Pool;
+  private blockFactory: BlockFactory = {} as BlockFactory;
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
@@ -53,8 +50,12 @@ export class Server {
   private blockchain: Blockchain = {} as Blockchain;
   private validation: Validation = {} as Validation;
 
-  private timeoutUpdateOwnProposal: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutVote: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private mapModifyStake: Map<string, CommandModifyStake> = new Map();
+  private mapStakeCredit: Map<string, number> = new Map();
+  private timeoutModifyStake: NodeJS.Timeout = {} as NodeJS.Timeout;
+
+  private timeoutAddTx: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutDoSign: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   constructor(config: Config) {
     this.config = config;
@@ -133,14 +134,14 @@ export class Server {
     this.validation = Validation.make(this);
     Logger.info('Validation initialized');
 
-    this.pool = Pool.make(this);
-    Logger.info('Pool initialized');
+    this.network = Network.make(this, (m: Message) => {
+      this.blockFactory.processMessage(m);
+    });
+
+    this.blockFactory = BlockFactory.make(this);
+    Logger.info('BlockFactory initialized');
 
     await this.httpServer.listen(this.config.port, this.config.ip);
-
-    this.network = Network.make(this, (m: Message) => {
-      this.onMessage(m);
-    });
 
     return new Promise((resolve) => {
       this.network.once('ready', async () => {
@@ -159,8 +160,9 @@ export class Server {
   }
 
   async shutdown(): Promise<void> {
-    clearTimeout(this.timeoutUpdateOwnProposal);
-    clearTimeout(this.timeoutVote);
+    clearTimeout(this.timeoutModifyStake);
+    clearTimeout(this.timeoutAddTx);
+    clearTimeout(this.timeoutDoSign);
 
     this.network.shutdown();
     this.wallet.close();
@@ -181,10 +183,6 @@ export class Server {
     return this.bootstrap;
   }
 
-  getPool(): Pool {
-    return this.pool;
-  }
-
   getWallet(): Wallet {
     return this.wallet;
   }
@@ -201,116 +199,67 @@ export class Server {
     return this.network;
   }
 
+  getBlockFactory(): BlockFactory {
+    return this.blockFactory;
+  }
+
+  proposeModifyStake(forPublicKey: string, ident: string, stake: number) {
+    const k = [forPublicKey, ident, stake].join('');
+    if (this.mapModifyStake.has(k)) {
+      return;
+    }
+
+    // place a vote for stake increase
+    const command = {
+      command: Blockchain.COMMAND_MODIFY_STAKE,
+      publicKey: forPublicKey,
+      ident: ident,
+      stake: stake,
+    } as CommandModifyStake;
+
+    // algorithm for credits equalizes the stake distribution
+    const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
+    const quorum = this.blockchain.getQuorum();
+    if (credit > quorum * -0.5 && [...this.mapStakeCredit.values()].reduce((p, c) => p + c, 0) > quorum * -1) {
+      this.mapModifyStake.set(k, command);
+      this.mapStakeCredit.set(forPublicKey, credit);
+    }
+
+    //@TODO review
+    // make sure that the timeout gets called, depending on the size of the network
+    clearTimeout(this.timeoutModifyStake);
+    this.timeoutModifyStake = setTimeout(() => {
+      this.stackTx([...this.mapModifyStake.values()]);
+      this.mapModifyStake = new Map();
+    }, this.network.getArrayNetwork().length * this.config.network_p2p_interval_ms);
+  }
+
+  incStakeCredit(publicKey: string) {
+    this.mapStakeCredit.set(publicKey, (this.mapStakeCredit.get(publicKey) || 0) + 1);
+  }
+
   stackTx(commands: ArrayCommand, ident: string = '') {
-    const i = this.pool.stack(commands, ident);
+    let s = 1;
+    const i = this.blockFactory.stack(
+      commands.map((c) => {
+        c.seq = s;
+        s++;
+        return c;
+      }),
+      ident
+    );
     if (!i) {
       return false;
     }
-    this.doPropose();
     return i;
   }
 
-  private doPropose() {
-    const p: Proposal | false = this.pool.getOwnProposal();
-    if (p) {
-      this.processProposal(p);
-      this.network.broadcast(p);
-    }
-
-    // re-schedule own proposal
-    clearTimeout(this.timeoutUpdateOwnProposal);
-    this.timeoutUpdateOwnProposal = setTimeout(() => {
-      this.pool.updateOwnProposal();
-      this.doPropose();
-    }, this.network.getArrayNetwork().length * 500);
-  }
-
-  private processProposal(proposal: Proposal) {
-    const p: ProposalStruct = proposal.get();
-
-    // process only valid proposals
-    if (!Proposal.isValid(p)) {
-      return;
-    }
-
-    // add proposal to pool,
-    if (this.pool.propose(p)) {
-      // schedule voting
-      clearTimeout(this.timeoutVote);
-      this.timeoutVote = setTimeout(() => {
-        this.doVote();
-      }, this.network.getArrayNetwork().length * 50);
-    }
-  }
-
-  private doVote() {
-    const v = this.pool.getCurrentVote();
-    if (v) {
-      this.processVote(v);
-      this.network.broadcast(v);
-    }
-  }
-
-  private processVote(vote: Vote) {
-    const v: VoteStruct = vote.get();
-
-    // process only valid votes
-    // stateful
-    if (!Vote.isValid(v)) {
-      return;
-    }
-
-    // add vote to pool
-    if (this.pool.vote(v)) {
-      // broadcast new block
-      this.network.broadcast(new Sync().create(this.wallet, this.pool.getBlock()));
-      this.addBlock(this.pool.getBlock());
-      return;
-    }
-
-    // re-schedule voting
-    clearTimeout(this.timeoutVote);
-    this.timeoutVote = setTimeout(() => {
-      this.doVote();
-    }, this.network.getArrayNetwork().length * 200);
-  }
-
-  private processSync(sync: Sync) {
-    const s: SyncStruct = sync.get();
-    if (this.getBlockchain().getHeight() + 1 === s.block.height) {
-      this.addBlock(s.block);
-    }
-  }
-
-  private addBlock(block: BlockStruct) {
-    if (!this.blockchain.add(block)) {
-      return;
-    }
-
-    this.pool.clear(block);
-
-    setImmediate((s: string) => {
-      this.webSocketServerBlockFeed.clients.forEach((ws) => ws.readyState === WebSocket.OPEN && ws.send(s));
-    }, JSON.stringify(block));
-
-    // new proposal
-    this.doPropose();
-  }
-
-  private onMessage(m: Message) {
-    switch (m.type()) {
-      case Message.TYPE_PROPOSAL:
-        this.processProposal(new Proposal(m.pack()));
-        break;
-      case Message.TYPE_VOTE:
-        this.processVote(new Vote(m.pack()));
-        break;
-      case Message.TYPE_SYNC:
-        this.processSync(new Sync(m.pack()));
-        break;
-      default:
-        throw new Error('Invalid message type');
-    }
+  feedBlock(block: BlockStruct) {
+    setImmediate((block: BlockStruct) => {
+      this.webSocketServerBlockFeed.clients.forEach(
+        (ws) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(block))
+      );
+    }, block);
   }
 
   private static error(err: any, req: Request, res: Response, next: NextFunction) {

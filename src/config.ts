@@ -67,9 +67,17 @@ export type Configuration = {
   api_max_query_size?: number;
 };
 
-export const BLOCK_VERSION = 6;
+export const BLOCK_VERSION = 7;
 export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
 export const MAX_NETWORK_SIZE = 16;
+export const STAKE_PING_IDENT = 'ping';
+export const STAKE_PING_SAMPLE_SIZE = 30;
+export const STAKE_PING_AMOUNT = 1;
+export const STAKE_PING_QUARTILE_COEFF_MIN = 0.4;
+export const STAKE_PING_QUARTILE_COEFF_MAX = 0.6;
+export const STAKE_VOTE_IDENT = 'vote';
+export const STAKE_VOTE_BLOCK_DISTANCE = 50;
+export const STAKE_VOTE_AMOUNT = 1;
 
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
@@ -86,7 +94,7 @@ const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
 const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
 const MIN_NETWORK_TIMEOUT_MS = 1000;
 const MAX_NETWORK_TIMEOUT_MS = 60000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 1000;
+const MIN_NETWORK_P2P_INTERVAL_MS = 5000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;

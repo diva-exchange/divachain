@@ -75,13 +75,7 @@ class Api {
             return state ? res.json(state) : res.status(404).end();
         });
         this.server.app.get('/stack', (req, res) => {
-            return res.json(this.server.getPool().getStack());
-        });
-        this.server.app.get('/pool/tx', (req, res) => {
-            return res.json(this.server.getPool().getArrayPoolTx());
-        });
-        this.server.app.get('/pool/votes', (req, res) => {
-            return res.json(this.server.getPool().getArrayPoolVotes());
+            return res.json(this.server.getBlockFactory().getStack());
         });
         this.server.app.get('/block/genesis', async (req, res) => {
             return res.json((await this.server.getBlockchain().getRange(1))[0]);

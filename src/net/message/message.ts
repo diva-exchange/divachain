@@ -25,6 +25,10 @@ const DEFAULT_NANOID_LENGTH = 10;
 
 export type MessageStruct = {
   ident: string;
+  seq: number;
+  origin: string;
+  dest: string;
+  sig: string;
   data: any;
 };
 
@@ -34,9 +38,11 @@ export class Message {
 
   static readonly VERSION = Message.VERSION_3;
 
-  static readonly TYPE_PROPOSAL = 1;
-  static readonly TYPE_VOTE = 2;
-  static readonly TYPE_SYNC = 3;
+  static readonly TYPE_ADD_TX = 1;
+  static readonly TYPE_PROPOSE_BLOCK = 2;
+  static readonly TYPE_SIGN_BLOCK = 3;
+  static readonly TYPE_CONFIRM_BLOCK = 4;
+  static readonly TYPE_SYNC = 5;
 
   protected message: MessageStruct = {} as MessageStruct;
 
@@ -44,6 +50,12 @@ export class Message {
     if (message) {
       this._unpack(message);
     }
+  }
+
+  protected init(origin: string, dest: string = '') {
+    this.message.seq = Date.now();
+    this.message.origin = origin;
+    this.message.dest = dest;
   }
 
   getMessage(): MessageStruct {
@@ -55,11 +67,19 @@ export class Message {
   }
 
   seq(): number {
-    return this.message.data.seq;
+    return this.message.seq;
   }
 
   origin(): string {
-    return this.message.data.origin;
+    return this.message.origin;
+  }
+
+  dest(): string {
+    return this.message.dest;
+  }
+
+  sig(): string {
+    return this.message.sig;
   }
 
   pack(version?: number): string {

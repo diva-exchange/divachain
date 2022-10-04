@@ -105,9 +105,11 @@ export class Api {
     });
 
     this.server.app.get('/stack', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getStack());
+      return res.json(this.server.getBlockFactory().getStack());
     });
 
+    //@FIXME
+    /*
     this.server.app.get('/pool/tx', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getArrayPoolTx());
     });
@@ -115,6 +117,7 @@ export class Api {
     this.server.app.get('/pool/votes', (req: Request, res: Response) => {
       return res.json(this.server.getPool().getArrayPoolVotes());
     });
+*/
 
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {
       return res.json((await this.server.getBlockchain().getRange(1))[0]);
