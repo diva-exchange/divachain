@@ -15,6 +15,11 @@ class Message {
             this._unpack(message);
         }
     }
+    init(origin, dest = '') {
+        this.message.seq = Date.now();
+        this.message.origin = origin;
+        this.message.dest = dest;
+    }
     getMessage() {
         return this.message;
     }
@@ -22,10 +27,16 @@ class Message {
         return this.message.data.type;
     }
     seq() {
-        return this.message.data.seq;
+        return this.message.seq;
     }
     origin() {
-        return this.message.data.origin;
+        return this.message.origin;
+    }
+    dest() {
+        return this.message.dest;
+    }
+    sig() {
+        return this.message.sig;
     }
     pack(version) {
         this.message.ident = this.message.ident || [this.message.data.type, (0, nanoid_1.nanoid)(DEFAULT_NANOID_LENGTH)].join();
@@ -67,6 +78,8 @@ exports.Message = Message;
 Message.VERSION_2 = 2;
 Message.VERSION_3 = 3;
 Message.VERSION = Message.VERSION_3;
-Message.TYPE_PROPOSAL = 1;
-Message.TYPE_VOTE = 2;
-Message.TYPE_SYNC = 3;
+Message.TYPE_ADD_TX = 1;
+Message.TYPE_PROPOSE_BLOCK = 2;
+Message.TYPE_SIGN_BLOCK = 3;
+Message.TYPE_CONFIRM_BLOCK = 4;
+Message.TYPE_SYNC = 5;

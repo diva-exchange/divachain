@@ -13,24 +13,23 @@ const compression_1 = __importDefault(require("compression"));
 const bootstrap_1 = require("./bootstrap");
 const blockchain_1 = require("../chain/blockchain");
 const validation_1 = require("./validation");
-const pool_1 = require("./pool");
 const wallet_1 = require("../chain/wallet");
 const network_1 = require("./network");
-const message_1 = require("./message/message");
 const api_1 = require("./api");
-const vote_1 = require("./message/vote");
-const proposal_1 = require("./message/proposal");
-const sync_1 = require("./message/sync");
+const block_factory_1 = require("./block-factory");
 class Server {
     constructor(config) {
-        this.pool = {};
+        this.blockFactory = {};
         this.bootstrap = {};
         this.wallet = {};
         this.network = {};
         this.blockchain = {};
         this.validation = {};
-        this.timeoutUpdateOwnProposal = {};
-        this.timeoutVote = {};
+        this.mapModifyStake = new Map();
+        this.mapStakeCredit = new Map();
+        this.timeoutModifyStake = {};
+        this.timeoutAddTx = {};
+        this.timeoutDoSign = {};
         this.config = config;
         logger_1.Logger.info(`divachain ${this.config.VERSION} instantiating...`);
         this.app = (0, express_1.default)();
@@ -83,12 +82,12 @@ class Server {
         logger_1.Logger.info('Blockchain initialized');
         this.validation = validation_1.Validation.make(this);
         logger_1.Logger.info('Validation initialized');
-        this.pool = pool_1.Pool.make(this);
-        logger_1.Logger.info('Pool initialized');
-        await this.httpServer.listen(this.config.port, this.config.ip);
         this.network = network_1.Network.make(this, (m) => {
-            this.onMessage(m);
+            this.blockFactory.processMessage(m);
         });
+        this.blockFactory = block_factory_1.BlockFactory.make(this);
+        logger_1.Logger.info('BlockFactory initialized');
+        await this.httpServer.listen(this.config.port, this.config.ip);
         return new Promise((resolve) => {
             this.network.once('ready', async () => {
                 this.bootstrap = bootstrap_1.Bootstrap.make(this);
@@ -103,8 +102,9 @@ class Server {
         });
     }
     async shutdown() {
-        clearTimeout(this.timeoutUpdateOwnProposal);
-        clearTimeout(this.timeoutVote);
+        clearTimeout(this.timeoutModifyStake);
+        clearTimeout(this.timeoutAddTx);
+        clearTimeout(this.timeoutDoSign);
         this.network.shutdown();
         this.wallet.close();
         await this.blockchain.shutdown();
@@ -122,9 +122,6 @@ class Server {
     getBootstrap() {
         return this.bootstrap;
     }
-    getPool() {
-        return this.pool;
-    }
     getWallet() {
         return this.wallet;
     }
@@ -137,90 +134,51 @@ class Server {
     getNetwork() {
         return this.network;
     }
+    getBlockFactory() {
+        return this.blockFactory;
+    }
+    proposeModifyStake(forPublicKey, ident, stake) {
+        const k = [forPublicKey, ident, stake].join('');
+        if (this.mapModifyStake.has(k)) {
+            return;
+        }
+        const command = {
+            command: blockchain_1.Blockchain.COMMAND_MODIFY_STAKE,
+            publicKey: forPublicKey,
+            ident: ident,
+            stake: stake,
+        };
+        const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
+        const quorum = this.blockchain.getQuorum();
+        if (credit > quorum * -0.5 && [...this.mapStakeCredit.values()].reduce((p, c) => p + c, 0) > quorum * -1) {
+            this.mapModifyStake.set(k, command);
+            this.mapStakeCredit.set(forPublicKey, credit);
+        }
+        clearTimeout(this.timeoutModifyStake);
+        this.timeoutModifyStake = setTimeout(() => {
+            this.stackTx([...this.mapModifyStake.values()]);
+            this.mapModifyStake = new Map();
+        }, this.network.getArrayNetwork().length * this.config.network_p2p_interval_ms);
+    }
+    incStakeCredit(publicKey) {
+        this.mapStakeCredit.set(publicKey, (this.mapStakeCredit.get(publicKey) || 0) + 1);
+    }
     stackTx(commands, ident = '') {
-        const i = this.pool.stack(commands, ident);
+        let s = 1;
+        const i = this.blockFactory.stack(commands.map((c) => {
+            c.seq = s;
+            s++;
+            return c;
+        }), ident);
         if (!i) {
             return false;
         }
-        this.doPropose();
         return i;
     }
-    doPropose() {
-        const p = this.pool.getOwnProposal();
-        if (p) {
-            this.processProposal(p);
-            this.network.broadcast(p);
-        }
-        clearTimeout(this.timeoutUpdateOwnProposal);
-        this.timeoutUpdateOwnProposal = setTimeout(() => {
-            this.pool.updateOwnProposal();
-            this.doPropose();
-        }, this.network.getArrayNetwork().length * 500);
-    }
-    processProposal(proposal) {
-        const p = proposal.get();
-        if (!proposal_1.Proposal.isValid(p)) {
-            return;
-        }
-        if (this.pool.propose(p)) {
-            clearTimeout(this.timeoutVote);
-            this.timeoutVote = setTimeout(() => {
-                this.doVote();
-            }, this.network.getArrayNetwork().length * 50);
-        }
-    }
-    doVote() {
-        const v = this.pool.getCurrentVote();
-        if (v) {
-            this.processVote(v);
-            this.network.broadcast(v);
-        }
-    }
-    processVote(vote) {
-        const v = vote.get();
-        if (!vote_1.Vote.isValid(v)) {
-            return;
-        }
-        if (this.pool.vote(v)) {
-            this.network.broadcast(new sync_1.Sync().create(this.wallet, this.pool.getBlock()));
-            this.addBlock(this.pool.getBlock());
-            return;
-        }
-        clearTimeout(this.timeoutVote);
-        this.timeoutVote = setTimeout(() => {
-            this.doVote();
-        }, this.network.getArrayNetwork().length * 200);
-    }
-    processSync(sync) {
-        const s = sync.get();
-        if (this.getBlockchain().getHeight() + 1 === s.block.height) {
-            this.addBlock(s.block);
-        }
-    }
-    addBlock(block) {
-        if (!this.blockchain.add(block)) {
-            return;
-        }
-        this.pool.clear(block);
-        setImmediate((s) => {
-            this.webSocketServerBlockFeed.clients.forEach((ws) => ws.readyState === ws_1.default.OPEN && ws.send(s));
-        }, JSON.stringify(block));
-        this.doPropose();
-    }
-    onMessage(m) {
-        switch (m.type()) {
-            case message_1.Message.TYPE_PROPOSAL:
-                this.processProposal(new proposal_1.Proposal(m.pack()));
-                break;
-            case message_1.Message.TYPE_VOTE:
-                this.processVote(new vote_1.Vote(m.pack()));
-                break;
-            case message_1.Message.TYPE_SYNC:
-                this.processSync(new sync_1.Sync(m.pack()));
-                break;
-            default:
-                throw new Error('Invalid message type');
-        }
+    feedBlock(block) {
+        setImmediate((block) => {
+            this.webSocketServerBlockFeed.clients.forEach((ws) => ws.readyState === ws_1.default.OPEN && ws.send(JSON.stringify(block)));
+        }, block);
     }
     static error(err, req, res, next) {
         res.status(err.status || 500);

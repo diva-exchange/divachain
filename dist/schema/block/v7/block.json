@@ -6,8 +6,8 @@
   "properties": {
     "version": {
       "type": "integer",
-      "minimum": 6,
-      "maximum": 6
+      "minimum": 7,
+      "maximum": 7
     },
     "previousHash": {
       "type": "string",
@@ -23,7 +23,7 @@
         "$ref": "transaction/tx.json"
       },
       "minItems": 1,
-      "maxItems": 23,
+      "maxItems": 16,
       "uniqueItems": true
     },
     "height": {
@@ -33,9 +33,10 @@
     "votes": {
       "type": "array",
       "items": {
-        "$ref": "votes.json"
+        "$ref": "vote.json"
       },
-      "maxItems": 23,
+      "minItems": 1,
+      "maxItems": 16,
       "uniqueItems": true
     }
   },

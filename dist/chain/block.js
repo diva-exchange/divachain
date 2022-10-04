@@ -10,7 +10,7 @@ class Block {
         this.previousHash = previousBlock.hash;
         this.height = previousBlock.height + 1;
         this.tx = tx;
-        this.hash = util_1.Util.hash(this.previousHash + this.version + this.height + JSON.stringify(this.tx));
+        this.hash = util_1.Util.hash([this.version, this.previousHash, JSON.stringify(this.tx), this.height].join());
     }
     static make(previousBlock, tx) {
         return new Block(previousBlock, tx).get();

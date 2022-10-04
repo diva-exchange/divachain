@@ -16,45 +16,51 @@ class Validation {
         this.server = server;
         const pathSchema = path_1.default.join(__dirname, '../schema/');
         const schemaMessage = require(pathSchema + 'message/message.json');
-        const schemaProposal = require(pathSchema + 'message/proposal.json');
-        const schemaVote = require(pathSchema + 'message/vote.json');
+        const schemaAddTx = require(pathSchema + 'message/add-tx.json');
+        const schemaProposeBlock = require(pathSchema + 'message/propose-block.json');
+        const schemaSignBlock = require(pathSchema + 'message/sign-block.json');
+        const schemaConfirmBlock = require(pathSchema + 'message/confirm-block.json');
         const schemaSync = require(pathSchema + 'message/sync.json');
-        const schemaBlockV6 = require(pathSchema + 'block/v6/block.json');
-        const schemaVotesV6 = require(pathSchema + 'block/v6/votes.json');
-        const schemaTxV6 = require(pathSchema + 'block/v6/transaction/tx.json');
-        const schemaAddPeerV6 = require(pathSchema + 'block/v6/transaction/add-peer.json');
-        const schemaRemovePeerV6 = require(pathSchema +
-            'block/v6/transaction/remove-peer.json');
-        const schemaModifyStakeV6 = require(pathSchema +
-            'block/v6/transaction/modify-stake.json');
-        const schemaDataV6 = require(pathSchema + 'block/v6/transaction/data.json');
-        const schemaDecisionV6 = require(pathSchema + 'block/v6/transaction/decision.json');
+        const schemaBlockv7 = require(pathSchema + 'block/v7/block.json');
+        const schemaTxv7 = require(pathSchema + 'block/v7/transaction/tx.json');
+        const schemaVotev7 = require(pathSchema + 'block/v7/vote.json');
+        const schemaAddPeerv7 = require(pathSchema + 'block/v7/transaction/add-peer.json');
+        const schemaRemovePeerv7 = require(pathSchema +
+            'block/v7/transaction/remove-peer.json');
+        const schemaModifyStakev7 = require(pathSchema +
+            'block/v7/transaction/modify-stake.json');
+        const schemaDatav7 = require(pathSchema + 'block/v7/transaction/data.json');
+        const schemaDecisionv7 = require(pathSchema + 'block/v7/transaction/decision.json');
         this.message = new ajv_1.default({
             schemas: [
-                schemaProposal,
-                schemaVote,
+                schemaAddTx,
+                schemaProposeBlock,
+                schemaSignBlock,
+                schemaConfirmBlock,
                 schemaSync,
-                schemaBlockV6,
-                schemaVotesV6,
-                schemaTxV6,
-                schemaAddPeerV6,
-                schemaRemovePeerV6,
-                schemaModifyStakeV6,
-                schemaDataV6,
-                schemaDecisionV6,
+                schemaBlockv7,
+                schemaTxv7,
+                schemaVotev7,
+                schemaAddPeerv7,
+                schemaRemovePeerv7,
+                schemaModifyStakev7,
+                schemaDatav7,
+                schemaDecisionv7,
             ],
         }).compile(schemaMessage);
         this.tx = new ajv_1.default({
-            schemas: [schemaAddPeerV6, schemaRemovePeerV6, schemaModifyStakeV6, schemaDataV6, schemaDecisionV6],
-        }).compile(schemaTxV6);
+            schemas: [schemaAddPeerv7, schemaRemovePeerv7, schemaModifyStakev7, schemaDatav7, schemaDecisionv7],
+        }).compile(schemaTxv7);
     }
     static make(server) {
         return new Validation(server);
     }
     validateMessage(m) {
         switch (m.type()) {
-            case message_1.Message.TYPE_PROPOSAL:
-            case message_1.Message.TYPE_VOTE:
+            case message_1.Message.TYPE_ADD_TX:
+            case message_1.Message.TYPE_PROPOSE_BLOCK:
+            case message_1.Message.TYPE_SIGN_BLOCK:
+            case message_1.Message.TYPE_CONFIRM_BLOCK:
             case message_1.Message.TYPE_SYNC:
                 if (!this.message(m.getMessage())) {
                     logger_1.Logger.trace('Validation.validateMessage() failed');
@@ -68,39 +74,47 @@ class Validation {
                 return false;
         }
     }
-    validateBlock(structBlock) {
+    validateBlock(structBlock, doVoteValidation = true) {
         const { version, previousHash, hash, height, tx, votes } = structBlock;
-        let _aOrigin;
-        if (!tx.length || !votes.length) {
-            logger_1.Logger.trace(`Validation.validateBlock() - empty tx or votes: ${height}`);
+        if (!tx.length) {
+            logger_1.Logger.trace(`Validation.validateBlock() - empty tx, block #${height}`);
             return false;
         }
-        _aOrigin = [];
-        const voteHash = [height, util_1.Util.hash(JSON.stringify(tx))].join();
-        for (const vote of votes) {
-            if (_aOrigin.includes(vote.origin)) {
-                logger_1.Logger.trace(`Validation.validateBlock() - Multiple votes from same origin: ${height}`);
+        if (util_1.Util.hash([version, previousHash, JSON.stringify(tx), height].join()) !== hash) {
+            logger_1.Logger.trace(`Validation.validateBlock() - invalid hash, block #${height}`);
+            return false;
+        }
+        let _aOrigin = [];
+        if (doVoteValidation) {
+            if (votes.length < this.server.getBlockchain().getQuorum()) {
+                logger_1.Logger.trace(`Validation.validateBlock() - not enough votes, block #${height}`);
                 return false;
             }
-            _aOrigin.push(vote.origin);
-            if (!util_1.Util.verifySignature(vote.origin, vote.sig, voteHash)) {
-                logger_1.Logger.trace(`Validation.validateBlock() - invalid vote: ${height}`);
-                return false;
+            for (const vote of votes) {
+                if (_aOrigin.includes(vote.origin)) {
+                    logger_1.Logger.trace(`Validation.validateBlock() - Multiple votes from same origin, block #${height}`);
+                    return false;
+                }
+                _aOrigin.push(vote.origin);
+                if (!util_1.Util.verifySignature(vote.origin, vote.sig, hash)) {
+                    logger_1.Logger.trace(`Validation.validateBlock() - invalid vote, block #${height}, origin ${vote.origin}`);
+                    return false;
+                }
             }
         }
         _aOrigin = [];
         for (const transaction of tx) {
             if (_aOrigin.includes(transaction.origin)) {
-                logger_1.Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin: ${height}`);
+                logger_1.Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
                 return false;
             }
             _aOrigin.push(transaction.origin);
             if (!this.validateTx(height, transaction)) {
-                logger_1.Logger.trace(`Validation.validateBlock() - invalid tx: ${height}`);
+                logger_1.Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
                 return false;
             }
         }
-        return util_1.Util.hash(previousHash + version + height + JSON.stringify(tx)) === hash;
+        return true;
     }
     validateTx(height, tx) {
         return (this.tx(tx) &&

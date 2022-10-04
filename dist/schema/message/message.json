@@ -8,13 +8,35 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9,_-]{1,128}$"
     },
+    "seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "dest": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$|^$"
+    },
+    "sig": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$"
+    },
     "data": {
       "oneOf": [
         {
-          "$ref": "proposal.json"
+          "$ref": "add-tx.json"
         },
         {
-          "$ref": "vote.json"
+          "$ref": "propose-block.json"
+        },
+        {
+          "$ref": "sign-block.json"
+        },
+        {
+          "$ref": "confirm-block.json"
         },
         {
           "$ref": "sync.json"
@@ -24,6 +46,10 @@
   },
   "required": [
     "ident",
+    "seq",
+    "origin",
+    "dest",
+    "sig",
     "data"
   ],
   "additionalProperties": false
