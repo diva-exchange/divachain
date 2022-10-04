@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v6/transaction/add-peer.json",
+  "$id": "/schema/block/v7/transaction/add-peer.json",
 
   "type": "object",
   "properties": {

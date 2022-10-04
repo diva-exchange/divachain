@@ -1,21 +1,27 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v6/votes.json",
+  "$id": "/schema/message/sign-block.json",
 
   "type": "object",
   "properties": {
-    "origin": {
+    "type": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 3
+    },
+    "hash": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "sig": {
+    "sigBlock": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     }
   },
-  "additionalProperties": false,
   "required": [
-    "origin",
-    "sig"
-  ]
+    "type",
+    "hash",
+    "sigBlock"
+  ],
+  "additionalProperties": false
 }

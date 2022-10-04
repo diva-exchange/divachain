@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/block/v6/transaction/remove-peer.json",
+  "$id": "/schema/block/v7/transaction/modify-stake.json",
 
   "type": "object",
   "properties": {
@@ -10,17 +10,28 @@
     },
     "command": {
       "type": "string",
-      "pattern": "^removePeer$"
+      "pattern": "^modifyStake$"
     },
     "publicKey": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "ident": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,32}$"
+    },
+    "stake": {
+      "type": "integer",
+      "minimum": -1000,
+      "maximum": 1000
     }
   },
   "additionalProperties": false,
   "required": [
     "seq",
     "command",
-    "publicKey"
+    "publicKey",
+    "ident",
+    "stake"
   ]
 }
