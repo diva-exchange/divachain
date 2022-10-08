@@ -84,6 +84,10 @@ export class Api {
       });
     });
 
+    this.server.app.get('/network/online', (req: Request, res: Response) => {
+      return res.json(this.server.getNetwork().getArrayOnline());
+    });
+
     this.server.app.get('/network/:stake?', (req: Request, res: Response) => {
       const s = Math.floor(Number(req.params.stake) || 0);
       const a = this.server.getNetwork().getArrayNetwork();
@@ -107,17 +111,6 @@ export class Api {
     this.server.app.get('/stack', (req: Request, res: Response) => {
       return res.json(this.server.getBlockFactory().getStack());
     });
-
-    //@FIXME
-    /*
-    this.server.app.get('/pool/tx', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayPoolTx());
-    });
-
-    this.server.app.get('/pool/votes', (req: Request, res: Response) => {
-      return res.json(this.server.getPool().getArrayPoolVotes());
-    });
-*/
 
     this.server.app.get('/block/genesis', async (req: Request, res: Response) => {
       return res.json((await this.server.getBlockchain().getRange(1))[0]);
