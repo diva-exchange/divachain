@@ -37,7 +37,7 @@ class TestServerI2P {
   static mapServer: Map<string, Server> = new Map();
 
   static async before(): Promise<void> {
-    process.env.SIZE_NETWORK = process.env.SIZE_NETWORK || '9';
+    process.env.SIZE_NETWORK = process.env.SIZE_NETWORK || '13';
     process.env.IP = process.env.IP || '0.0.0.0';
     process.env.BASE_PORT = process.env.BASE_PORT || '17000';
     process.env.BASE_PORT_FEED = process.env.BASE_PORT_FEED || '18000';
@@ -114,7 +114,7 @@ class TestServerI2P {
   }
 
   @test
-  @timeout(90000)
+  @timeout(130000)
   async singleTransaction() {
     const i = Math.floor(Math.random() * TestServerI2P.mapConfigServer.size);
     const origin = [...TestServerI2P.mapConfigServer.keys()][i];
@@ -129,20 +129,20 @@ class TestServerI2P {
     expect(res).to.have.status(200);
     expect(res.body.ident).to.be.eq('singleTx');
 
-    Logger.trace('waiting for sync (20s)...');
-    await TestServerI2P.wait(20000);
+    Logger.trace('waiting for sync (120s)...');
+    await TestServerI2P.wait(120000);
 
     res = await chai.request(baseUrl).get(`/transaction/${origin}/singleTx`);
     expect(res.status).eq(200);
   }
 
   @test
-  @timeout(300000)
+  @timeout(100000000)
   async multiTransaction() {
     let baseUrl, res;
     const arrayOrigin: Array<string> = [];
 
-    const nTx = 60;
+    const nTx = 10000;
 
     for (let x = 0; x < nTx; x++) {
       const i = Math.floor(Math.random() * TestServerI2P.mapConfigServer.size);
@@ -158,11 +158,23 @@ class TestServerI2P {
         .send([{ seq: 1, command: 'data', ns: 'test:data:multiTx', d: `multiTx${x}` }]);
       expect(res).to.have.status(200);
       expect(res.body.ident).to.be.eq(`multiTx${x}`);
-      await TestServerI2P.wait(Math.ceil(Math.random() * 100));
+      await TestServerI2P.wait(Math.ceil(Math.random() * 2000));
+
+      // shutdown one node in the middle of the process
+      if (x === Math.floor(nTx / 1.5)) {
+        const s = [...TestServerI2P.mapServer.values()][0];
+        Logger.trace(`Shutting down server: ${s.config.port} ${s.getWallet().getPublicKey()}`);
+        await s.shutdown();
+        TestServerI2P.mapConfigServer.delete(s.getWallet().getPublicKey());
+        TestServerI2P.mapServer.delete(s.getWallet().getPublicKey());
+      }
     }
 
-    Logger.trace('waiting for sync (90s)...');
-    await TestServerI2P.wait(90000);
+    Logger.trace('waiting for sync (2h)...');
+    await TestServerI2P.wait(2 * 60 * 60 * 1000);
+
+    Logger.trace('Validator Distribution:');
+    Logger.trace([...TestServerI2P.mapServer.values()][0].getBlockFactory().getMapValidatorDist());
 
     for (let x = 0; x < nTx; x++) {
       res = await chai.request(baseUrl).get(`/transaction/${arrayOrigin[x]}/multiTx${x}`);
@@ -332,10 +344,10 @@ class TestServerI2P {
     }
   }
 
-  private static async wait(s: number) {
-    // wait a bit
+  private static async wait(ms: number) {
+    // wait some milliseconds
     await new Promise((resolve) => {
-      setTimeout(resolve, s, true);
+      setTimeout(resolve, ms, true);
     });
   }
 }
