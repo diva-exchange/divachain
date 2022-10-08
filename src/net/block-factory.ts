@@ -62,8 +62,11 @@ export class BlockFactory {
   private arrayPoolTx: Array<TransactionStruct> = [];
 
   private block: BlockStruct = {} as BlockStruct;
+  private validator: string = '';
+  private mapValidatorDist: Map<string, number> = new Map();
 
   private timeoutAddTx: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutDeadValidator: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   static make(server: Server): BlockFactory {
     return new BlockFactory(server);
@@ -78,13 +81,33 @@ export class BlockFactory {
     this.wallet = server.getWallet();
   }
 
-  getValidator(): string {
-    const i: number = (this.blockchain.getHeight() + 1) % this.network.getArrayNetwork().length;
-    return this.network.getArrayNetwork()[i].publicKey;
+  calcValidator(): void {
+    const hash = this.blockchain.getLatestBlock().hash;
+    let min = hash.length;
+    let a: Array<string> = [];
+    //hamming distance
+    this.network.getArrayOnline().forEach((pk) => {
+      if (pk.length === hash.length) {
+        let dist = 0;
+        for (let i = 0; i < hash.length && dist <= min; i++) {
+          dist += hash[i] !== pk[i] ? 1 : 0;
+        }
+        if (dist <= min) {
+          dist < min ? (a = [pk]) : a.unshift(pk);
+          min = dist;
+        }
+      }
+    });
+    this.validator = a.length > 1 ? a.sort()[(this.blockchain.getHeight() + 1) % a.length] : a[0] || '';
   }
 
-  isValidator(origin: string = this.wallet.getPublicKey()) {
-    return origin === this.getValidator();
+  private isValidator(origin: string = this.wallet.getPublicKey()) {
+    return origin === this.validator;
+  }
+
+  //@FIXME testing only
+  getMapValidatorDist() {
+    return [...this.mapValidatorDist.entries()];
   }
 
   stack(commands: ArrayCommand, ident: string = ''): string | false {
@@ -136,21 +159,32 @@ export class BlockFactory {
   }
 
   private doAddTx() {
-    const height = this.blockchain.getHeight() + 1;
-    while (!this.ownTx.height && this.stackTransaction.length) {
-      const r: recordStack = this.stackTransaction.shift() as recordStack;
-      const tx: TransactionStruct = new Transaction(this.wallet, height, r.ident, r.commands).get();
-
-      if (this.validation.validateTx(height, tx)) {
-        this.ownTx = {
-          height: height,
-          tx: tx,
-        };
-
-        const atx: AddTx = new AddTx().create(this.wallet, this.getValidator(), height, tx);
-        this.isValidator() ? this.processAddTx(atx) : this.network.broadcast(atx);
-      }
+    if (this.ownTx.height || !this.stackTransaction.length) {
+      return;
     }
+
+    const height = this.blockchain.getHeight() + 1;
+    const r: recordStack = this.stackTransaction.shift() as recordStack;
+    const tx: TransactionStruct = new Transaction(this.wallet, height, r.ident, r.commands).get();
+
+    this.ownTx = {
+      height: height,
+      tx: tx,
+    };
+
+    //@FIXME logging
+    Logger.trace(`${this.config.port}: Validator - ${this.validator}`);
+
+    const atx: AddTx = new AddTx().create(this.wallet, this.validator, height, tx);
+    this.isValidator() ? this.processAddTx(atx) : this.network.broadcast(atx);
+
+    //@FIXME constant
+    this.timeoutDeadValidator = setTimeout(() => {
+      this.clear();
+      setImmediate(() => {
+        this.doAddTx();
+      });
+    }, 30000);
   }
 
   // Validator process: incoming transaction
@@ -196,7 +230,7 @@ export class BlockFactory {
     }
 
     this.block = proposeBlock.block();
-    this.network.broadcast(new SignBlock().create(this.wallet, this.getValidator(), this.block.hash));
+    this.network.broadcast(new SignBlock().create(this.wallet, this.validator, this.block.hash));
   }
 
   // Validator process: incoming signature for block
@@ -214,6 +248,9 @@ export class BlockFactory {
     if (
       this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sigBlock() }) >= this.blockchain.getQuorum()
     ) {
+      //@FIXME logging
+      Logger.trace(`Adding Block #${this.block.height}`);
+
       // broadcast confirmation
       this.network.broadcast(new ConfirmBlock().create(this.wallet, this.block.hash, this.block.votes));
       this.addBlock(this.block);
@@ -225,6 +262,9 @@ export class BlockFactory {
     if (!this.hasBlock() || !ConfirmBlock.isValid(confirmBlock) || this.block.hash !== confirmBlock.hash()) {
       return;
     }
+
+    //@FIXME testing only
+    this.mapValidatorDist.set(this.validator, (this.mapValidatorDist.get(this.validator) || 0) + 1);
 
     this.block.votes = confirmBlock.votes();
     this.addBlock(this.block);
@@ -242,7 +282,9 @@ export class BlockFactory {
       throw new Error(`${this.config.port}: addBlock failed`);
     }
 
+    clearTimeout(this.timeoutDeadValidator);
     this.clear(block);
+    this.calcValidator();
     this.server.feedBlock(block);
 
     setImmediate(() => {
@@ -250,12 +292,13 @@ export class BlockFactory {
     });
   }
 
-  private clear(block: BlockStruct) {
+  private clear(block: BlockStruct = {} as BlockStruct) {
     if (
       this.ownTx.height &&
-      !block.tx.some((t) => {
-        return t.sig === this.ownTx.tx.sig;
-      })
+      (!block.height ||
+        !block.tx.some((t) => {
+          return t.sig === this.ownTx.tx.sig;
+        }))
     ) {
       this.stackTransaction.unshift({ ident: this.ownTx.tx.ident, commands: this.ownTx.tx.commands });
     }

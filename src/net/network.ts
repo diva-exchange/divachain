@@ -57,9 +57,10 @@ export class Network extends EventEmitter {
   private samForward: I2pSamStream = {} as I2pSamStream;
   private samUDP: I2pSamDatagram = {} as I2pSamDatagram;
 
-  private identNetwork: string = '';
   private arrayNetwork: Array<Peer> = [];
   private arrayBroadcast: Array<string> = [];
+  private arrayOnline: Array<string> = [];
+  private identCacheOnline: string = '';
 
   private mapPingSeq: Map<string, number> = new Map();
   private mapMsgSeq: Map<string, number> = new Map();
@@ -144,7 +145,7 @@ export class Network extends EventEmitter {
           },
         })
       ).on('error', (error: any) => {
-        Logger.warn('SAM HTTP ' + error.toString());
+        Logger.warn(`${this.publicKey}: SAM HTTP ${error.toString()}`);
       });
       Logger.info(`HTTP ${toB32(_c.http)}.b32.i2p to ${_c.i2p_sam_forward_http_host}:${_c.i2p_sam_forward_http_port}`);
 
@@ -168,7 +169,7 @@ export class Network extends EventEmitter {
           this.incomingData(data, from);
         })
         .on('error', (error: any) => {
-          Logger.warn('SAM UDP ' + error.toString());
+          Logger.warn(`${this.publicKey}: SAM UDP ${error.toString()}`);
         });
       Logger.info(`UDP ${toB32(_c.udp)}.b32.i2p to ${_c.i2p_sam_forward_udp_host}:${_c.i2p_sam_forward_udp_port}`);
     })();
@@ -203,6 +204,10 @@ export class Network extends EventEmitter {
   }
 
   private incomingPing(fromPublicKey: string, msg: string) {
+    if (fromPublicKey === this.publicKey) {
+      return;
+    }
+
     const [_d, _h] = msg.split('!');
     // unix timestamp contained within the ping message, not to be trusted
     const dt: number = Number(_d);
@@ -220,6 +225,11 @@ export class Network extends EventEmitter {
     const h: number = Number(_h);
     const diff = this.server.getBlockchain().getHeight() - h;
     if (diff > 0) {
+      const _i = this.arrayOnline.indexOf(fromPublicKey);
+      if (_i > -1) {
+        this.arrayOnline.splice(_i, 1);
+      }
+
       //@FIXME logging
       Logger.trace(`${this.server.config.port} / ${this.publicKey}: Send SYNC to ${fromPublicKey} - Diff: ${diff}`);
       for (let hsync = h + 1; hsync <= this.server.getBlockchain().getHeight(); hsync++) {
@@ -233,6 +243,19 @@ export class Network extends EventEmitter {
         }
       }
       return;
+    }
+
+    // set online peers
+    this.arrayOnline = [this.publicKey];
+    this.mapPingSeq.forEach((_dt, _pk) => {
+      if (_dt > _n - this.server.config.network_p2p_interval_ms * this.arrayBroadcast.length * 1.5) {
+        this.arrayOnline.push(_pk);
+      }
+    });
+    const _c = this.arrayOnline.sort().join();
+    if (_c !== this.identCacheOnline) {
+      this.server.getBlockFactory().calcValidator();
+      this.identCacheOnline = _c;
     }
 
     // PoS influence: availability
@@ -289,13 +312,7 @@ export class Network extends EventEmitter {
       return;
     }
 
-    const _i = [...this.server.getBlockchain().getMapPeer().keys()].join('');
-    if (this.identNetwork !== _i) {
-      this.identNetwork = _i;
-      // sorted by public key
-      this.arrayNetwork = aNetwork.sort((a, b) => (a.publicKey > b.publicKey ? 1 : -1));
-      Logger.info('Network updated');
-    }
+    this.arrayNetwork = aNetwork;
     this.arrayBroadcast = Util.shuffleArray(
       [...this.server.getBlockchain().getMapPeer().keys()].filter((pk: string) => pk !== this.publicKey)
     );
@@ -312,6 +329,10 @@ export class Network extends EventEmitter {
 
   getArrayNetwork(): Array<Peer> {
     return this.arrayNetwork;
+  }
+
+  getArrayOnline(): Array<string> {
+    return this.arrayOnline;
   }
 
   broadcast(m: Message, fromPublicKey: string = '') {
