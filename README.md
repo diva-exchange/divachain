@@ -95,7 +95,7 @@ Default: [I2P_SAM_LISTEN_UDP_PORT](#I2P_SAM_LISTEN_UDP_PORT)
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
-Minimum: 1000\
+Minimum: 5000\
 Maximum: 30000\
 Default: Minimum
 
@@ -136,6 +136,9 @@ Returns an object containing the version, the license and the public key of the 
 #### GET /network/{stake?}
 Returns the network participants. If stake is given and greater than zero, only network participants with a stake greater-or-equal than the given threshold will be returned.  
 
+#### GET /network/online
+Returns those network participants which have sent pings within a given past time range.   
+
 #### GET /state/search/{search?}
 Search states using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE states. 
 
@@ -150,12 +153,6 @@ _Example:_ `http://url-divachain-api/state/decision:DivaExchange:Auction:BTC_ETH
 
 #### GET /stack
 Get the stack (queue) of local transactions.
-
-#### GET /pool/tx
-Get the current transactions in the pool. 
-
-#### GET /pool/votes
-Get the current votes in the pool. 
 
 #### GET /block/genesis
 Get the genesis block.
