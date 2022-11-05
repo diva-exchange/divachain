@@ -32,7 +32,7 @@ import {
 import { Server } from '../net/server';
 import { Logger } from '../logger';
 import { Util } from './util';
-import { STAKE_VOTE_AMOUNT, STAKE_VOTE_BLOCK_DISTANCE, STAKE_VOTE_IDENT } from '../config';
+import { STAKE_VOTE_AMOUNT, STAKE_VOTE_IDENT, STAKE_VOTE_MATCH_THRESHOLD } from '../config';
 
 export type Peer = {
   publicKey: string;
@@ -167,13 +167,25 @@ export class Blockchain {
       this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
     });
     if (this.mapVoteStake.size > 0) {
-      if (this.height % STAKE_VOTE_BLOCK_DISTANCE === 0) {
+      // alphabet, size 64 chars: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
+      // match probability, m: 1 / 64
+      // hash length, n: 43
+      // threshold (same char), k: STAKE_VOTE_MATCH_THRESHOLD
+      // binomial coefficient, b: n!/[k!*(n-k)!]
+      // P(k): b * m^k
+      // Example, 4 or more equal chars: 43! / (4! * (43-4)!) * ((1/64)^4) = 0.00735 = 0.74% = ~ every 136th block
+      // Example, 3 or more equal chars: 43! / (3! * (43-3)!) * ((1/64)^3) = 0.04707 = 4.71% = ~ every 21st block
+      if (
+        (block.hash.match(new RegExp(block.hash.charAt(block.height % block.hash.length), 'g')) || []).length >=
+        STAKE_VOTE_MATCH_THRESHOLD
+      ) {
         const vs = [...this.mapVoteStake.entries()].filter((a) => {
           return a[0] !== this.publicKey;
         });
         vs.sort((a, b) => (a[1] > b[1] ? -1 : a[1] === b[1] && a[0] > b[0] ? -1 : 1));
-        this.server.proposeModifyStake(vs[0][0], STAKE_VOTE_IDENT, STAKE_VOTE_AMOUNT);
-        this.mapVoteStake.delete(vs[0][0]);
+        if (this.server.proposeModifyStake(vs[0][0], STAKE_VOTE_IDENT, STAKE_VOTE_AMOUNT)) {
+          this.mapVoteStake.delete(vs[0][0]);
+        }
       }
     }
 
@@ -458,7 +470,7 @@ export class Blockchain {
       return;
     }
 
-    // if voted for own node: the origin gets some credits
+    // if the origin voted for this local node: the origin receives some credits
     command.publicKey === this.publicKey && this.server.incStakeCredit(origin);
 
     const i = [command.publicKey, command.ident, command.stake].join('');

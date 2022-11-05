@@ -13,42 +13,41 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- *
+
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { base64url } from 'rfc4648';
-import { nanoid } from 'nanoid';
 import zlib from 'zlib';
-
-const DEFAULT_NANOID_LENGTH = 10;
+import { Util } from '../../chain/util';
+import { Wallet } from '../../chain/wallet';
+import { Logger } from '../../logger';
 
 export type MessageStruct = {
-  ident: string;
   seq: number;
   origin: string;
   dest: string;
-  sig: string;
   data: any;
 };
 
 export class Message {
-  static readonly VERSION_2 = 2; // base64url encoded object data
-  static readonly VERSION_3 = 3; // base64url encoded, zlib compressed object data
+  static readonly VERSION_4 = 4; // base64url encoded, zlib compressed object data, signed
 
-  static readonly VERSION = Message.VERSION_3;
+  static readonly VERSION = Message.VERSION_4;
 
   static readonly TYPE_ADD_TX = 1;
   static readonly TYPE_PROPOSE_BLOCK = 2;
   static readonly TYPE_SIGN_BLOCK = 3;
   static readonly TYPE_CONFIRM_BLOCK = 4;
-  static readonly TYPE_SYNC = 5;
+  static readonly TYPE_STATUS = 5;
 
+  private msg: Buffer;
   protected message: MessageStruct = {} as MessageStruct;
 
-  constructor(message?: Buffer | string) {
-    if (message) {
-      this._unpack(message);
+  constructor(msg?: Buffer) {
+    this.msg = msg || Buffer.from('');
+    if (this.msg.length > 0) {
+      this._unpack();
     }
   }
 
@@ -58,12 +57,16 @@ export class Message {
     this.message.dest = dest;
   }
 
+  asBuffer(): Buffer {
+    return this.msg;
+  }
+
   getMessage(): MessageStruct {
     return this.message;
   }
 
   type(): number {
-    return this.message.data.type;
+    return this.message.data.type || 0;
   }
 
   seq(): number {
@@ -78,46 +81,45 @@ export class Message {
     return this.message.dest;
   }
 
-  sig(): string {
-    return this.message.sig;
-  }
-
-  pack(version?: number): string {
-    this.message.ident = this.message.ident || [this.message.data.type, nanoid(DEFAULT_NANOID_LENGTH)].join();
-    return this._pack(version);
-  }
-
-  protected _pack(version: number = Message.VERSION): string {
+  pack(wallet: Wallet, version: number = Message.VERSION): Buffer {
+    const s: string = base64url.stringify(zlib.deflateRawSync(JSON.stringify(this.message)));
     switch (version) {
-      case Message.VERSION_2:
-        return version + ';' + base64url.stringify(Buffer.from(JSON.stringify(this.message))) + '\n';
-      case Message.VERSION_3:
-        return version + ';' + base64url.stringify(zlib.deflateRawSync(JSON.stringify(this.message))) + '\n';
+      case Message.VERSION_4:
+        this.msg = Buffer.from(version + ';' + s + ';' + wallet.sign(s) + '\n');
+        return this.msg;
+      default:
+        throw new Error('Message.pack(): unsupported data version');
     }
-    throw new Error('Message.pack(): unsupported data version');
   }
 
-  protected _unpack(input: Buffer | string): void {
+  private _unpack(): void {
     let version: number = 0;
     let message: string = '';
-    const m = input
+    let sig: string = '';
+    const m = this.msg
       .toString()
       .trim()
-      .match(/^([0-9]+);(.+)$/);
-    if (m && m.length === 3) {
+      .match(/^([0-9]+);([^;]+);([A-Za-z0-9_-]{86})$/);
+    if (m && m.length === 4) {
       version = Number(m[1]);
       message = m[2];
+      sig = m[3];
     }
 
     switch (version) {
-      case Message.VERSION_2:
-        this.message = JSON.parse(base64url.parse(message).toString());
-        break;
-      case Message.VERSION_3:
-        this.message = JSON.parse(zlib.inflateRawSync(base64url.parse(message)).toString());
+      case Message.VERSION_4:
+        try {
+          this.message = JSON.parse(zlib.inflateRawSync(base64url.parse(message)).toString());
+          if (!this.message.origin || !Util.verifySignature(this.message.origin, sig, message)) {
+            this.message = {} as MessageStruct;
+          }
+        } catch (error: any) {
+          this.message = {} as MessageStruct;
+        }
         break;
       default:
-        throw new Error(`Message.unpack(): unsupported data version ${version}`);
+        Logger.warn(`Message.unpack(): unsupported data version ${version}, length: ${this.msg.length}`);
+        Logger.trace(this.msg.toString());
     }
   }
 }

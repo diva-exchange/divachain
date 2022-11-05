@@ -18,13 +18,12 @@
  */
 
 import { Message } from './message';
-import { Util } from '../../chain/util';
 import { Wallet } from '../../chain/wallet';
 
 type SignBlockStruct = {
   type: number;
   hash: string;
-  sigBlock: string;
+  sig: string;
 };
 
 export class SignBlock extends Message {
@@ -33,9 +32,9 @@ export class SignBlock extends Message {
     this.message.data = {
       type: Message.TYPE_SIGN_BLOCK,
       hash: hash,
-      sigBlock: wallet.sign(hash),
+      sig: wallet.sign(hash),
     } as SignBlockStruct;
-    this.message.sig = wallet.sign([Message.TYPE_SIGN_BLOCK, this.message.seq, hash].join());
+    this.pack(wallet);
     return this;
   }
 
@@ -43,15 +42,7 @@ export class SignBlock extends Message {
     return this.message.data.hash;
   }
 
-  sigBlock(): string {
-    return this.message.data.sigBlock;
-  }
-
-  static isValid(signBlock: SignBlock): boolean {
-    return Util.verifySignature(
-      signBlock.origin(),
-      signBlock.sig(),
-      [signBlock.type(), signBlock.seq(), signBlock.hash()].join()
-    );
+  sig(): string {
+    return this.message.data.sig;
   }
 }

@@ -13,7 +13,7 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "sigBlock": {
+    "sig": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{86}$"
     }
@@ -21,7 +21,7 @@
   "required": [
     "type",
     "hash",
-    "sigBlock"
+    "sig"
   ],
   "additionalProperties": false
 }

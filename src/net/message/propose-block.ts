@@ -18,9 +18,8 @@
  */
 
 import { Message } from './message';
-import { Util } from '../../chain/util';
-import { Wallet } from '../../chain/wallet';
 import { BlockStruct } from '../../chain/block';
+import { Wallet } from '../../chain/wallet';
 
 type ProposeBlockStruct = {
   type: number;
@@ -34,7 +33,7 @@ export class ProposeBlock extends Message {
       type: Message.TYPE_PROPOSE_BLOCK,
       block: block,
     } as ProposeBlockStruct;
-    this.message.sig = wallet.sign([Message.TYPE_PROPOSE_BLOCK, this.message.seq, block.hash].join());
+    this.pack(wallet);
     return this;
   }
 
@@ -48,13 +47,5 @@ export class ProposeBlock extends Message {
 
   height(): number {
     return this.message.data.block.height;
-  }
-
-  static isValid(proposeBlock: ProposeBlock): boolean {
-    return Util.verifySignature(
-      proposeBlock.origin(),
-      proposeBlock.sig(),
-      [proposeBlock.type(), proposeBlock.seq(), proposeBlock.hash()].join()
-    );
   }
 }

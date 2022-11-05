@@ -18,7 +18,6 @@
  */
 
 import { Message } from './message';
-import { Util } from '../../chain/util';
 import { Wallet } from '../../chain/wallet';
 
 export type VoteStruct = {
@@ -40,7 +39,7 @@ export class ConfirmBlock extends Message {
       hash: hash,
       votes: votes,
     } as ConfirmBlockStruct;
-    this.message.sig = wallet.sign([Message.TYPE_CONFIRM_BLOCK, this.message.seq, hash, JSON.stringify(votes)].join());
+    this.pack(wallet);
     return this;
   }
 
@@ -50,13 +49,5 @@ export class ConfirmBlock extends Message {
 
   votes(): Array<VoteStruct> {
     return this.message.data.votes;
-  }
-
-  static isValid(confirmBlock: ConfirmBlock): boolean {
-    return Util.verifySignature(
-      confirmBlock.origin(),
-      confirmBlock.sig(),
-      [confirmBlock.type(), confirmBlock.seq(), confirmBlock.hash(), JSON.stringify(confirmBlock.votes())].join()
-    );
   }
 }

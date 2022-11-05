@@ -29,11 +29,11 @@ import { Blockchain } from '../chain/blockchain';
 import { Validation } from './validation';
 import { Wallet } from '../chain/wallet';
 import { Network } from './network';
-import { Message } from './message/message';
 import { Api } from './api';
 import { ArrayCommand, CommandModifyStake } from '../chain/transaction';
 import { BlockFactory } from './block-factory';
 import { BlockStruct } from '../chain/block';
+import { Message } from './message/message';
 
 export class Server {
   public readonly config: Config;
@@ -50,12 +50,8 @@ export class Server {
   private blockchain: Blockchain = {} as Blockchain;
   private validation: Validation = {} as Validation;
 
-  private mapModifyStake: Map<string, CommandModifyStake> = new Map();
   private mapStakeCredit: Map<string, number> = new Map();
-  private timeoutModifyStake: NodeJS.Timeout = {} as NodeJS.Timeout;
-
-  private timeoutAddTx: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutDoSign: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private stackModifyStake: Array<CommandModifyStake> = [];
 
   constructor(config: Config) {
     this.config = config;
@@ -141,7 +137,7 @@ export class Server {
     this.blockFactory = BlockFactory.make(this);
     Logger.info('BlockFactory initialized');
 
-    await this.httpServer.listen(this.config.port, this.config.ip);
+    this.httpServer.listen(this.config.port, this.config.ip);
 
     return new Promise((resolve) => {
       this.network.once('ready', async () => {
@@ -153,17 +149,13 @@ export class Server {
             await this.bootstrap.joinNetwork(this.wallet.getPublicKey());
           }
         }
-
         resolve(this);
       });
     });
   }
 
   async shutdown(): Promise<void> {
-    clearTimeout(this.timeoutModifyStake);
-    clearTimeout(this.timeoutAddTx);
-    clearTimeout(this.timeoutDoSign);
-
+    this.blockFactory.shutdown();
     this.network.shutdown();
     this.wallet.close();
     await this.blockchain.shutdown();
@@ -203,35 +195,37 @@ export class Server {
     return this.blockFactory;
   }
 
-  proposeModifyStake(forPublicKey: string, ident: string, stake: number) {
-    const k = [forPublicKey, ident, stake].join('');
-    if (this.mapModifyStake.has(k)) {
-      return;
+  getStackModifyStake(): Array<CommandModifyStake> {
+    return this.stackModifyStake;
+  }
+
+  proposeModifyStake(forPublicKey: string, ident: string, stake: number): boolean {
+    if (this.stackModifyStake.some((cmd) => cmd.publicKey === forPublicKey && cmd.ident === ident)) {
+      return false;
     }
 
-    // place a vote for stake increase
-    const command = {
-      command: Blockchain.COMMAND_MODIFY_STAKE,
-      publicKey: forPublicKey,
-      ident: ident,
-      stake: stake,
-    } as CommandModifyStake;
-
-    // algorithm for credits equalizes the stake distribution
     const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
     const quorum = this.blockchain.getQuorum();
-    if (credit > quorum * -0.5 && [...this.mapStakeCredit.values()].reduce((p, c) => p + c, 0) > quorum * -1) {
-      this.mapModifyStake.set(k, command);
-      this.mapStakeCredit.set(forPublicKey, credit);
-    }
 
     //@TODO review
-    // make sure that the timeout gets called, depending on the size of the network
-    clearTimeout(this.timeoutModifyStake);
-    this.timeoutModifyStake = setTimeout(() => {
-      this.stackTx([...this.mapModifyStake.values()]);
-      this.mapModifyStake = new Map();
-    }, this.network.getArrayNetwork().length * this.config.network_p2p_interval_ms);
+    // simple algorithm for credits equalizes the stake distribution
+    if (credit > quorum * -1) {
+      this.mapStakeCredit.set(forPublicKey, credit);
+      this.stackModifyStake.push({
+        command: Blockchain.COMMAND_MODIFY_STAKE,
+        publicKey: forPublicKey,
+        ident: ident,
+        stake: stake,
+      } as CommandModifyStake);
+
+      //@TODO review
+      if (this.stackModifyStake.length >= quorum) {
+        this.stackTx(this.stackModifyStake);
+        this.stackModifyStake = [];
+      }
+    }
+
+    return true;
   }
 
   incStakeCredit(publicKey: string) {

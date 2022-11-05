@@ -62,6 +62,8 @@ export type Configuration = {
   network_p2p_interval_ms?: number;
   network_sync_size?: number;
 
+  block_retry_timeout_ms?: number;
+
   blockchain_max_blocks_in_memory?: number;
 
   api_max_query_size?: number;
@@ -71,12 +73,12 @@ export const BLOCK_VERSION = 7;
 export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
 export const MAX_NETWORK_SIZE = 16;
 export const STAKE_PING_IDENT = 'ping';
-export const STAKE_PING_SAMPLE_SIZE = 30;
 export const STAKE_PING_AMOUNT = 1;
+export const STAKE_PING_SAMPLE_SIZE = 32;
 export const STAKE_PING_QUARTILE_COEFF_MIN = 0.4;
 export const STAKE_PING_QUARTILE_COEFF_MAX = 0.6;
 export const STAKE_VOTE_IDENT = 'vote';
-export const STAKE_VOTE_BLOCK_DISTANCE = 50;
+export const STAKE_VOTE_MATCH_THRESHOLD = 3;
 export const STAKE_VOTE_AMOUNT = 1;
 
 const DEFAULT_IP = '127.0.0.1';
@@ -94,10 +96,13 @@ const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
 const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
 const MIN_NETWORK_TIMEOUT_MS = 1000;
 const MAX_NETWORK_TIMEOUT_MS = 60000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 5000;
+const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
+
+const MIN_BLOCK_RETRY_TIMEOUT_MS = 1000;
+const MAX_BLOCK_RETRY_TIMEOUT_MS = 10000;
 
 const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
 const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
@@ -144,6 +149,8 @@ export class Config {
   public network_timeout_ms: number = 0;
   public network_p2p_interval_ms: number = 0;
   public network_sync_size: number = 0;
+
+  public block_retry_timeout_ms: number = 0;
 
   public blockchain_max_blocks_in_memory: number = 0;
 
@@ -310,6 +317,12 @@ export class Config {
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
       MIN_NETWORK_SYNC_SIZE,
       MAX_NETWORK_SYNC_SIZE
+    );
+
+    self.block_retry_timeout_ms = Config.b(
+      c.block_retry_timeout_ms || process.env.BLOCK_RETRY_TIMEOUT_MS,
+      MIN_BLOCK_RETRY_TIMEOUT_MS,
+      MAX_BLOCK_RETRY_TIMEOUT_MS
     );
 
     self.blockchain_max_blocks_in_memory = Config.b(

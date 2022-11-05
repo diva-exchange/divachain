@@ -32,15 +32,7 @@ import { Util } from '../chain/util';
 import get from 'simple-get';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import { Peer } from '../chain/blockchain';
-import { Sync } from './message/sync';
-import { BlockStruct } from '../chain/block';
-import {
-  STAKE_PING_AMOUNT,
-  STAKE_PING_IDENT,
-  STAKE_PING_QUARTILE_COEFF_MAX,
-  STAKE_PING_QUARTILE_COEFF_MIN,
-  STAKE_PING_SAMPLE_SIZE,
-} from '../config';
+import { Status, ONLINE } from './message/status';
 
 type Options = {
   url: string;
@@ -59,17 +51,15 @@ export class Network extends EventEmitter {
 
   private arrayNetwork: Array<Peer> = [];
   private arrayBroadcast: Array<string> = [];
-  private arrayOnline: Array<string> = [];
-  private identCacheOnline: string = '';
 
-  private mapPingSeq: Map<string, number> = new Map();
   private mapMsgSeq: Map<string, number> = new Map();
-  private mapAvailability: Map<string, Array<number>> = new Map();
+  private mapOnline: Map<string, number> = new Map();
 
   private readonly _onMessage: Function;
   private isClosing: boolean = false;
 
   private timeoutP2P: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutStatus: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   static make(server: Server, onMessage: Function) {
     return new Network(server, onMessage);
@@ -102,11 +92,15 @@ export class Network extends EventEmitter {
   }
 
   shutdown() {
+    clearTimeout(this.timeoutP2P);
+    clearTimeout(this.timeoutStatus);
+
     this.isClosing = true;
     typeof this.agent.destroy === 'function' && this.agent.destroy();
     typeof this.samForward.close === 'function' && this.samForward.close();
+    this.samForward = {} as I2pSamStream;
     typeof this.samUDP.close === 'function' && this.samUDP.close();
-    clearTimeout(this.timeoutP2P);
+    this.samUDP = {} as I2pSamDatagram;
   }
 
   private init(started: boolean = false, retry: number = 0) {
@@ -190,141 +184,57 @@ export class Network extends EventEmitter {
       return;
     }
 
-    const msg = data.toString().trim();
     const pk = this.server.getBlockchain().getPublicKeyByUdp(from);
-    if (!msg || !pk) {
-      return;
-    }
-
-    if (/^[\d]{1,32}![\d]+$/.test(msg)) {
-      this.incomingPing(pk, msg);
-    } else {
-      this.incomingMessage(pk, msg);
-    }
-  }
-
-  private incomingPing(fromPublicKey: string, msg: string) {
-    if (fromPublicKey === this.publicKey) {
-      return;
-    }
-
-    const [_d, _h] = msg.split('!');
-    // unix timestamp contained within the ping message, not to be trusted
-    const dt: number = Number(_d);
-
-    // protection from flooding and outdated pings
-    const _n: number = Date.now();
-    const _s: number = this.mapPingSeq.get(fromPublicKey) || 0;
-    const _f = this.server.config.network_p2p_interval_ms * (Math.floor(this.arrayBroadcast.length / 3) + 1);
-    if (_s > _n - _f || _s >= dt) {
-      return;
-    }
-    this.mapPingSeq.set(fromPublicKey, dt);
-
-    // send sync packets
-    const h: number = Number(_h);
-    const diff = this.server.getBlockchain().getHeight() - h;
-    if (diff > 0) {
-      const _i = this.arrayOnline.indexOf(fromPublicKey);
-      if (_i > -1) {
-        this.arrayOnline.splice(_i, 1);
-      }
-
-      //@FIXME logging
-      Logger.trace(`${this.server.config.port} / ${this.publicKey}: Send SYNC to ${fromPublicKey} - Diff: ${diff}`);
-      for (let hsync = h + 1; hsync <= this.server.getBlockchain().getHeight(); hsync++) {
-        (async (_h: number, toPublicKey: string) => {
-          const b: BlockStruct = (await this.server.getBlockchain().getRange(_h))[0];
-          const buf: Buffer = Buffer.from(new Sync().create(this.server.getWallet(), b).pack());
-          this.samUDP.send(this.server.getBlockchain().getPeer(toPublicKey).udp, buf);
-        })(hsync, fromPublicKey);
-        if (hsync - h > this.server.config.network_sync_size) {
-          break;
-        }
-      }
-      return;
-    }
-
-    // set online peers
-    this.arrayOnline = [this.publicKey];
-    this.mapPingSeq.forEach((_dt, _pk) => {
-      if (_dt > _n - this.server.config.network_p2p_interval_ms * this.arrayBroadcast.length * 1.5) {
-        this.arrayOnline.push(_pk);
-      }
-    });
-    const _c = this.arrayOnline.sort().join();
-    if (_c !== this.identCacheOnline) {
-      this.server.getBlockFactory().calcValidator();
-      this.identCacheOnline = _c;
-    }
-
-    // PoS influence: availability
-    // statistical dispersion of pings of a peer. Desired behaviour?
-    // holding a local map of the availability of other peers and create a vote
-    let a: Array<number> = this.mapAvailability.get(fromPublicKey) || [];
-    a.push(dt);
-
-    // compare mapAvailability with a wanted behaviour (=dispersion of values)
-    if (a.length === STAKE_PING_SAMPLE_SIZE) {
-      // calculate quartile coefficient
-      const qc = Util.QuartileCoeff(a);
-      if (qc >= STAKE_PING_QUARTILE_COEFF_MIN && qc <= STAKE_PING_QUARTILE_COEFF_MAX) {
-        // place a vote for stake increase
-        this.server.proposeModifyStake(fromPublicKey, STAKE_PING_IDENT, STAKE_PING_AMOUNT);
-      }
-
-      // remove 2/3rd of the data
-      a = a.slice(-1 * Math.floor((a.length / 3) * 2));
-    }
-
-    this.mapAvailability.set(fromPublicKey, a);
-  }
-
-  private incomingMessage(fromPublicKey: string, msg: string) {
-    const m: Message = new Message(msg);
+    const m: Message = new Message(data);
     // stateless validation
-    if (!this.server.getValidation().validateMessage(m)) {
+    if (!pk || !this.server.getValidation().validateMessage(m)) {
       return;
     }
 
     // messages with an older sequence must be ignored
-    if ((this.mapMsgSeq.get([m.type(), m.origin()].join()) || 0) >= m.seq()) {
-      return;
+    const keySeq: string = [m.type(), m.origin()].join();
+    if ((this.mapMsgSeq.get(keySeq) || 0) < m.seq()) {
+      this.mapMsgSeq.set(keySeq, m.seq());
+      this.mapOnline.set(pk, Date.now());
+
+      // process message
+      this._onMessage(m);
+
+      //gossipping, once
+      m.type() !== Message.TYPE_STATUS && pk === m.origin() && this.broadcast(m, true);
     }
-    this.mapMsgSeq.set([m.type(), m.origin()].join(), m.seq());
-
-    // process message
-    this._onMessage(m);
-
-    //gossipping, only once
-    fromPublicKey === m.origin() && this.broadcast(m, fromPublicKey);
   }
 
   // update network, randomize broadcast peers and ping 1/3rd of the network peers
   private p2pNetwork() {
     const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
-    const tTimeout = this.server.config.network_p2p_interval_ms;
     this.timeoutP2P = setTimeout(() => {
       this.p2pNetwork();
-    }, tTimeout);
+    }, this.server.config.network_p2p_interval_ms);
+    this.mapOnline.set(this.publicKey, Date.now());
 
     if (aNetwork.length < 2 || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
       return;
     }
 
     this.arrayNetwork = aNetwork;
-    this.arrayBroadcast = Util.shuffleArray(
-      [...this.server.getBlockchain().getMapPeer().keys()].filter((pk: string) => pk !== this.publicKey)
+    this.arrayBroadcast = [...this.server.getBlockchain().getMapPeer().keys()].filter(
+      (pk: string) => pk !== this.publicKey
     );
 
-    // ping: rectangular distribution of number of pings to network peers over time
-    // measured over several hours, all online network peers receive more or less the same amount of pings
-    setTimeout(() => {
-      const buf = Buffer.from(Date.now() + '!' + this.server.getBlockchain().getHeight());
-      this.arrayBroadcast.slice(0, Math.ceil(this.arrayBroadcast.length / 3)).forEach((pk) => {
-        this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
-      });
-    }, Math.floor(Math.random() * tTimeout * 0.99));
+    // status message
+    this.timeoutStatus = setTimeout(() => {
+      this.broadcast(new Status().create(this.server.getWallet(), ONLINE, this.server.getBlockchain().getHeight()));
+    }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.9));
+  }
+
+  cleanMapOnline() {
+    const now: number = Date.now();
+    this.mapOnline.forEach((_dt, _pk) => {
+      if (_dt < now - this.server.config.block_retry_timeout_ms * this.arrayNetwork.length) {
+        this.mapOnline.delete(_pk);
+      }
+    });
   }
 
   getArrayNetwork(): Array<Peer> {
@@ -332,30 +242,27 @@ export class Network extends EventEmitter {
   }
 
   getArrayOnline(): Array<string> {
-    return this.arrayOnline;
+    return [...this.mapOnline.keys()];
   }
 
-  broadcast(m: Message, fromPublicKey: string = '') {
-    const buf: Buffer = Buffer.from(m.pack());
-    if (fromPublicKey !== '' && m.dest() !== '') {
-      // gossipping with a destination
+  broadcast(m: Message, isFinalHop: boolean = false) {
+    const msg: Buffer = m.asBuffer();
+    if (isFinalHop && m.dest() !== '') {
+      // send to single destination
       try {
-        this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, buf);
+        m.dest() !== m.origin() && this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, msg);
       } catch (error: any) {
         Logger.warn(`Network.broadcast() ${error.toString()}`);
       }
     } else {
-      // broadcasting
-      const o: string = m.origin();
-      this.arrayBroadcast
-        .filter((pk) => o !== pk && fromPublicKey !== pk)
-        .forEach((pk) => {
-          try {
-            this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
-          } catch (error: any) {
-            Logger.warn(`Network.broadcast() ${error.toString()}`);
-          }
-        });
+      // broadcast to network
+      this.arrayBroadcast.forEach((pk) => {
+        try {
+          m.origin() !== pk && this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, msg);
+        } catch (error: any) {
+          Logger.warn(`Network.broadcast() ${error.toString()}`);
+        }
+      });
     }
   }
 
@@ -367,24 +274,23 @@ export class Network extends EventEmitter {
       } catch (error: any) {
         Logger.warn(`Network.fetchFromApi() ${endpoint} - ${error.toString()}`);
       }
-    } else if (this.arrayNetwork.length) {
-      const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
-      let urlApi = '';
-      let n = aNetwork.pop();
-      while (n) {
-        urlApi = `http://${toB32(n.http)}.b32.i2p/${endpoint}`;
+    } else if (this.mapOnline.size) {
+      const aNetwork: Array<string> = Util.shuffleArray([...this.getArrayOnline()]);
+      //const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
+      let urlApi: string = '';
+      let pk: string | undefined = aNetwork.pop();
+      while (pk) {
+        urlApi = `http://${toB32(this.server.getBlockchain().getPeer(pk).http)}.b32.i2p/${endpoint}`;
         try {
           return JSON.parse(await this.fetch(urlApi, timeout));
         } catch (error: any) {
           Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
         }
-        n = aNetwork.pop();
+        pk = aNetwork.pop();
       }
     } else {
       Logger.warn('Network unavailable');
     }
-
-    throw new Error('fetchFromApi failed');
   }
 
   private fetch(url: string, timeout: number = 0): Promise<string> {

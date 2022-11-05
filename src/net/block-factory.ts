@@ -21,18 +21,26 @@ import { Server } from './server';
 import { Network } from './network';
 import { Wallet } from '../chain/wallet';
 import { ArrayCommand, Transaction, TransactionStruct } from '../chain/transaction';
-import { Blockchain } from '../chain/blockchain';
+import { Blockchain, Peer } from '../chain/blockchain';
 import { nanoid } from 'nanoid';
 import { Validation } from './validation';
 import { AddTx } from './message/add-tx';
 import { Logger } from '../logger';
-import { Config } from '../config';
+import {
+  Config,
+  STAKE_PING_AMOUNT,
+  STAKE_PING_IDENT,
+  STAKE_PING_QUARTILE_COEFF_MAX,
+  STAKE_PING_QUARTILE_COEFF_MIN,
+  STAKE_PING_SAMPLE_SIZE,
+} from '../config';
 import { Block, BlockStruct } from '../chain/block';
 import { Message } from './message/message';
-import { Sync } from './message/sync';
 import { ProposeBlock } from './message/propose-block';
 import { SignBlock } from './message/sign-block';
 import { ConfirmBlock } from './message/confirm-block';
+import { Status, ONLINE, OFFLINE } from './message/status';
+import { Util } from '../chain/util';
 
 const DEFAULT_LENGTH_IDENT = 8;
 const MAX_LENGTH_IDENT = 32;
@@ -42,7 +50,7 @@ type recordStack = {
   commands: ArrayCommand;
 };
 
-export type recordTx = {
+type recordTx = {
   height: number;
   tx: TransactionStruct;
 };
@@ -64,9 +72,12 @@ export class BlockFactory {
   private block: BlockStruct = {} as BlockStruct;
   private validator: string = '';
   private mapValidatorDist: Map<string, number> = new Map();
+  private mapAvailability: Map<string, Array<number>> = new Map();
+  private isSyncing: boolean = false;
 
   private timeoutAddTx: NodeJS.Timeout = {} as NodeJS.Timeout;
-  private timeoutDeadValidator: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutProposeBlock: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private timeoutRetry: NodeJS.Timeout = {} as NodeJS.Timeout;
 
   static make(server: Server): BlockFactory {
     return new BlockFactory(server);
@@ -81,24 +92,33 @@ export class BlockFactory {
     this.wallet = server.getWallet();
   }
 
-  calcValidator(): void {
-    const hash = this.blockchain.getLatestBlock().hash;
-    let min = hash.length;
-    let a: Array<string> = [];
-    //hamming distance
-    this.network.getArrayOnline().forEach((pk) => {
-      if (pk.length === hash.length) {
-        let dist = 0;
-        for (let i = 0; i < hash.length && dist <= min; i++) {
-          dist += hash[i] !== pk[i] ? 1 : 0;
-        }
-        if (dist <= min) {
-          dist < min ? (a = [pk]) : a.unshift(pk);
-          min = dist;
-        }
+  shutdown() {
+    this.removeTimeout();
+  }
+
+  // round-robin, respecting online peers
+  private calcValidator(): void {
+    const h: number = this.blockchain.getHeight();
+    const a: Array<string> = this.network
+      .getArrayNetwork()
+      .map((p: Peer) => p.publicKey)
+      .sort();
+    const l: number = a.length;
+    const mod: number = h % l; // 0 >= mod < l
+    const shift: number = (h + Math.floor(h / l)) % l;
+    let i = mod;
+    let r = 0;
+    do {
+      if (this.network.getArrayOnline().includes(a[i])) {
+        this.validator = a[i];
+        return;
       }
-    });
-    this.validator = a.length > 1 ? a.sort()[(this.blockchain.getHeight() + 1) % a.length] : a[0] || '';
+      // round-robin
+      i = (!r ? i + shift : i) + 1;
+      i = i < l ? i : i - l;
+    } while (r++ < l);
+
+    Logger.warn('No validator found. Network unstable.');
   }
 
   private isValidator(origin: string = this.wallet.getPublicKey()) {
@@ -107,7 +127,7 @@ export class BlockFactory {
 
   //@FIXME testing only
   getMapValidatorDist() {
-    return [...this.mapValidatorDist.entries()];
+    return [...this.mapValidatorDist.entries()].sort((a, b) => (a[0] > b[0] ? 1 : -1));
   }
 
   stack(commands: ArrayCommand, ident: string = ''): string | false {
@@ -118,9 +138,7 @@ export class BlockFactory {
     }
 
     this.stackTransaction.push({ ident: ident, commands: commands });
-    setImmediate(() => {
-      this.doAddTx();
-    });
+    this.doAddTx();
     return ident;
   }
 
@@ -135,23 +153,32 @@ export class BlockFactory {
   processMessage(m: Message) {
     switch (m.type()) {
       case Message.TYPE_ADD_TX:
+      case Message.TYPE_PROPOSE_BLOCK:
+      case Message.TYPE_SIGN_BLOCK:
+      case Message.TYPE_CONFIRM_BLOCK:
+        this.calcValidator();
+        break;
+    }
+
+    switch (m.type()) {
+      case Message.TYPE_ADD_TX:
         // accept only, if validator
-        this.isValidator() && this.processAddTx(new AddTx(m.pack()));
+        this.isValidator() && this.processAddTx(new AddTx(m.asBuffer()));
         break;
       case Message.TYPE_PROPOSE_BLOCK:
         // accept only from validator
-        this.isValidator(m.origin()) && this.processProposeBlock(new ProposeBlock(m.pack()));
+        this.isValidator(m.origin()) && this.processProposeBlock(new ProposeBlock(m.asBuffer()));
         break;
       case Message.TYPE_SIGN_BLOCK:
         // accept only, if validator
-        this.isValidator() && this.processSignBlock(new SignBlock(m.pack()));
+        this.isValidator() && this.processSignBlock(new SignBlock(m.asBuffer()));
         break;
       case Message.TYPE_CONFIRM_BLOCK:
         // accept only from validator
-        this.isValidator(m.origin()) && this.processConfirmBlock(new ConfirmBlock(m.pack()));
+        this.isValidator(m.origin()) && this.processConfirmBlock(new ConfirmBlock(m.asBuffer()));
         break;
-      case Message.TYPE_SYNC:
-        this.processSync(new Sync(m.pack()));
+      case Message.TYPE_STATUS:
+        this.processStatus(new Status(m.asBuffer()));
         break;
       default:
         throw new Error('Invalid message type');
@@ -172,31 +199,23 @@ export class BlockFactory {
       tx: tx,
     };
 
-    //@FIXME logging
-    Logger.trace(`${this.config.port}: Validator - ${this.validator}`);
-
+    // send to validator only
+    this.calcValidator();
     const atx: AddTx = new AddTx().create(this.wallet, this.validator, height, tx);
     this.isValidator() ? this.processAddTx(atx) : this.network.broadcast(atx);
 
-    //@FIXME constant
-    this.timeoutDeadValidator = setTimeout(() => {
-      this.clear();
-      setImmediate(() => {
-        this.doAddTx();
-      });
-    }, 30000);
+    this.setupRetry();
   }
 
   // Validator process: incoming transaction
   private processAddTx(addTx: AddTx) {
-    // process only valid incoming tx's
+    // process only valid incoming transactions
     const height = this.blockchain.getHeight() + 1;
     if (
       this.hasBlock() ||
       addTx.height() !== height ||
       this.current.has(addTx.origin()) ||
-      !this.validation.validateTx(height, addTx.tx()) ||
-      !AddTx.isValid(addTx)
+      !this.validation.validateTx(height, addTx.tx())
     ) {
       return;
     }
@@ -204,8 +223,8 @@ export class BlockFactory {
     this.current.set(addTx.origin(), addTx.tx());
     this.arrayPoolTx = [...this.current.values()].sort((a, b) => (a.sig > b.sig ? 1 : -1));
 
-    clearTimeout(this.timeoutAddTx);
-    this.timeoutAddTx = setTimeout(() => {
+    clearTimeout(this.timeoutProposeBlock);
+    this.timeoutProposeBlock = setTimeout(() => {
       // create a block proposal
       this.block = Block.make(this.blockchain.getLatestBlock(), this.arrayPoolTx);
       this.block.votes.push({
@@ -223,14 +242,18 @@ export class BlockFactory {
     if (
       proposeBlock.height() !== this.blockchain.getHeight() + 1 ||
       proposeBlock.block().previousHash !== this.blockchain.getLatestBlock().hash ||
-      !ProposeBlock.isValid(proposeBlock) ||
       !this.validation.validateBlock(proposeBlock.block(), false)
     ) {
       return;
     }
 
+    // send to validator only
     this.block = proposeBlock.block();
-    this.network.broadcast(new SignBlock().create(this.wallet, this.validator, this.block.hash));
+    this.calcValidator();
+    const sb: SignBlock = new SignBlock().create(this.wallet, this.validator, this.block.hash);
+    this.isValidator() ? this.processSignBlock(sb) : this.network.broadcast(sb);
+
+    this.setupRetry();
   }
 
   // Validator process: incoming signature for block
@@ -239,60 +262,99 @@ export class BlockFactory {
     if (
       this.block.hash !== signBlock.hash() ||
       this.block.votes.length >= this.blockchain.getQuorum() ||
-      this.block.votes.some((v) => v.origin === signBlock.origin()) ||
-      !SignBlock.isValid(signBlock)
+      this.block.votes.some((v) => v.origin === signBlock.origin())
     ) {
       return;
     }
 
-    if (
-      this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sigBlock() }) >= this.blockchain.getQuorum()
-    ) {
+    if (this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() }) >= this.blockchain.getQuorum()) {
       //@FIXME logging
-      Logger.trace(`Adding Block #${this.block.height}`);
+      Logger.trace(`${this.config.port}: ***** NEW BLOCK #${this.block.height} *****`);
 
       // broadcast confirmation
       this.network.broadcast(new ConfirmBlock().create(this.wallet, this.block.hash, this.block.votes));
+
+      // add the block to the chain
       this.addBlock(this.block);
     }
   }
 
   private processConfirmBlock(confirmBlock: ConfirmBlock) {
     // process only valid confirmations
-    if (!this.hasBlock() || !ConfirmBlock.isValid(confirmBlock) || this.block.hash !== confirmBlock.hash()) {
+    if (!this.hasBlock() || this.block.hash !== confirmBlock.hash()) {
       return;
     }
-
-    //@FIXME testing only
-    this.mapValidatorDist.set(this.validator, (this.mapValidatorDist.get(this.validator) || 0) + 1);
 
     this.block.votes = confirmBlock.votes();
     this.addBlock(this.block);
   }
 
-  private processSync(sync: Sync) {
-    if (this.blockchain.getHeight() + 1 === sync.block().height) {
-      this.addBlock(sync.block());
+  private processStatus(status: Status) {
+    let a: Array<number>;
+    const h: number = this.blockchain.getHeight();
+    switch (status.status()) {
+      case ONLINE:
+        // fetch sync packets
+        if (!this.isSyncing && h < status.height()) {
+          this.isSyncing = true;
+          // fetch blocks and process them
+          (async () => {
+            const a: Array<BlockStruct> = await this.network.fetchFromApi('sync/' + (h + 1));
+            a.forEach((block) => {
+              this.addBlock(block);
+            });
+            this.isSyncing = false;
+          })();
+        }
+
+        // PoS influence: availability
+        // statistical dispersion of pings of a peer. Desired behaviour?
+        // holding a local map of the availability of other peers and create a vote
+        a = this.mapAvailability.get(status.origin()) || [];
+        a.push(Date.now());
+
+        // compare mapAvailability with a wanted behaviour (=dispersion of values, quartile coefficient)
+        if (a.length >= STAKE_PING_SAMPLE_SIZE) {
+          // calculate quartile coefficient
+          const qc = Util.QuartileCoeff(a);
+          if (qc >= STAKE_PING_QUARTILE_COEFF_MIN && qc <= STAKE_PING_QUARTILE_COEFF_MAX) {
+            // place a vote for stake increase
+            this.server.proposeModifyStake(status.origin(), STAKE_PING_IDENT, STAKE_PING_AMOUNT);
+          }
+
+          // remove 2/3rd of the data
+          a = a.slice(-1 * Math.floor((a.length / 3) * 2));
+        }
+        this.mapAvailability.set(status.origin(), a);
+
+        break;
+      case OFFLINE:
+        Logger.trace(`${this.config.port}: OFFLINE status`);
+        break;
+      default:
+        Logger.warn(`${this.config.port}: Unknown status: ${status.status()}`);
     }
   }
 
   private addBlock(block: BlockStruct) {
     if (!this.blockchain.add(block)) {
-      Logger.trace(`${JSON.stringify(block)}`);
-      throw new Error(`${this.config.port}: addBlock failed`);
+      Logger.error(`${this.config.port}: addBlock failed - ${block.height}`);
     }
 
-    clearTimeout(this.timeoutDeadValidator);
     this.clear(block);
     this.calcValidator();
+    this.timeoutAddTx = setTimeout(() => {
+      this.doAddTx();
+    }, 50);
     this.server.feedBlock(block);
 
-    setImmediate(() => {
-      this.doAddTx();
-    });
+    //@FIXME testing only
+    this.mapValidatorDist.set(this.validator, (this.mapValidatorDist.get(this.validator) || 0) + 1);
   }
 
   private clear(block: BlockStruct = {} as BlockStruct) {
+    this.removeTimeout();
+
     if (
       this.ownTx.height &&
       (!block.height ||
@@ -304,10 +366,25 @@ export class BlockFactory {
     }
 
     this.ownTx = {} as recordTx;
-
     this.current = new Map();
     this.arrayPoolTx = [];
-
     this.block = {} as BlockStruct;
+  }
+
+  private setupRetry() {
+    clearTimeout(this.timeoutRetry);
+    this.timeoutRetry = setTimeout(() => {
+      //@FIXME logging
+      Logger.trace(`${this.config.port} ${this.wallet.getPublicKey()}: RETRY`);
+      this.clear();
+      this.network.cleanMapOnline();
+      this.doAddTx();
+    }, this.config.block_retry_timeout_ms * this.network.getArrayNetwork().length);
+  }
+
+  private removeTimeout() {
+    clearTimeout(this.timeoutAddTx);
+    clearTimeout(this.timeoutProposeBlock);
+    clearTimeout(this.timeoutRetry);
   }
 }

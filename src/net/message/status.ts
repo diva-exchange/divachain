@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2022 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,31 +18,34 @@
  */
 
 import { Message } from './message';
-import { Util } from '../../chain/util';
 import { Wallet } from '../../chain/wallet';
-import { BlockStruct } from '../../chain/block';
 
-type SyncStruct = {
+type StatusStruct = {
   type: number;
-  block: BlockStruct;
+  status: number;
+  height: number;
 };
 
-export class Sync extends Message {
-  create(wallet: Wallet, block: BlockStruct): Sync {
+export const ONLINE = 1;
+export const OFFLINE = 2;
+
+export class Status extends Message {
+  create(wallet: Wallet, status: number, height: number): Status {
     this.init(wallet.getPublicKey());
     this.message.data = {
-      type: Message.TYPE_SYNC,
-      block: block,
-    } as SyncStruct;
-    this.message.sig = wallet.sign([Message.TYPE_SYNC, this.message.seq, block.hash].join());
+      type: Message.TYPE_STATUS,
+      status: status,
+      height: height,
+    } as StatusStruct;
+    this.pack(wallet);
     return this;
   }
 
-  block(): BlockStruct {
-    return this.message.data.block;
+  status(): number {
+    return this.message.data.status;
   }
 
-  static isValid(sync: Sync): boolean {
-    return Util.verifySignature(sync.origin(), sync.sig(), [sync.type(), sync.seq(), sync.block().hash].join());
+  height(): number {
+    return this.message.data.height;
   }
 }

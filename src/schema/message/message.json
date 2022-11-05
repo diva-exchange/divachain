@@ -4,10 +4,6 @@
 
   "type": "object",
   "properties": {
-    "ident": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9,_-]{1,128}$"
-    },
     "seq": {
       "type": "integer",
       "minimum": 1
@@ -19,10 +15,6 @@
     "dest": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$|^$"
-    },
-    "sig": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9_-]{86}$"
     },
     "data": {
       "oneOf": [
@@ -39,17 +31,15 @@
           "$ref": "confirm-block.json"
         },
         {
-          "$ref": "sync.json"
+          "$ref": "status.json"
         }
       ]
     }
   },
   "required": [
-    "ident",
     "seq",
     "origin",
     "dest",
-    "sig",
     "data"
   ],
   "additionalProperties": false

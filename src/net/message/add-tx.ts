@@ -18,7 +18,6 @@
  */
 
 import { Message } from './message';
-import { Util } from '../../chain/util';
 import { TransactionStruct } from '../../chain/transaction';
 import { Wallet } from '../../chain/wallet';
 
@@ -36,7 +35,7 @@ export class AddTx extends Message {
       height: height,
       tx: tx,
     } as AddTxStruct;
-    this.message.sig = wallet.sign([Message.TYPE_ADD_TX, this.message.seq, height, JSON.stringify(tx)].join());
+    this.pack(wallet);
     return this;
   }
 
@@ -46,13 +45,5 @@ export class AddTx extends Message {
 
   tx(): TransactionStruct {
     return this.message.data.tx;
-  }
-
-  static isValid(addTx: AddTx): boolean {
-    return Util.verifySignature(
-      addTx.origin(),
-      addTx.sig(),
-      [addTx.type(), addTx.seq(), addTx.height(), JSON.stringify(addTx.tx())].join()
-    );
   }
 }

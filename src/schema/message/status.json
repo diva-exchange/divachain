@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "/schema/message/sync.json",
+  "$id": "/schema/message/status.json",
 
   "type": "object",
   "properties": {
@@ -9,13 +9,19 @@
       "minimum": 5,
       "maximum": 5
     },
-    "block": {
-      "$ref": "/schema/block/v7/block.json"
+    "status": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
     }
   },
   "required": [
     "type",
-    "block"
+    "status",
+    "height"
   ],
   "additionalProperties": false
 }
