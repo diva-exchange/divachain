@@ -12,18 +12,18 @@ The peers in the network communicate over I2P. The peers build the tunnels betwe
 
 ## Architecture / Flow
 
-The network itself is permission- and leaderless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
+The network itself is permissionless. Each peer in the network represents a round-based state machine. Each round produces a block. The blocks do have a variable size and blocks are produced on demand.
 
 1. New proposal: each peer in the network may anytime propose a transaction, by sending it to the network. Per round, each peer can only add one own transaction.
 2. Voting: each peer receiving a proposal may send a vote to the network. Such a vote represents an agreement of a peer with a specific stack of proposals. Each peer can vote only once per stack.
 3. Creation of a new block: as soon as consensus (2/3 of the network peers) is reached through voting for a specific stack of proposals, peers will create the new block. 
  
-## API Overview
-Divachain supports two API's:
+## Application Programming Interface (API) Overview
+Divachain supports two Application Programming Interfaces (API):
 a) an HTTP REST API running by default on port 17468
 b) a broadcasting websocket running by default on port 17468
 
-In a nutshell: use the REST API to write transaction proposals to the chain or use the REST API to read status information from the chain. Use the websocket to get live updates. 
+In a nutshell: use the REST API to write transactions to the chain or use the REST API to read status information from the chain. Use the websocket to get live updates. 
  
 ## Create Your Local Environment
 
@@ -95,7 +95,7 @@ Default: [I2P_SAM_LISTEN_UDP_PORT](#I2P_SAM_LISTEN_UDP_PORT)
 ### NETWORK_P2P_INTERVAL_MS
 Interval, in milliseconds, to build and maintain the P2P the network (connect to peers, if needed). 
 
-Minimum: 5000\
+Minimum: 10000\
 Maximum: 30000\
 Default: Minimum
 
@@ -110,6 +110,13 @@ Maximum number of blocks of synchronization message might contain. Must not exce
 
 Minimum: 10\
 Maximum: 100\
+Default: Minimum
+
+### BLOCK_RETRY_TIMEOUT_MS
+Timeout, in milliseconds, multiplied by the network size, before retrying to create a block. 
+
+Minimum: 1000\
+Maximum: 10000\
 Default: Minimum
 
 ### BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
@@ -137,7 +144,7 @@ Returns an object containing the version, the license and the public key of the 
 Returns the network participants. If stake is given and greater than zero, only network participants with a stake greater-or-equal than the given threshold will be returned.  
 
 #### GET /network/online
-Returns those network participants which have sent pings within a given past time range.   
+Returns those network participants which have sent pings during a given time range in the past.   
 
 #### GET /state/search/{search?}
 Search states using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE states. 
