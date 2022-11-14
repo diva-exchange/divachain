@@ -20,7 +20,7 @@ class Validation {
         const schemaProposeBlock = require(pathSchema + 'message/propose-block.json');
         const schemaSignBlock = require(pathSchema + 'message/sign-block.json');
         const schemaConfirmBlock = require(pathSchema + 'message/confirm-block.json');
-        const schemaSync = require(pathSchema + 'message/sync.json');
+        const schemaStatus = require(pathSchema + 'message/status.json');
         const schemaBlockv7 = require(pathSchema + 'block/v7/block.json');
         const schemaTxv7 = require(pathSchema + 'block/v7/transaction/tx.json');
         const schemaVotev7 = require(pathSchema + 'block/v7/vote.json');
@@ -37,7 +37,7 @@ class Validation {
                 schemaProposeBlock,
                 schemaSignBlock,
                 schemaConfirmBlock,
-                schemaSync,
+                schemaStatus,
                 schemaBlockv7,
                 schemaTxv7,
                 schemaVotev7,
@@ -61,10 +61,9 @@ class Validation {
             case message_1.Message.TYPE_PROPOSE_BLOCK:
             case message_1.Message.TYPE_SIGN_BLOCK:
             case message_1.Message.TYPE_CONFIRM_BLOCK:
-            case message_1.Message.TYPE_SYNC:
+            case message_1.Message.TYPE_STATUS:
                 if (!this.message(m.getMessage())) {
                     logger_1.Logger.trace('Validation.validateMessage() failed');
-                    logger_1.Logger.trace(`${JSON.stringify(m)}`);
                     logger_1.Logger.trace(`${JSON.stringify(this.message.errors)}`);
                     return false;
                 }

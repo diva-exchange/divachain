@@ -5,14 +5,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Message = void 0;
 const rfc4648_1 = require("rfc4648");
-const nanoid_1 = require("nanoid");
 const zlib_1 = __importDefault(require("zlib"));
-const DEFAULT_NANOID_LENGTH = 10;
+const util_1 = require("../../chain/util");
+const logger_1 = require("../../logger");
 class Message {
-    constructor(message) {
+    constructor(msg) {
         this.message = {};
-        if (message) {
-            this._unpack(message);
+        this.msg = msg || Buffer.from('');
+        if (this.msg.length > 0) {
+            this._unpack();
         }
     }
     init(origin, dest = '') {
@@ -20,11 +21,14 @@ class Message {
         this.message.origin = origin;
         this.message.dest = dest;
     }
+    asBuffer() {
+        return this.msg;
+    }
     getMessage() {
         return this.message;
     }
     type() {
-        return this.message.data.type;
+        return this.message.data.type || 0;
     }
     seq() {
         return this.message.seq;
@@ -35,51 +39,52 @@ class Message {
     dest() {
         return this.message.dest;
     }
-    sig() {
-        return this.message.sig;
-    }
-    pack(version) {
-        this.message.ident = this.message.ident || [this.message.data.type, (0, nanoid_1.nanoid)(DEFAULT_NANOID_LENGTH)].join();
-        return this._pack(version);
-    }
-    _pack(version = Message.VERSION) {
+    pack(wallet, version = Message.VERSION) {
+        const s = rfc4648_1.base64url.stringify(zlib_1.default.deflateRawSync(JSON.stringify(this.message)));
         switch (version) {
-            case Message.VERSION_2:
-                return version + ';' + rfc4648_1.base64url.stringify(Buffer.from(JSON.stringify(this.message))) + '\n';
-            case Message.VERSION_3:
-                return version + ';' + rfc4648_1.base64url.stringify(zlib_1.default.deflateRawSync(JSON.stringify(this.message))) + '\n';
+            case Message.VERSION_4:
+                this.msg = Buffer.from(version + ';' + s + ';' + wallet.sign(s) + '\n');
+                return this.msg;
+            default:
+                throw new Error('Message.pack(): unsupported data version');
         }
-        throw new Error('Message.pack(): unsupported data version');
     }
-    _unpack(input) {
+    _unpack() {
         let version = 0;
         let message = '';
-        const m = input
+        let sig = '';
+        const m = this.msg
             .toString()
             .trim()
-            .match(/^([0-9]+);(.+)$/);
-        if (m && m.length === 3) {
+            .match(/^([0-9]+);([^;]+);([A-Za-z0-9_-]{86})$/);
+        if (m && m.length === 4) {
             version = Number(m[1]);
             message = m[2];
+            sig = m[3];
         }
         switch (version) {
-            case Message.VERSION_2:
-                this.message = JSON.parse(rfc4648_1.base64url.parse(message).toString());
-                break;
-            case Message.VERSION_3:
-                this.message = JSON.parse(zlib_1.default.inflateRawSync(rfc4648_1.base64url.parse(message)).toString());
+            case Message.VERSION_4:
+                try {
+                    this.message = JSON.parse(zlib_1.default.inflateRawSync(rfc4648_1.base64url.parse(message)).toString());
+                    if (!this.message.origin || !util_1.Util.verifySignature(this.message.origin, sig, message)) {
+                        this.message = {};
+                    }
+                }
+                catch (error) {
+                    this.message = {};
+                }
                 break;
             default:
-                throw new Error(`Message.unpack(): unsupported data version ${version}`);
+                logger_1.Logger.warn(`Message.unpack(): unsupported data version ${version}, length: ${this.msg.length}`);
+                logger_1.Logger.trace(this.msg.toString());
         }
     }
 }
 exports.Message = Message;
-Message.VERSION_2 = 2;
-Message.VERSION_3 = 3;
-Message.VERSION = Message.VERSION_3;
+Message.VERSION_4 = 4;
+Message.VERSION = Message.VERSION_4;
 Message.TYPE_ADD_TX = 1;
 Message.TYPE_PROPOSE_BLOCK = 2;
 Message.TYPE_SIGN_BLOCK = 3;
 Message.TYPE_CONFIRM_BLOCK = 4;
-Message.TYPE_SYNC = 5;
+Message.TYPE_STATUS = 5;

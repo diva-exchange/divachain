@@ -98,16 +98,18 @@ class Blockchain {
             this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
         }
         block.votes.forEach((v) => {
-            this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
+            this.hasPeer(v.origin) && this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
         });
         if (this.mapVoteStake.size > 0) {
-            if (this.height % config_1.STAKE_VOTE_BLOCK_DISTANCE === 0) {
+            if ((block.hash.match(new RegExp(block.hash.charAt(block.height % block.hash.length), 'g')) || []).length >=
+                config_1.STAKE_VOTE_MATCH_THRESHOLD) {
                 const vs = [...this.mapVoteStake.entries()].filter((a) => {
                     return a[0] !== this.publicKey;
                 });
                 vs.sort((a, b) => (a[1] > b[1] ? -1 : a[1] === b[1] && a[0] > b[0] ? -1 : 1));
-                this.server.proposeModifyStake(vs[0][0], config_1.STAKE_VOTE_IDENT, config_1.STAKE_VOTE_AMOUNT);
-                this.mapVoteStake.delete(vs[0][0]);
+                if (this.server.proposeModifyStake(vs[0][0], config_1.STAKE_VOTE_IDENT, config_1.STAKE_VOTE_AMOUNT)) {
+                    this.mapVoteStake.delete(vs[0][0]);
+                }
             }
         }
     }

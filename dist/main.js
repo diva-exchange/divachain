@@ -24,17 +24,13 @@ class Main {
         });
         process.on('uncaughtException', async (err) => {
             logger_1.Logger.fatal(err, 'uncaughtException');
-            if (process.env.NODE_ENV !== 'test') {
-                await server.shutdown();
-                process.exit(1);
-            }
+            await server.shutdown();
+            process.exit(1);
         });
         process.on('unhandledRejection', async (err) => {
             logger_1.Logger.fatal(err, 'unhandledRejection');
-            if (process.env.NODE_ENV !== 'test') {
-                await server.shutdown();
-                process.exit(1);
-            }
+            await server.shutdown();
+            process.exit(1);
         });
         await server.start();
     }

@@ -25,13 +25,11 @@ class Server {
         this.network = {};
         this.blockchain = {};
         this.validation = {};
-        this.mapModifyStake = new Map();
         this.mapStakeCredit = new Map();
-        this.timeoutModifyStake = {};
-        this.timeoutAddTx = {};
-        this.timeoutDoSign = {};
+        this.stackModifyStake = [];
         this.config = config;
         logger_1.Logger.info(`divachain ${this.config.VERSION} instantiating...`);
+        this.config.is_testnet && logger_1.Logger.warn('IMPORTANT: this is a test node (API is NOT protected)');
         this.app = (0, express_1.default)();
         this.app.set('x-powered-by', false);
         this.app.use((0, compression_1.default)());
@@ -87,7 +85,7 @@ class Server {
         });
         this.blockFactory = block_factory_1.BlockFactory.make(this);
         logger_1.Logger.info('BlockFactory initialized');
-        await this.httpServer.listen(this.config.port, this.config.ip);
+        this.httpServer.listen(this.config.port, this.config.ip);
         return new Promise((resolve) => {
             this.network.once('ready', async () => {
                 this.bootstrap = bootstrap_1.Bootstrap.make(this);
@@ -102,13 +100,11 @@ class Server {
         });
     }
     async shutdown() {
-        clearTimeout(this.timeoutModifyStake);
-        clearTimeout(this.timeoutAddTx);
-        clearTimeout(this.timeoutDoSign);
-        this.network.shutdown();
-        this.wallet.close();
-        await this.blockchain.shutdown();
-        if (this.httpServer) {
+        typeof this.blockFactory.shutdown === 'function' && this.blockFactory.shutdown();
+        typeof this.network.shutdown === 'function' && this.network.shutdown();
+        typeof this.wallet.close === 'function' && this.wallet.close();
+        typeof this.blockchain.shutdown === 'function' && (await this.blockchain.shutdown());
+        if (typeof this.httpServer.close === 'function') {
             return await new Promise((resolve) => {
                 this.httpServer.close(() => {
                     resolve();
@@ -137,28 +133,29 @@ class Server {
     getBlockFactory() {
         return this.blockFactory;
     }
+    getStackModifyStake() {
+        return this.stackModifyStake;
+    }
     proposeModifyStake(forPublicKey, ident, stake) {
-        const k = [forPublicKey, ident, stake].join('');
-        if (this.mapModifyStake.has(k)) {
-            return;
+        if (this.stackModifyStake.some((cmd) => cmd.publicKey === forPublicKey && cmd.ident === ident)) {
+            return false;
         }
-        const command = {
-            command: blockchain_1.Blockchain.COMMAND_MODIFY_STAKE,
-            publicKey: forPublicKey,
-            ident: ident,
-            stake: stake,
-        };
         const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
         const quorum = this.blockchain.getQuorum();
-        if (credit > quorum * -0.5 && [...this.mapStakeCredit.values()].reduce((p, c) => p + c, 0) > quorum * -1) {
-            this.mapModifyStake.set(k, command);
+        if (credit > quorum * -1) {
             this.mapStakeCredit.set(forPublicKey, credit);
+            this.stackModifyStake.push({
+                command: blockchain_1.Blockchain.COMMAND_MODIFY_STAKE,
+                publicKey: forPublicKey,
+                ident: ident,
+                stake: stake,
+            });
+            if (this.stackModifyStake.length >= quorum) {
+                this.stackTx(this.stackModifyStake);
+                this.stackModifyStake = [];
+            }
         }
-        clearTimeout(this.timeoutModifyStake);
-        this.timeoutModifyStake = setTimeout(() => {
-            this.stackTx([...this.mapModifyStake.values()]);
-            this.mapModifyStake = new Map();
-        }, this.network.getArrayNetwork().length * this.config.network_p2p_interval_ms);
+        return true;
     }
     incStakeCredit(publicKey) {
         this.mapStakeCredit.set(publicKey, (this.mapStakeCredit.get(publicKey) || 0) + 1);

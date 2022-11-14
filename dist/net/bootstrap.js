@@ -5,12 +5,14 @@ const logger_1 = require("../logger");
 const util_1 = require("../chain/util");
 const nanoid_1 = require("nanoid");
 const i2p_sam_1 = require("@diva.exchange/i2p-sam/dist/i2p-sam");
+const blockchain_1 = require("../chain/blockchain");
 const LENGTH_TOKEN = 32;
 const WAIT_JOIN_MS = 30000;
 const MAX_RETRY_JOIN = 10;
 class Bootstrap {
     constructor(server) {
         this.timeoutChallenge = {};
+        this.isJoiningNetwork = false;
         this.server = server;
         this.mapToken = new Map();
     }
@@ -20,13 +22,13 @@ class Bootstrap {
     async syncWithNetwork() {
         logger_1.Logger.trace('Bootstrap: syncWithNetwork()');
         const blockNetwork = await this.server.getNetwork().fetchFromApi('block/latest');
+        const genesis = await this.server.getNetwork().fetchFromApi('block/genesis');
         const blockLocal = this.server.getBlockchain().getLatestBlock();
-        if (blockLocal.hash !== blockNetwork.hash) {
-            const genesis = await this.server.getNetwork().fetchFromApi('block/genesis');
+        if (blockNetwork && genesis && blockLocal.hash !== blockNetwork.hash) {
             await this.server.getBlockchain().reset(genesis);
             let h = 1;
             while (blockNetwork.height > h) {
-                const arrayBlocks = await this.server.getNetwork().fetchFromApi('sync/' + (h + 1));
+                const arrayBlocks = (await this.server.getNetwork().fetchFromApi('sync/' + (h + 1))) || [];
                 for (const b of arrayBlocks) {
                     this.server.getBlockchain().add(b);
                 }
@@ -36,10 +38,15 @@ class Bootstrap {
         logger_1.Logger.trace('Bootstrap: syncWithNetwork() done');
     }
     async joinNetwork(publicKey) {
-        logger_1.Logger.trace('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
+        this.isJoiningNetwork = true;
         await this.server
             .getNetwork()
             .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
+    }
+    challenge(token) {
+        const v = this.isJoiningNetwork && token.length === LENGTH_TOKEN;
+        this.isJoiningNetwork = false;
+        return v ? this.server.getWallet().sign(token) : '';
     }
     join(http, udp, publicKey, r = 0) {
         clearTimeout(this.timeoutChallenge);
@@ -54,10 +61,11 @@ class Bootstrap {
         const token = (0, nanoid_1.nanoid)(LENGTH_TOKEN);
         this.mapToken.set(publicKey, token);
         this.timeoutChallenge = setTimeout(async () => {
-            let res = { token: '' };
             try {
-                res = await this.server.getNetwork().fetchFromApi(`http://${(0, i2p_sam_1.toB32)(http)}.b32.i2p/challenge/${token}`);
-                this.confirm(http, udp, publicKey, res.token);
+                const res = await this.server
+                    .getNetwork()
+                    .fetchFromApi(`http://${(0, i2p_sam_1.toB32)(http)}.b32.i2p/challenge/${token}`);
+                res && this.confirm(http, udp, publicKey, res.token);
             }
             catch (error) {
                 logger_1.Logger.warn(`Bootstrap.join(): challenging error - ${error.toString()}`);
@@ -74,9 +82,6 @@ class Bootstrap {
         }, WAIT_JOIN_MS);
         return true;
     }
-    challenge(token) {
-        return token && token.length === LENGTH_TOKEN ? this.server.getWallet().sign(token) : '';
-    }
     confirm(http, udp, publicKey, signedToken) {
         const token = this.mapToken.get(publicKey) || '';
         if (!token || !util_1.Util.verifySignature(publicKey, signedToken, token)) {
@@ -85,7 +90,7 @@ class Bootstrap {
         if (!this.server.stackTx([
             {
                 seq: 1,
-                command: 'addPeer',
+                command: blockchain_1.Blockchain.COMMAND_ADD_PEER,
                 http: http,
                 udp: udp,
                 publicKey: publicKey,

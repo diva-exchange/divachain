@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Config = exports.STAKE_VOTE_AMOUNT = exports.STAKE_VOTE_BLOCK_DISTANCE = exports.STAKE_VOTE_IDENT = exports.STAKE_PING_QUARTILE_COEFF_MAX = exports.STAKE_PING_QUARTILE_COEFF_MIN = exports.STAKE_PING_AMOUNT = exports.STAKE_PING_SAMPLE_SIZE = exports.STAKE_PING_IDENT = exports.MAX_NETWORK_SIZE = exports.DEFAULT_NAME_GENESIS_BLOCK = exports.BLOCK_VERSION = void 0;
+exports.Config = exports.STAKE_VOTE_AMOUNT = exports.STAKE_VOTE_MATCH_THRESHOLD = exports.STAKE_VOTE_IDENT = exports.STAKE_PING_QUARTILE_COEFF_MAX = exports.STAKE_PING_QUARTILE_COEFF_MIN = exports.STAKE_PING_SAMPLE_SIZE = exports.STAKE_PING_AMOUNT = exports.STAKE_PING_IDENT = exports.MAX_NETWORK_SIZE = exports.DEFAULT_NAME_GENESIS_BLOCK = exports.BLOCK_VERSION = void 0;
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const i2p_sam_1 = require("@diva.exchange/i2p-sam/dist/i2p-sam");
@@ -12,12 +12,12 @@ exports.BLOCK_VERSION = 7;
 exports.DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + exports.BLOCK_VERSION;
 exports.MAX_NETWORK_SIZE = 16;
 exports.STAKE_PING_IDENT = 'ping';
-exports.STAKE_PING_SAMPLE_SIZE = 30;
 exports.STAKE_PING_AMOUNT = 1;
+exports.STAKE_PING_SAMPLE_SIZE = 32;
 exports.STAKE_PING_QUARTILE_COEFF_MIN = 0.4;
 exports.STAKE_PING_QUARTILE_COEFF_MAX = 0.6;
 exports.STAKE_VOTE_IDENT = 'vote';
-exports.STAKE_VOTE_BLOCK_DISTANCE = 50;
+exports.STAKE_VOTE_MATCH_THRESHOLD = 3;
 exports.STAKE_VOTE_AMOUNT = 1;
 const DEFAULT_IP = '127.0.0.1';
 const DEFAULT_PORT = 17468;
@@ -31,16 +31,19 @@ const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
 const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
 const MIN_NETWORK_TIMEOUT_MS = 1000;
 const MAX_NETWORK_TIMEOUT_MS = 60000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 5000;
+const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
+const MIN_BLOCK_RETRY_TIMEOUT_MS = 1000;
+const MAX_BLOCK_RETRY_TIMEOUT_MS = 10000;
 const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
 const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
 const MIN_API_MAX_QUERY_SIZE = 10;
 const MAX_API_MAX_QUERY_SIZE = 100;
 class Config {
     constructor() {
+        this.is_testnet = true;
         this.debug_performance = false;
         this.bootstrap = '';
         this.VERSION = '';
@@ -74,11 +77,13 @@ class Config {
         this.network_timeout_ms = 0;
         this.network_p2p_interval_ms = 0;
         this.network_sync_size = 0;
+        this.block_retry_timeout_ms = 0;
         this.blockchain_max_blocks_in_memory = 0;
         this.api_max_query_size = 0;
     }
     static async make(c) {
         const self = new Config();
+        self.is_testnet = (process.env.IS_TESTNET || false) === '1';
         if (process.env.GENESIS === '1') {
             const obj = await genesis_1.Genesis.create();
             const _p = process.env.GENESIS_PATH || '';
@@ -209,6 +214,7 @@ class Config {
         self.network_timeout_ms = Config.b(c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS || DEFAULT_NETWORK_TIMEOUT_MS, MIN_NETWORK_TIMEOUT_MS, MAX_NETWORK_TIMEOUT_MS);
         self.network_p2p_interval_ms = Config.b(c.network_p2p_interval_ms || process.env.NETWORK_P2P_INTERVAL_MS, MIN_NETWORK_P2P_INTERVAL_MS, MAX_NETWORK_P2P_INTERVAL_MS);
         self.network_sync_size = Config.b(c.network_sync_size || process.env.NETWORK_SYNC_SIZE, MIN_NETWORK_SYNC_SIZE, MAX_NETWORK_SYNC_SIZE);
+        self.block_retry_timeout_ms = Config.b(c.block_retry_timeout_ms || process.env.BLOCK_RETRY_TIMEOUT_MS, MIN_BLOCK_RETRY_TIMEOUT_MS, MAX_BLOCK_RETRY_TIMEOUT_MS);
         self.blockchain_max_blocks_in_memory = Config.b(c.blockchain_max_blocks_in_memory ||
             process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY ||
             MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY, MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY, MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY);

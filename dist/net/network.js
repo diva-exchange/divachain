@@ -11,21 +11,19 @@ const i2p_sam_1 = require("@diva.exchange/i2p-sam/dist/i2p-sam");
 const util_1 = require("../chain/util");
 const simple_get_1 = __importDefault(require("simple-get"));
 const socks_proxy_agent_1 = require("socks-proxy-agent");
-const sync_1 = require("./message/sync");
-const config_1 = require("../config");
+const status_1 = require("./message/status");
 class Network extends events_1.default {
     constructor(server, onMessage) {
         super();
         this.samForward = {};
         this.samUDP = {};
-        this.identNetwork = '';
         this.arrayNetwork = [];
         this.arrayBroadcast = [];
-        this.mapPingSeq = new Map();
         this.mapMsgSeq = new Map();
-        this.mapAvailability = new Map();
+        this.mapOnline = new Map();
         this.isClosing = false;
         this.timeoutP2P = {};
+        this.timeoutStatus = {};
         this.server = server;
         this.publicKey = this.server.getWallet().getPublicKey();
         logger_1.Logger.info(`Network, public key: ${this.publicKey}`);
@@ -42,11 +40,14 @@ class Network extends events_1.default {
         return new Network(server, onMessage);
     }
     shutdown() {
+        clearTimeout(this.timeoutP2P);
+        clearTimeout(this.timeoutStatus);
         this.isClosing = true;
         typeof this.agent.destroy === 'function' && this.agent.destroy();
         typeof this.samForward.close === 'function' && this.samForward.close();
+        this.samForward = {};
         typeof this.samUDP.close === 'function' && this.samUDP.close();
-        clearTimeout(this.timeoutP2P);
+        this.samUDP = {};
     }
     init(started = false, retry = 0) {
         retry++;
@@ -80,7 +81,7 @@ class Network extends events_1.default {
                     silent: true,
                 },
             })).on('error', (error) => {
-                logger_1.Logger.warn('SAM HTTP ' + error.toString());
+                logger_1.Logger.warn(`${this.publicKey}: SAM HTTP ${error.toString()}`);
             });
             logger_1.Logger.info(`HTTP ${(0, i2p_sam_1.toB32)(_c.http)}.b32.i2p to ${_c.i2p_sam_forward_http_host}:${_c.i2p_sam_forward_http_port}`);
             this.samUDP = (await (0, i2p_sam_1.createDatagram)({
@@ -101,7 +102,7 @@ class Network extends events_1.default {
                 this.incomingData(data, from);
             })
                 .on('error', (error) => {
-                logger_1.Logger.warn('SAM UDP ' + error.toString());
+                logger_1.Logger.warn(`${this.publicKey}: SAM UDP ${error.toString()}`);
             });
             logger_1.Logger.info(`UDP ${(0, i2p_sam_1.toB32)(_c.udp)}.b32.i2p to ${_c.i2p_sam_forward_udp_host}:${_c.i2p_sam_forward_udp_port}`);
         })();
@@ -116,110 +117,62 @@ class Network extends events_1.default {
         if (this.isClosing || !this.arrayNetwork.length) {
             return;
         }
-        const msg = data.toString().trim();
         const pk = this.server.getBlockchain().getPublicKeyByUdp(from);
-        if (!msg || !pk) {
+        const m = new message_1.Message(data);
+        if (!pk || !this.server.getValidation().validateMessage(m)) {
             return;
         }
-        if (/^[\d]{1,32}![\d]+$/.test(msg)) {
-            this.incomingPing(pk, msg);
+        const keySeq = [m.type(), m.origin()].join();
+        if ((this.mapMsgSeq.get(keySeq) || 0) < m.seq()) {
+            this.mapMsgSeq.set(keySeq, m.seq());
+            this.mapOnline.set(pk, Date.now());
+            this._onMessage(m);
+            m.type() !== message_1.Message.TYPE_STATUS && pk === m.origin() && this.broadcast(m, true);
         }
-        else {
-            this.incomingMessage(pk, msg);
-        }
-    }
-    incomingPing(fromPublicKey, msg) {
-        const [_d, _h] = msg.split('!');
-        const dt = Number(_d);
-        const _n = Date.now();
-        const _s = this.mapPingSeq.get(fromPublicKey) || 0;
-        const _f = this.server.config.network_p2p_interval_ms * (Math.floor(this.arrayBroadcast.length / 3) + 1);
-        if (_s > _n - _f || _s >= dt) {
-            return;
-        }
-        this.mapPingSeq.set(fromPublicKey, dt);
-        const h = Number(_h);
-        const diff = this.server.getBlockchain().getHeight() - h;
-        if (diff > 0) {
-            logger_1.Logger.trace(`${this.server.config.port} / ${this.publicKey}: Send SYNC to ${fromPublicKey} - Diff: ${diff}`);
-            for (let hsync = h + 1; hsync <= this.server.getBlockchain().getHeight(); hsync++) {
-                (async (_h, toPublicKey) => {
-                    const b = (await this.server.getBlockchain().getRange(_h))[0];
-                    const buf = Buffer.from(new sync_1.Sync().create(this.server.getWallet(), b).pack());
-                    this.samUDP.send(this.server.getBlockchain().getPeer(toPublicKey).udp, buf);
-                })(hsync, fromPublicKey);
-                if (hsync - h > this.server.config.network_sync_size) {
-                    break;
-                }
-            }
-            return;
-        }
-        let a = this.mapAvailability.get(fromPublicKey) || [];
-        a.push(dt);
-        if (a.length === config_1.STAKE_PING_SAMPLE_SIZE) {
-            const qc = util_1.Util.QuartileCoeff(a);
-            if (qc >= config_1.STAKE_PING_QUARTILE_COEFF_MIN && qc <= config_1.STAKE_PING_QUARTILE_COEFF_MAX) {
-                this.server.proposeModifyStake(fromPublicKey, config_1.STAKE_PING_IDENT, config_1.STAKE_PING_AMOUNT);
-            }
-            a = a.slice(-1 * Math.floor((a.length / 3) * 2));
-        }
-        this.mapAvailability.set(fromPublicKey, a);
-    }
-    incomingMessage(fromPublicKey, msg) {
-        const m = new message_1.Message(msg);
-        if (!this.server.getValidation().validateMessage(m)) {
-            return;
-        }
-        if ((this.mapMsgSeq.get([m.type(), m.origin()].join()) || 0) >= m.seq()) {
-            return;
-        }
-        this.mapMsgSeq.set([m.type(), m.origin()].join(), m.seq());
-        this._onMessage(m);
-        fromPublicKey === m.origin() && this.broadcast(m, fromPublicKey);
     }
     p2pNetwork() {
         const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
-        const tTimeout = this.server.config.network_p2p_interval_ms;
         this.timeoutP2P = setTimeout(() => {
             this.p2pNetwork();
-        }, tTimeout);
+        }, this.server.config.network_p2p_interval_ms);
+        this.mapOnline.set(this.publicKey, Date.now());
         if (aNetwork.length < 2 || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
             return;
         }
-        const _i = [...this.server.getBlockchain().getMapPeer().keys()].join('');
-        if (this.identNetwork !== _i) {
-            this.identNetwork = _i;
-            this.arrayNetwork = aNetwork.sort((a, b) => (a.publicKey > b.publicKey ? 1 : -1));
-            logger_1.Logger.info('Network updated');
-        }
-        this.arrayBroadcast = util_1.Util.shuffleArray([...this.server.getBlockchain().getMapPeer().keys()].filter((pk) => pk !== this.publicKey));
-        setTimeout(() => {
-            const buf = Buffer.from(Date.now() + '!' + this.server.getBlockchain().getHeight());
-            this.arrayBroadcast.slice(0, Math.ceil(this.arrayBroadcast.length / 3)).forEach((pk) => {
-                this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
-            });
-        }, Math.floor(Math.random() * tTimeout * 0.99));
+        this.arrayNetwork = aNetwork;
+        this.arrayBroadcast = [...this.server.getBlockchain().getMapPeer().keys()].filter((pk) => pk !== this.publicKey);
+        this.timeoutStatus = setTimeout(() => {
+            this.broadcast(new status_1.Status().create(this.server.getWallet(), status_1.ONLINE, this.server.getBlockchain().getHeight()));
+        }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.9));
+    }
+    cleanMapOnline() {
+        const now = Date.now();
+        this.mapOnline.forEach((_dt, _pk) => {
+            if (_dt < now - this.server.config.block_retry_timeout_ms * this.arrayNetwork.length) {
+                this.mapOnline.delete(_pk);
+            }
+        });
     }
     getArrayNetwork() {
         return this.arrayNetwork;
     }
-    broadcast(m, fromPublicKey = '') {
-        const buf = Buffer.from(m.pack());
-        if (fromPublicKey !== '' && m.dest() !== '') {
+    getArrayOnline() {
+        return [...this.mapOnline.keys()];
+    }
+    broadcast(m, isFinalHop = false) {
+        const msg = m.asBuffer();
+        if (isFinalHop && m.dest() !== '') {
             try {
-                this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, buf);
+                m.dest() !== m.origin() && this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, msg);
             }
             catch (error) {
                 logger_1.Logger.warn(`Network.broadcast() ${error.toString()}`);
             }
         }
         else {
-            const o = m.origin();
-            this.arrayBroadcast
-                .filter((pk) => o !== pk && fromPublicKey !== pk)
-                .forEach((pk) => {
+            this.arrayBroadcast.forEach((pk) => {
                 try {
-                    this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, buf);
+                    m.origin() !== pk && this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, msg);
                 }
                 catch (error) {
                     logger_1.Logger.warn(`Network.broadcast() ${error.toString()}`);
@@ -237,25 +190,24 @@ class Network extends events_1.default {
                 logger_1.Logger.warn(`Network.fetchFromApi() ${endpoint} - ${error.toString()}`);
             }
         }
-        else if (this.arrayNetwork.length) {
+        else if (this.mapOnline.size) {
             const aNetwork = util_1.Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
             let urlApi = '';
-            let n = aNetwork.pop();
-            while (n) {
-                urlApi = `http://${(0, i2p_sam_1.toB32)(n.http)}.b32.i2p/${endpoint}`;
+            let p = aNetwork.pop();
+            while (p) {
+                urlApi = `http://${(0, i2p_sam_1.toB32)(p.http)}.b32.i2p/${endpoint}`;
                 try {
                     return JSON.parse(await this.fetch(urlApi, timeout));
                 }
                 catch (error) {
                     logger_1.Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
                 }
-                n = aNetwork.pop();
+                p = aNetwork.pop();
             }
         }
         else {
             logger_1.Logger.warn('Network unavailable');
         }
-        throw new Error('fetchFromApi failed');
     }
     fetch(url, timeout = 0) {
         const options = {
