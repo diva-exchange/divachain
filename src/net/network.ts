@@ -269,24 +269,26 @@ export class Network extends EventEmitter {
   async fetchFromApi(endpoint: string, timeout: number = 0): Promise<any> {
     if (endpoint.indexOf('http://') === 0) {
       try {
-        const json = await this.fetch(endpoint);
+        const json: string = await this.fetch(endpoint);
         return JSON.parse(json);
       } catch (error: any) {
         Logger.warn(`Network.fetchFromApi() ${endpoint} - ${error.toString()}`);
       }
     } else if (this.mapOnline.size) {
-      const aNetwork: Array<string> = Util.shuffleArray([...this.getArrayOnline()]);
-      //const aNetwork = Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
+      const aNetwork: Array<Peer> = Util.shuffleArray(
+        this.arrayNetwork.filter((v: Peer) => v.http !== this.server.config.http)
+      );
       let urlApi: string = '';
-      let pk: string | undefined = aNetwork.pop();
-      while (pk) {
-        urlApi = `http://${toB32(this.server.getBlockchain().getPeer(pk).http)}.b32.i2p/${endpoint}`;
+      let p: Peer | undefined = aNetwork.pop();
+
+      while (p) {
+        urlApi = `http://${toB32(p.http)}.b32.i2p/${endpoint}`;
         try {
           return JSON.parse(await this.fetch(urlApi, timeout));
         } catch (error: any) {
           Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
         }
-        pk = aNetwork.pop();
+        p = aNetwork.pop();
       }
     } else {
       Logger.warn('Network unavailable');
