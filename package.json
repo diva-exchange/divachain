@@ -23,7 +23,7 @@
     "clean": "rm -rf dist/*",
     "lint": "prettier -w \"**/*.ts\" && eslint --fix src/ test/ --ext .ts",
     "start": "NODE_ENV=production node dist/main.js | pino-pretty -t -i pid,hostname",
-    "start-dev": "NODE_ENV=development ts-node --files src/main.ts | pino-pretty -t -i pid,hostname",
+    "start-dev": "IS_TESTNET=1 BOOTSTRAP=http://diva.i2p/testnet IP=0.0.0.0 I2P_SOCKS_HOST=172.19.75.11 I2P_SAM_HTTP_HOST=172.19.75.11 I2P_SAM_UDP_HOST=172.19.75.12 I2P_SAM_FORWARD_HTTP_HOST=172.19.75.1 I2P_SAM_FORWARD_UDP_HOST=172.19.75.1 NODE_ENV=development ts-node --files src/main.ts | pino-pretty -t -i pid,hostname",
     "test": "TS_NODE_PROJECT=./test/tsconfig.json NODE_ENV=test LOG_LEVEL=trace DEBUG_PERFORMANCE=1 nyc mocha",
     "clean-test": "test/bin/clean-testenv.sh"
   },
@@ -36,7 +36,7 @@
       "node_modules/sodium-native/prebuilds/linux-x64/*"
     ],
     "targets": [
-      "node14-linux-x64"
+      "node16-linux-x64"
     ]
   },
   "engines": {
@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@diva.exchange/i2p-sam": "^4.1.5",
-    "ajv": "^8.11.0",
+    "ajv": "^8.11.2",
     "compression": "^1.7.4",
     "express": "^4.18.2",
     "http-errors": "^2.0.0",
@@ -55,14 +55,14 @@
     "simple-get": "^4.0.1",
     "socks-proxy-agent": "^7.0.0",
     "sodium-native": "^3.4.1",
-    "ws": "^8.10.0"
+    "ws": "^8.11.0"
   },
   "devDependencies": {
     "@cspotcode/source-map-support": "^0.8.1",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
-    "@testdeck/mocha": "^0.3.0",
+    "@testdeck/mocha": "^0.3.2",
     "@tsconfig/node16": "^1.0.3",
-    "@types/chai": "^4.3.3",
+    "@types/chai": "^4.3.4",
     "@types/compression": "^1.7.2",
     "@types/express": "^4.17.14",
     "@types/express-serve-static-core": "^4.17.31",
@@ -72,12 +72,12 @@
     "@types/node": "^18.11.9",
     "@types/sodium-native": "^2.3.5",
     "@types/ws": "^8.5.3",
-    "@typescript-eslint/eslint-plugin": "^5.42.0",
-    "@typescript-eslint/parser": "^5.42.0",
+    "@typescript-eslint/eslint-plugin": "^5.42.1",
+    "@typescript-eslint/parser": "^5.42.1",
     "ajv-cli": "^5.0.0",
-    "chai": "^4.3.6",
+    "chai": "^4.3.7",
     "chai-http": "^4.3.0",
-    "eslint": "^8.26.0",
+    "eslint": "^8.27.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-prettier": "^4.2.1",
     "mocha": "^10.1.0",
