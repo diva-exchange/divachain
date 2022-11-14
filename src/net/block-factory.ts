@@ -268,9 +268,6 @@ export class BlockFactory {
     }
 
     if (this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() }) >= this.blockchain.getQuorum()) {
-      //@FIXME logging
-      Logger.trace(`${this.config.port}: ***** NEW BLOCK #${this.block.height} *****`);
-
       // broadcast confirmation
       this.network.broadcast(new ConfirmBlock().create(this.wallet, this.block.hash, this.block.votes));
 
@@ -299,8 +296,7 @@ export class BlockFactory {
           this.isSyncing = true;
           // fetch blocks and process them
           (async () => {
-            const a: Array<BlockStruct> = await this.network.fetchFromApi('sync/' + (h + 1));
-            a.forEach((block) => {
+            ((await this.network.fetchFromApi('sync/' + (h + 1))) || []).forEach((block: BlockStruct) => {
               this.addBlock(block);
             });
             this.isSyncing = false;
