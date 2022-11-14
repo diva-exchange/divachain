@@ -24,6 +24,7 @@ import { CommandAddPeer } from '../chain/transaction';
 import { BlockStruct } from '../chain/block';
 import { nanoid } from 'nanoid';
 import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import { Blockchain } from '../chain/blockchain';
 
 const LENGTH_TOKEN = 32;
 const WAIT_JOIN_MS = 30000;
@@ -33,6 +34,7 @@ export class Bootstrap {
   private readonly server: Server;
   private mapToken: Map<string, string>;
   private timeoutChallenge: NodeJS.Timeout = {} as NodeJS.Timeout;
+  private isJoiningNetwork: boolean = false;
 
   static make(server: Server): Bootstrap {
     return new Bootstrap(server);
@@ -46,15 +48,15 @@ export class Bootstrap {
   async syncWithNetwork() {
     Logger.trace('Bootstrap: syncWithNetwork()');
 
-    const blockNetwork: BlockStruct = await this.server.getNetwork().fetchFromApi('block/latest');
+    const blockNetwork: BlockStruct | undefined = await this.server.getNetwork().fetchFromApi('block/latest');
+    const genesis: BlockStruct | undefined = await this.server.getNetwork().fetchFromApi('block/genesis');
     const blockLocal: BlockStruct = this.server.getBlockchain().getLatestBlock();
 
-    if (blockLocal.hash !== blockNetwork.hash) {
-      const genesis: BlockStruct = await this.server.getNetwork().fetchFromApi('block/genesis');
+    if (blockNetwork && genesis && blockLocal.hash !== blockNetwork.hash) {
       await this.server.getBlockchain().reset(genesis);
       let h = 1;
       while (blockNetwork.height > h) {
-        const arrayBlocks: Array<BlockStruct> = await this.server.getNetwork().fetchFromApi('sync/' + (h + 1));
+        const arrayBlocks: Array<BlockStruct> = (await this.server.getNetwork().fetchFromApi('sync/' + (h + 1))) || [];
         for (const b of arrayBlocks) {
           this.server.getBlockchain().add(b);
         }
@@ -65,13 +67,22 @@ export class Bootstrap {
     Logger.trace('Bootstrap: syncWithNetwork() done');
   }
 
+  // executed by a new node only
   async joinNetwork(publicKey: string) {
-    Logger.trace('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
+    this.isJoiningNetwork = true;
     await this.server
       .getNetwork()
       .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
   }
 
+  // executed by a new node only
+  challenge(token: string): string {
+    const v: boolean = this.isJoiningNetwork && token.length === LENGTH_TOKEN;
+    this.isJoiningNetwork = false;
+    return v ? this.server.getWallet().sign(token) : '';
+  }
+
+  // executed by an existing node, processing an incoming new node
   join(http: string, udp: string, publicKey: string, r: number = 0): boolean {
     clearTimeout(this.timeoutChallenge);
 
@@ -90,10 +101,11 @@ export class Bootstrap {
     this.mapToken.set(publicKey, token);
 
     this.timeoutChallenge = setTimeout(async () => {
-      let res: { token: string } = { token: '' };
       try {
-        res = await this.server.getNetwork().fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`);
-        this.confirm(http, udp, publicKey, res.token);
+        const res: { token: string } | undefined = await this.server
+          .getNetwork()
+          .fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`);
+        res && this.confirm(http, udp, publicKey, res.token);
       } catch (error: any) {
         Logger.warn(`Bootstrap.join(): challenging error - ${error.toString()}`);
 
@@ -112,11 +124,7 @@ export class Bootstrap {
     return true;
   }
 
-  //@FIXME only accessible, if the server is in "challenging" state
-  challenge(token: string): string {
-    return token && token.length === LENGTH_TOKEN ? this.server.getWallet().sign(token) : '';
-  }
-
+  // executed by an existing node, processing an incoming new node
   private confirm(http: string, udp: string, publicKey: string, signedToken: string) {
     const token = this.mapToken.get(publicKey) || '';
 
@@ -128,7 +136,7 @@ export class Bootstrap {
       !this.server.stackTx([
         {
           seq: 1,
-          command: 'addPeer',
+          command: Blockchain.COMMAND_ADD_PEER,
           http: http,
           udp: udp,
           publicKey: publicKey,
