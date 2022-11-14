@@ -118,7 +118,7 @@ export class Blockchain {
     await this.dbState.close();
   }
 
-  async clear() {
+  private async clear() {
     await this.dbBlockchain.clear();
     await this.dbState.clear();
 
@@ -164,7 +164,7 @@ export class Blockchain {
 
     // voting stake
     block.votes.forEach((v) => {
-      this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
+      this.hasPeer(v.origin) && this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
     });
     if (this.mapVoteStake.size > 0) {
       // alphabet, size 64 chars: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
