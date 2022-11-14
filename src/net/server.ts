@@ -56,6 +56,7 @@ export class Server {
   constructor(config: Config) {
     this.config = config;
     Logger.info(`divachain ${this.config.VERSION} instantiating...`);
+    this.config.is_testnet && Logger.warn('IMPORTANT: this is a test node (API is NOT protected)');
 
     // express application
     this.app = express();
@@ -155,12 +156,12 @@ export class Server {
   }
 
   async shutdown(): Promise<void> {
-    this.blockFactory.shutdown();
-    this.network.shutdown();
-    this.wallet.close();
-    await this.blockchain.shutdown();
+    typeof this.blockFactory.shutdown === 'function' && this.blockFactory.shutdown();
+    typeof this.network.shutdown === 'function' && this.network.shutdown();
+    typeof this.wallet.close === 'function' && this.wallet.close();
+    typeof this.blockchain.shutdown === 'function' && (await this.blockchain.shutdown());
 
-    if (this.httpServer) {
+    if (typeof this.httpServer.close === 'function') {
       return await new Promise((resolve) => {
         this.httpServer.close(() => {
           resolve();
