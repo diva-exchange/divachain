@@ -23,12 +23,18 @@ import path from 'path';
 import { Config } from '../config';
 import { base64url } from 'rfc4648';
 import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import { nanoid } from 'nanoid';
+import crypto from 'crypto';
+
+export const NAME_HEADER_TOKEN_API = 'diva-token-api';
+const DEFAULT_LENGTH_TOKEN_API = 32;
 
 export class Wallet {
   private config: Config;
   private ident: string = '';
   private readonly publicKey: Buffer;
   private readonly secretKey: Buffer;
+  private tokenAPI: string = '';
 
   static make(config: Config): Wallet {
     return new Wallet(config);
@@ -38,6 +44,20 @@ export class Wallet {
     this.config = config;
     this.publicKey = Buffer.alloc(sodium.crypto_sign_PUBLICKEYBYTES);
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
+    this.createTokenAPI();
+  }
+
+  private createTokenAPI() {
+    const p = path.join(this.config.path_keys, toB32(this.config.http) + '.token');
+    fs.writeFileSync(p, nanoid(DEFAULT_LENGTH_TOKEN_API), { mode: '0600' });
+    this.tokenAPI = fs.readFileSync(p).toString();
+    setTimeout(() => {
+      this.createTokenAPI();
+    }, crypto.randomInt(180000, 600000)); // between 3 and 10 minutes
+  }
+
+  getTokenAPI(): string {
+    return this.tokenAPI;
   }
 
   open(): Wallet {

@@ -19,20 +19,14 @@
 
 import { Server } from './server';
 import { Request, Response } from 'express';
-import fs from 'fs';
-import path from 'path';
-import { nanoid } from 'nanoid';
-import crypto from 'crypto';
 import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
-
-export const NAME_HEADER_API_TOKEN = 'diva-api-token';
-const DEFAULT_LENGTH_TOKEN = 32;
+import { CommandRemovePeer } from '../chain/transaction';
+import { Blockchain, Peer } from '../chain/blockchain';
+import { NAME_HEADER_TOKEN_API } from '../chain/wallet';
 
 export class Api {
   private package: any = require('../../package.json');
   private server: Server;
-  private readonly pathToken: string;
-  private token: string = '';
 
   static make(server: Server) {
     return new Api(server);
@@ -40,18 +34,7 @@ export class Api {
 
   private constructor(server: Server) {
     this.server = server;
-
-    this.pathToken = path.join(this.server.config.path_keys, toB32(this.server.config.http) + '.token');
-    this.createToken();
     this.route();
-  }
-
-  private createToken() {
-    fs.writeFileSync(this.pathToken, nanoid(DEFAULT_LENGTH_TOKEN), { mode: '0600' });
-    this.token = fs.readFileSync(this.pathToken).toString();
-    setTimeout(() => {
-      this.createToken();
-    }, crypto.randomInt(180000, 600000)); // between 3 and 10 minutes
   }
 
   private route() {
@@ -66,6 +49,11 @@ export class Api {
     });
     this.server.app.get('/about', (req: Request, res: Response) => {
       this.about(res);
+    });
+    this.server.app.get('/testnet/token', async (req: Request, res: Response) => {
+      return this.server.config.is_testnet
+        ? res.json({ header: NAME_HEADER_TOKEN_API, token: this.server.getWallet().getTokenAPI() })
+        : res.status(403).end();
     });
 
     this.server.app.get('/network/online', (req: Request, res: Response) => {
@@ -113,11 +101,18 @@ export class Api {
       await this.transaction(req, res);
     });
     this.server.app.put('/transaction/:ident?', async (req: Request, res: Response) => {
-      await this.putTransaction(req, res);
+      req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
+        ? await this.putTransaction(req, res)
+        : res.status(401).end();
+    });
+    this.server.app.put('/leave', (req: Request, res: Response) => {
+      req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
+        ? this.leave(res)
+        : res.status(401).end();
     });
 
     this.server.app.get('/debug/performance/:height', async (req: Request, res: Response) => {
-      const height = Number(req.params.height || 0);
+      const height: number = Number(req.params.height || 0);
       return res.json(await this.server.getBlockchain().getPerformance(height));
     });
   }
@@ -130,13 +125,27 @@ export class Api {
       : res.status(403).end();
   }
 
+  private leave(res: Response) {
+    const ident: string | false = this.server.stackTx([
+      {
+        seq: 1,
+        command: Blockchain.COMMAND_REMOVE_PEER,
+        publicKey: this.server.getWallet().getPublicKey(),
+      } as CommandRemovePeer,
+    ]);
+    if (ident) {
+      return res.json({ ident: ident });
+    }
+    res.status(403).end();
+  }
+
   private challenge(req: Request, res: Response) {
-    const signedToken = this.server.getBootstrap().challenge(req.params.token);
+    const signedToken: string = this.server.getBootstrap().challenge(req.params.token);
     return signedToken ? res.status(200).json({ token: signedToken }) : res.status(403).end();
   }
 
   private async sync(req: Request, res: Response) {
-    const h = Math.floor(Number(req.params.height) || 0);
+    const h: number = Math.floor(Number(req.params.height) || 0);
     return this.server.getBlockchain().getHeight() >= h
       ? res.json(await this.server.getBlockchain().getRange(h, h + this.server.config.network_sync_size))
       : res.status(404).end();
@@ -156,8 +165,8 @@ export class Api {
   }
 
   private network(req: Request, res: Response) {
-    const s = Math.floor(Number(req.params.stake) || 0);
-    const a = this.server.getNetwork().getArrayNetwork();
+    const s: number = Math.floor(Number(req.params.stake) || 0);
+    const a: Array<Peer> = this.server.getNetwork().getArrayNetwork();
     return res.json(s > 0 ? a.filter((r) => r['stake'] >= s) : a);
   }
 
@@ -170,7 +179,7 @@ export class Api {
   }
 
   private async state(req: Request, res: Response) {
-    const key = req.params.key || '';
+    const key: string = req.params.key || '';
     const state: { key: string; value: string } | false = await this.server.getBlockchain().getState(key);
     return state ? res.json(state) : res.status(404).end();
   }
@@ -188,7 +197,7 @@ export class Api {
   }
 
   private async block(req: Request, res: Response) {
-    const h = Math.floor(Number(req.params.height || 0));
+    const h: number = Math.floor(Number(req.params.height || 0));
     if (h < 1 || h > this.server.getBlockchain().getHeight()) {
       return res.status(404).end();
     }
@@ -204,8 +213,8 @@ export class Api {
   }
 
   private async blocksPage(req: Request, res: Response) {
-    const page = Number(req.params.page || 1);
-    const size = Number(req.params.size || 0);
+    const page: number = Number(req.params.page || 1);
+    const size: number = Number(req.params.size || 0);
     try {
       return res.json(await this.server.getBlockchain().getPage(page, size));
     } catch (error) {
@@ -214,8 +223,8 @@ export class Api {
   }
 
   private async blocks(req: Request, res: Response) {
-    const gte = Math.floor(Number(req.params.gte || 1));
-    const lte = Math.floor(Number(req.params.lte || 0));
+    const gte: number = Math.floor(Number(req.params.gte || 1));
+    const lte: number = Math.floor(Number(req.params.lte || 0));
     if (gte < 1) {
       return res.status(404).end();
     }
@@ -227,8 +236,8 @@ export class Api {
   }
 
   private async transaction(req: Request, res: Response) {
-    const origin = req.params.origin || '';
-    const ident = req.params.ident || '';
+    const origin: string = req.params.origin || '';
+    const ident: string = req.params.ident || '';
     if (!origin || !ident) {
       return res.status(404).end();
     }
@@ -243,9 +252,8 @@ export class Api {
     return res.json(this.server.getStackModifyStake());
   }
 
-  //@FIXME API KEY!
   private async putTransaction(req: Request, res: Response) {
-    const ident = this.server.stackTx(req.body, req.params.ident);
+    const ident: string | false = this.server.stackTx(req.body, req.params.ident);
     if (ident) {
       return res.json({ ident: ident });
     }
