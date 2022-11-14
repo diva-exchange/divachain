@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2021 diva.exchange
+# Copyright (C) 2021-2022 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -22,21 +22,21 @@
 set -e
 
 PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
-cd ${PROJECT_PATH}
-PROJECT_PATH=`pwd`/
+cd "${PROJECT_PATH}"
+PROJECT_PATH=$( pwd )
 
-source "${PROJECT_PATH}bin/echos.sh"
-source "${PROJECT_PATH}bin/helpers.sh"
+source "${PROJECT_PATH}"/bin/echos.sh
+source "${PROJECT_PATH}"/bin/helpers.sh
 
 if ! command_exists docker; then
   error "docker not available. Please install it first.";
   exit 1
 fi
 
-TAG=$(<${PROJECT_PATH}/build/version)
+TAG=$(<"${PROJECT_PATH}"/build/version)
 info "Building docker image divax/divachain:${TAG}..."
-sudo docker build --force-rm --pull --no-cache -f ${PROJECT_PATH}Dockerfile -t divax/divachain:${TAG} .
+sudo docker build --force-rm --pull --no-cache -f "${PROJECT_PATH}"/Dockerfile -t divax/divachain:"${TAG}" .
 
 TAG=current
 info "Building  docker image divax/divachain:${TAG}..."
-sudo docker build --force-rm --pull --no-cache -f ${PROJECT_PATH}Dockerfile -t divax/divachain:${TAG} .
+sudo docker build --force-rm --pull --no-cache -f "${PROJECT_PATH}"/Dockerfile -t divax/divachain:"${TAG}" .
