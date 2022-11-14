@@ -32,6 +32,11 @@ To create a docker based local environment use the project https://github.com/di
 ## Configuration
 The configuration can be controlled using environment variables.
 
+### LOG_LEVEL
+Default: warn
+
+Available levels: trace, info, warn, error, critical
+
 ### NO_BOOTSTRAPPING
 Set to 1 to skip bootstrapping.
 
@@ -210,6 +215,8 @@ _Error handling:_ 404 (Not Found) will be returned if the transaction is not ava
 #### PUT /transaction/{ident?}
 Submit a new transaction proposal to the network. The body must contain an array of commands.
 
+The request must set the currently valid API token (a string) as the header "diva-token-api". This is a protected request and to gather its credentials, access to the local filesystem of a node is required. The local wallet also holds the currently valid API token.
+
 Example of such a transaction proposal, containing two commands:
 ```
 [
@@ -227,15 +234,15 @@ Request to join the network.
 
 Send this GET request to any remote peer in the network which is online. This remote peer will later - in some seconds or even minutes - send back an independent GET request to the local /challenge/ endpoint. 
 
-#### GET /leave/{address}
-_Internal_: part of an automated process.
-
-TBD.
-
 #### GET /challenge/{token}
 _Internal_: part of an automated process.
 
 Response will contain the signed token. Verify the response with the public key of the remote peer.
+
+#### PUT /leave
+Request to leave the network.
+
+The request must set the currently valid API token (a string) as the header "diva-token-api". This is a protected request and to gather its credentials, access to the local filesystem of a node is required. The local wallet also holds the currently valid API token. 
 
 ### Network Synchronization
 
