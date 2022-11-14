@@ -111,6 +111,7 @@ const MIN_API_MAX_QUERY_SIZE = 10;
 const MAX_API_MAX_QUERY_SIZE = 100;
 
 export class Config {
+  public is_testnet: boolean = true;
   public debug_performance: boolean = false;
   public bootstrap: string = '';
   public VERSION: string = '';
@@ -158,6 +159,9 @@ export class Config {
 
   static async make(c: Configuration): Promise<Config> {
     const self = new Config();
+
+    // TESTNET mode
+    self.is_testnet = (process.env.IS_TESTNET || false) === '1';
 
     // GENESIS mode
     if (process.env.GENESIS === '1') {
