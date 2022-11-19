@@ -2,11 +2,11 @@
 
 See it in action: [DIVA Testnet](https://testnet.diva.exchange) 
 
-This is a Blockchain implementation using Practical Byzantine Fault Tolerance (PBFT) in combination with Proof-of-Stake (PoS) as a consensus algorithm. It is therefore a "Weighted Practical Byzantine Fault Tolerance" consensus.
+This is a Blockchain implementation using Proof-of-Stake (PoS) as a consensus algorithm.
 
 This is a fully anonymous ("Privacy-By-Design"), very lightweight, fast, low-energy and permissionless blockchain.
 
-The load of the PBFT consensus is network bound. The chain gets built by "communication" instead of "computation". Therefore many messages are crossing the network.
+The load of the consensus is network bound. The chain gets built by "communication" instead of "computation". Therefore many messages are crossing the network.
 
 The peers in the network communicate over I2P. The peers build the tunnels between each other using a secure and efficient "Challenge/Auth" process based on regular asymmetric keys (public/private keys). "Sodium" gets used as the single crypto library - so all crypto-related code is based on solid, very well tested and proven code.  
 
