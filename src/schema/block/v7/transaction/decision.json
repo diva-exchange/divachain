@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "/schema/block/v7/transaction/decision.json",
 
   "type": "object",
@@ -18,7 +18,7 @@
     },
     "h": {
       "type": "integer",
-      "minimum": 1
+      "minimum": 2
     },
     "d": {
       "type": "string",

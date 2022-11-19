@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "/schema/message/confirm-block.json",
 
   "type": "object",
@@ -16,7 +16,7 @@
     "votes": {
       "type": "array",
       "items": {
-        "$ref": "/schema/block/v7/vote.json"
+        "$ref": "../block/v7/vote.json"
       },
       "minItems": 1,
       "maxItems": 16,

@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "/schema/message/add-tx.json",
 
   "type": "object",
@@ -14,7 +14,7 @@
       "minimum": 1
     },
     "tx": {
-      "$ref": "/schema/block/v7/transaction/tx.json"
+      "$ref": "../block/v7/transaction/tx.json"
     }
   },
   "required": [
