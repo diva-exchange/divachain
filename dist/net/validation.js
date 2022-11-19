@@ -10,7 +10,6 @@ const logger_1 = require("../logger");
 const path_1 = __importDefault(require("path"));
 const util_1 = require("../chain/util");
 const blockchain_1 = require("../chain/blockchain");
-const config_1 = require("../config");
 class Validation {
     constructor(server) {
         this.server = server;
@@ -84,11 +83,19 @@ class Validation {
             return false;
         }
         let _aOrigin = [];
-        if (doVoteValidation) {
-            if (votes.length < this.server.getBlockchain().getQuorum()) {
-                logger_1.Logger.trace(`Validation.validateBlock() - not enough votes, block #${height}`);
+        for (const transaction of tx) {
+            if (_aOrigin.includes(transaction.origin)) {
+                logger_1.Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
                 return false;
             }
+            _aOrigin.push(transaction.origin);
+            if (!this.validateTx(height, transaction)) {
+                logger_1.Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
+                return false;
+            }
+        }
+        if (doVoteValidation) {
+            _aOrigin = [];
             for (const vote of votes) {
                 if (_aOrigin.includes(vote.origin)) {
                     logger_1.Logger.trace(`Validation.validateBlock() - Multiple votes from same origin, block #${height}`);
@@ -100,16 +107,9 @@ class Validation {
                     return false;
                 }
             }
-        }
-        _aOrigin = [];
-        for (const transaction of tx) {
-            if (_aOrigin.includes(transaction.origin)) {
-                logger_1.Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
-                return false;
-            }
-            _aOrigin.push(transaction.origin);
-            if (!this.validateTx(height, transaction)) {
-                logger_1.Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
+            if (!this.server.getBlockchain().hasQuorumWeighted(votes.map((vs) => vs.origin))) {
+                logger_1.Logger.trace(JSON.stringify(votes.map((vs) => vs.origin)));
+                logger_1.Logger.trace(`Validation.validateBlock() - votes not reaching quorum, block #${height}`);
                 return false;
             }
         }
@@ -123,11 +123,11 @@ class Validation {
             tx.commands.filter((c) => {
                 switch (c.command || '') {
                     case blockchain_1.Blockchain.COMMAND_ADD_PEER:
-                        return this.server.getBlockchain().getMapPeer().size < config_1.MAX_NETWORK_SIZE;
-                    case blockchain_1.Blockchain.COMMAND_REMOVE_PEER:
                     case blockchain_1.Blockchain.COMMAND_MODIFY_STAKE:
                     case blockchain_1.Blockchain.COMMAND_DATA:
                         return true;
+                    case blockchain_1.Blockchain.COMMAND_REMOVE_PEER:
+                        return tx.origin === c.publicKey;
                     case blockchain_1.Blockchain.COMMAND_DECISION:
                         return (c.h >= height && !this.server.getBlockchain().isDecisionTaken(c));
                     default:

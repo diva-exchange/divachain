@@ -141,8 +141,7 @@ class Server {
             return false;
         }
         const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
-        const quorum = this.blockchain.getQuorum();
-        if (credit > quorum * -1) {
+        if (credit > -1 * (this.network.getArrayOnline().length / 3)) {
             this.mapStakeCredit.set(forPublicKey, credit);
             this.stackModifyStake.push({
                 command: blockchain_1.Blockchain.COMMAND_MODIFY_STAKE,
@@ -150,7 +149,7 @@ class Server {
                 ident: ident,
                 stake: stake,
             });
-            if (this.stackModifyStake.length >= quorum) {
+            if (this.stackModifyStake.length >= this.network.getArrayOnline().length / 3) {
                 this.stackTx(this.stackModifyStake);
                 this.stackModifyStake = [];
             }

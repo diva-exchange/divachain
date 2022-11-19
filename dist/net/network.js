@@ -135,23 +135,19 @@ class Network extends events_1.default {
         this.timeoutP2P = setTimeout(() => {
             this.p2pNetwork();
         }, this.server.config.network_p2p_interval_ms);
-        this.mapOnline.set(this.publicKey, Date.now());
         if (aNetwork.length < 2 || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
             return;
         }
-        this.arrayNetwork = aNetwork;
-        this.arrayBroadcast = [...this.server.getBlockchain().getMapPeer().keys()].filter((pk) => pk !== this.publicKey);
+        this.arrayNetwork = aNetwork.sort((p1, p2) => (p1.publicKey > p2.publicKey ? 1 : -1));
+        this.arrayBroadcast = util_1.Util.shuffleArray(this.arrayNetwork.map((p) => p.publicKey).filter((pk) => pk !== this.publicKey));
+        this.mapOnline.set(this.publicKey, Date.now());
         this.timeoutStatus = setTimeout(() => {
             this.broadcast(new status_1.Status().create(this.server.getWallet(), status_1.ONLINE, this.server.getBlockchain().getHeight()));
-        }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.9));
+        }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.99));
     }
-    cleanMapOnline() {
-        const now = Date.now();
-        this.mapOnline.forEach((_dt, _pk) => {
-            if (_dt < now - this.server.config.block_retry_timeout_ms * this.arrayNetwork.length) {
-                this.mapOnline.delete(_pk);
-            }
-        });
+    isOnline(publicKey) {
+        return this.publicKey === publicKey ||
+            (this.mapOnline.get(publicKey) || 0) > Date.now() - (this.server.config.network_p2p_interval_ms * 3);
     }
     getArrayNetwork() {
         return this.arrayNetwork;
@@ -162,21 +158,11 @@ class Network extends events_1.default {
     broadcast(m, isFinalHop = false) {
         const msg = m.asBuffer();
         if (isFinalHop && m.dest() !== '') {
-            try {
-                m.dest() !== m.origin() && this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, msg);
-            }
-            catch (error) {
-                logger_1.Logger.warn(`Network.broadcast() ${error.toString()}`);
-            }
+            m.dest() !== m.origin() && this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, msg);
         }
         else {
             this.arrayBroadcast.forEach((pk) => {
-                try {
-                    m.origin() !== pk && this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, msg);
-                }
-                catch (error) {
-                    logger_1.Logger.warn(`Network.broadcast() ${error.toString()}`);
-                }
+                m.origin() !== pk && this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, msg);
             });
         }
     }
@@ -190,19 +176,16 @@ class Network extends events_1.default {
                 logger_1.Logger.warn(`Network.fetchFromApi() ${endpoint} - ${error.toString()}`);
             }
         }
-        else if (this.mapOnline.size) {
-            const aNetwork = util_1.Util.shuffleArray(this.arrayNetwork.filter((v) => v.http !== this.server.config.http));
+        else if (this.arrayBroadcast.length) {
             let urlApi = '';
-            let p = aNetwork.pop();
-            while (p) {
-                urlApi = `http://${(0, i2p_sam_1.toB32)(p.http)}.b32.i2p/${endpoint}`;
+            for (const pk of this.arrayBroadcast) {
+                urlApi = `http://${(0, i2p_sam_1.toB32)(this.server.getBlockchain().getPeer(pk).http)}.b32.i2p/${endpoint}`;
                 try {
                     return JSON.parse(await this.fetch(urlApi, timeout));
                 }
                 catch (error) {
                     logger_1.Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
                 }
-                p = aNetwork.pop();
             }
         }
         else {

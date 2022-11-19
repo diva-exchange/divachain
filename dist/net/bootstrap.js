@@ -28,9 +28,8 @@ class Bootstrap {
             await this.server.getBlockchain().reset(genesis);
             let h = 1;
             while (blockNetwork.height > h) {
-                const arrayBlocks = (await this.server.getNetwork().fetchFromApi('sync/' + (h + 1))) || [];
-                for (const b of arrayBlocks) {
-                    this.server.getBlockchain().add(b);
+                for (const b of (await this.server.getNetwork().fetchFromApi('sync/' + (h + 1))) || []) {
+                    await this.server.getBlockchain().add(b);
                 }
                 h = this.server.getBlockchain().getLatestBlock().height;
             }

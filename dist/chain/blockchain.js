@@ -19,7 +19,6 @@ class Blockchain {
         this.mapHttp = new Map();
         this.mapUdp = new Map();
         this.quorumWeighted = 0;
-        this.quorum = 0;
         this.mapModifyStake = new Map();
         this.mapVoteStake = new Map();
         this.arrayDecision = {};
@@ -77,17 +76,15 @@ class Blockchain {
         await this.updateBlockData(String(1).padStart(16, '0'), JSON.stringify(genesis));
         await this.init();
     }
-    add(block) {
+    async add(block) {
         if (this.height + 1 !== block.height ||
             block.previousHash !== this.latestBlock.hash ||
             !this.server.getValidation().validateBlock(block)) {
             return false;
         }
+        await this.updateBlockData(String(block.height).padStart(16, '0'), JSON.stringify(block));
+        await this.processState(block);
         this.updateCache(block);
-        (async (b) => {
-            await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b));
-            await this.processState(b);
-        })(block);
         return true;
     }
     updateCache(block) {
@@ -154,7 +151,7 @@ class Blockchain {
         return a.reverse();
     }
     async getTransaction(origin, ident) {
-        for await (const b of [...this.mapBlocks.values()]) {
+        for (const b of [...this.mapBlocks.values()]) {
             const t = b.tx.find((t) => t.origin === origin && t.ident === ident);
             if (t) {
                 return { height: b.height, transaction: t };
@@ -200,17 +197,12 @@ class Blockchain {
             return 0;
         }
     }
-    getQuorum() {
-        if (this.quorum <= 0) {
-            throw new Error('Invalid quorum');
-        }
-        return this.quorum * (2 / 3);
-    }
-    getQuorumWeighted() {
-        if (this.quorumWeighted <= 0) {
-            throw new Error('Invalid weighted quorum');
-        }
-        return this.quorumWeighted * 0.5;
+    hasQuorumWeighted(arrayOrigin) {
+        let w = 0;
+        arrayOrigin.forEach((origin) => {
+            w += this.getStake(origin);
+        });
+        return w > this.quorumWeighted * 0.5;
     }
     getMapPeer() {
         return this.mapPeer;
@@ -287,7 +279,7 @@ class Blockchain {
             udp: command.udp,
             stake: 1,
         };
-        this.quorum++;
+        this.quorumWeighted = this.quorumWeighted + peer.stake;
         this.mapPeer.set(command.publicKey, peer);
         this.mapHttp.set(peer.http, command.publicKey);
         this.mapUdp.set(peer.udp, command.publicKey);
@@ -299,7 +291,6 @@ class Blockchain {
         }
         const peer = this.mapPeer.get(command.publicKey);
         this.quorumWeighted = this.quorumWeighted - peer.stake;
-        this.quorum--;
         this.mapPeer.delete(command.publicKey);
         this.mapHttp.delete(peer.http);
         this.mapUdp.delete(peer.udp);
@@ -317,18 +308,17 @@ class Blockchain {
         }
         a.push(origin);
         this.mapModifyStake.set(i, a);
-        if (a.length < this.getQuorum()) {
-            return;
+        if (this.hasQuorumWeighted(a)) {
+            this.mapModifyStake.delete(i);
+            const peer = this.mapPeer.get(command.publicKey);
+            if (peer.stake + command.stake < 0) {
+                command.stake = -1 * peer.stake;
+            }
+            this.quorumWeighted += command.stake;
+            peer.stake += command.stake;
+            this.mapPeer.set(command.publicKey, peer);
+            await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
         }
-        this.mapModifyStake.delete(i);
-        const peer = this.mapPeer.get(command.publicKey);
-        if (peer.stake + command.stake < 1) {
-            command.stake = -1 * peer.stake;
-        }
-        this.quorumWeighted = this.quorumWeighted + command.stake;
-        peer.stake = peer.stake + command.stake;
-        this.mapPeer.set(command.publicKey, peer);
-        await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
     }
     async updateBlockData(key, data) {
         try {

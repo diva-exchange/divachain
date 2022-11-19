@@ -35,8 +35,6 @@ const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
-const MIN_BLOCK_RETRY_TIMEOUT_MS = 1000;
-const MAX_BLOCK_RETRY_TIMEOUT_MS = 10000;
 const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
 const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
 const MIN_API_MAX_QUERY_SIZE = 10;
@@ -214,7 +212,6 @@ class Config {
         self.network_timeout_ms = Config.b(c.network_timeout_ms || process.env.NETWORK_TIMEOUT_MS || DEFAULT_NETWORK_TIMEOUT_MS, MIN_NETWORK_TIMEOUT_MS, MAX_NETWORK_TIMEOUT_MS);
         self.network_p2p_interval_ms = Config.b(c.network_p2p_interval_ms || process.env.NETWORK_P2P_INTERVAL_MS, MIN_NETWORK_P2P_INTERVAL_MS, MAX_NETWORK_P2P_INTERVAL_MS);
         self.network_sync_size = Config.b(c.network_sync_size || process.env.NETWORK_SYNC_SIZE, MIN_NETWORK_SYNC_SIZE, MAX_NETWORK_SYNC_SIZE);
-        self.block_retry_timeout_ms = Config.b(c.block_retry_timeout_ms || process.env.BLOCK_RETRY_TIMEOUT_MS, MIN_BLOCK_RETRY_TIMEOUT_MS, MAX_BLOCK_RETRY_TIMEOUT_MS);
         self.blockchain_max_blocks_in_memory = Config.b(c.blockchain_max_blocks_in_memory ||
             process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY ||
             MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY, MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY, MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY);

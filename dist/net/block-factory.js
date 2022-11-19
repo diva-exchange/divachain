@@ -43,25 +43,17 @@ class BlockFactory {
         this.removeTimeout();
     }
     calcValidator() {
-        const h = this.blockchain.getHeight();
-        const a = this.network
-            .getArrayNetwork()
-            .map((p) => p.publicKey)
-            .sort();
-        const l = a.length;
-        const mod = h % l;
-        const shift = (h + Math.floor(h / l)) % l;
-        let i = mod;
-        let r = 0;
-        do {
-            if (this.network.getArrayOnline().includes(a[i])) {
-                this.validator = a[i];
-                return;
-            }
-            i = (!r ? i + shift : i) + 1;
-            i = i < l ? i : i - l;
-        } while (r++ < l);
-        logger_1.Logger.warn('No validator found. Network unstable.');
+        const a = this.network.getArrayNetwork().map((p) => p.publicKey);
+        let i = this.blockchain.getHeight() % a.length;
+        if (!this.network.isOnline(a[i])) {
+            i = util_1.Util.stringDiff(this.blockchain.getLatestBlock().hash, this.blockchain.getLatestBlock().previousHash);
+            i = i % a.length;
+        }
+        while (!this.network.isOnline(a[i])) {
+            i++;
+            i = i >= a.length ? 0 : i;
+        }
+        this.validator = a[i];
     }
     isValidator(origin = this.wallet.getPublicKey()) {
         return origin === this.validator;
@@ -163,14 +155,15 @@ class BlockFactory {
         this.setupRetry();
     }
     processSignBlock(signBlock) {
-        if (this.block.hash !== signBlock.hash() ||
-            this.block.votes.length >= this.blockchain.getQuorum() ||
-            this.block.votes.some((v) => v.origin === signBlock.origin())) {
+        if (this.block.hash !== signBlock.hash() || this.block.votes.some((v) => v.origin === signBlock.origin())) {
             return;
         }
-        if (this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() }) >= this.blockchain.getQuorum()) {
+        this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() });
+        if (this.blockchain.hasQuorumWeighted(this.block.votes.map((vs) => vs.origin))) {
+            (async (block) => {
+                await this.addBlock(block);
+            })(this.block);
             this.network.broadcast(new confirm_block_1.ConfirmBlock().create(this.wallet, this.block.hash, this.block.votes));
-            this.addBlock(this.block);
         }
     }
     processConfirmBlock(confirmBlock) {
@@ -178,7 +171,9 @@ class BlockFactory {
             return;
         }
         this.block.votes = confirmBlock.votes();
-        this.addBlock(this.block);
+        (async (block) => {
+            await this.addBlock(block);
+        })(this.block);
     }
     processStatus(status) {
         let a;
@@ -187,10 +182,11 @@ class BlockFactory {
             case status_1.ONLINE:
                 if (!this.isSyncing && h < status.height()) {
                     this.isSyncing = true;
+                    logger_1.Logger.trace(`${this.server.config.port} isSyncing ${h} -> ${status.height()}`);
                     (async () => {
-                        ((await this.network.fetchFromApi('sync/' + (h + 1))) || []).forEach((block) => {
-                            this.addBlock(block);
-                        });
+                        for (const block of (await this.network.fetchFromApi('sync/' + (h + 1))) || []) {
+                            await this.addBlock(block);
+                        }
                         this.isSyncing = false;
                     })();
                 }
@@ -212,9 +208,10 @@ class BlockFactory {
                 logger_1.Logger.warn(`${this.config.port}: Unknown status: ${status.status()}`);
         }
     }
-    addBlock(block) {
-        if (!this.blockchain.add(block)) {
+    async addBlock(block) {
+        if (!(await this.blockchain.add(block))) {
             logger_1.Logger.error(`${this.config.port}: addBlock failed - ${block.height}`);
+            return;
         }
         this.clear(block);
         this.calcValidator();
@@ -241,11 +238,10 @@ class BlockFactory {
     setupRetry() {
         clearTimeout(this.timeoutRetry);
         this.timeoutRetry = setTimeout(() => {
-            logger_1.Logger.trace(`${this.config.port} ${this.wallet.getPublicKey()}: RETRY`);
+            logger_1.Logger.info('Retrying to generate consensus...');
             this.clear();
-            this.network.cleanMapOnline();
             this.doAddTx();
-        }, this.config.block_retry_timeout_ms * this.network.getArrayNetwork().length);
+        }, this.config.network_p2p_interval_ms * 2);
     }
     removeTimeout() {
         clearTimeout(this.timeoutAddTx);
