@@ -205,36 +205,31 @@ export class Network extends EventEmitter {
     }
   }
 
-  // update network, randomize broadcast peers and ping 1/3rd of the network peers
+  // update network, randomize broadcast peers and send out status message to network
   private p2pNetwork() {
     const aNetwork = [...this.server.getBlockchain().getMapPeer().values()];
     this.timeoutP2P = setTimeout(() => {
       this.p2pNetwork();
     }, this.server.config.network_p2p_interval_ms);
-    this.mapOnline.set(this.publicKey, Date.now());
 
     if (aNetwork.length < 2 || !Object.keys(this.samForward).length || !Object.keys(this.samUDP).length) {
       return;
     }
-
-    this.arrayNetwork = aNetwork;
-    this.arrayBroadcast = [...this.server.getBlockchain().getMapPeer().keys()].filter(
-      (pk: string) => pk !== this.publicKey
+    this.arrayNetwork = aNetwork.sort((p1: Peer, p2: Peer) => (p1.publicKey > p2.publicKey ? 1 : -1));
+    this.arrayBroadcast = Util.shuffleArray(
+      this.arrayNetwork.map((p: Peer) => p.publicKey).filter((pk: string) => pk !== this.publicKey)
     );
+    this.mapOnline.set(this.publicKey, Date.now());
 
-    // status message
+    // status message, broadcast to the network
     this.timeoutStatus = setTimeout(() => {
       this.broadcast(new Status().create(this.server.getWallet(), ONLINE, this.server.getBlockchain().getHeight()));
-    }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.9));
+    }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.99));
   }
 
-  cleanMapOnline() {
-    const now: number = Date.now();
-    this.mapOnline.forEach((_dt, _pk) => {
-      if (_dt < now - this.server.config.block_retry_timeout_ms * this.arrayNetwork.length) {
-        this.mapOnline.delete(_pk);
-      }
-    });
+  isOnline(publicKey: string): boolean {
+    return this.publicKey === publicKey ||
+      (this.mapOnline.get(publicKey) || 0) > Date.now() - (this.server.config.network_p2p_interval_ms * 3);
   }
 
   getArrayNetwork(): Array<Peer> {
@@ -249,19 +244,11 @@ export class Network extends EventEmitter {
     const msg: Buffer = m.asBuffer();
     if (isFinalHop && m.dest() !== '') {
       // send to single destination
-      try {
-        m.dest() !== m.origin() && this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, msg);
-      } catch (error: any) {
-        Logger.warn(`Network.broadcast() ${error.toString()}`);
-      }
+      m.dest() !== m.origin() && this.samUDP.send(this.server.getBlockchain().getPeer(m.dest()).udp, msg);
     } else {
       // broadcast to network
-      this.arrayBroadcast.forEach((pk) => {
-        try {
-          m.origin() !== pk && this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, msg);
-        } catch (error: any) {
-          Logger.warn(`Network.broadcast() ${error.toString()}`);
-        }
+      this.arrayBroadcast.forEach((pk: string) => {
+        m.origin() !== pk && this.samUDP.send(this.server.getBlockchain().getPeer(pk).udp, msg);
       });
     }
   }
@@ -274,21 +261,15 @@ export class Network extends EventEmitter {
       } catch (error: any) {
         Logger.warn(`Network.fetchFromApi() ${endpoint} - ${error.toString()}`);
       }
-    } else if (this.mapOnline.size) {
-      const aNetwork: Array<Peer> = Util.shuffleArray(
-        this.arrayNetwork.filter((v: Peer) => v.http !== this.server.config.http)
-      );
+    } else if (this.arrayBroadcast.length) {
       let urlApi: string = '';
-      let p: Peer | undefined = aNetwork.pop();
-
-      while (p) {
-        urlApi = `http://${toB32(p.http)}.b32.i2p/${endpoint}`;
+      for (const pk of this.arrayBroadcast) {
+        urlApi = `http://${toB32(this.server.getBlockchain().getPeer(pk).http)}.b32.i2p/${endpoint}`;
         try {
           return JSON.parse(await this.fetch(urlApi, timeout));
         } catch (error: any) {
           Logger.warn(`Network.fetchFromApi() ${urlApi} - ${error.toString()}`);
         }
-        p = aNetwork.pop();
       }
     } else {
       Logger.warn('Network unavailable');

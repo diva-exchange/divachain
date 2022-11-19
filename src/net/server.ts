@@ -206,11 +206,10 @@ export class Server {
     }
 
     const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
-    const quorum = this.blockchain.getQuorum();
 
-    //@TODO review
+    //@TODO test the stability of the algorithm over time
     // simple algorithm for credits equalizes the stake distribution
-    if (credit > quorum * -1) {
+    if (credit > -1 * (this.network.getArrayOnline().length / 3)) {
       this.mapStakeCredit.set(forPublicKey, credit);
       this.stackModifyStake.push({
         command: Blockchain.COMMAND_MODIFY_STAKE,
@@ -219,8 +218,7 @@ export class Server {
         stake: stake,
       } as CommandModifyStake);
 
-      //@TODO review
-      if (this.stackModifyStake.length >= quorum) {
+      if (this.stackModifyStake.length >= this.network.getArrayOnline().length / 3) {
         this.stackTx(this.stackModifyStake);
         this.stackModifyStake = [];
       }

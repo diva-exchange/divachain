@@ -63,7 +63,6 @@ export class Blockchain {
   private mapUdp: Map<string, string> = new Map();
 
   private quorumWeighted: number = 0;
-  private quorum: number = 0;
 
   private mapModifyStake: Map<string, Array<string>> = new Map();
   private mapVoteStake: Map<string, number> = new Map();
@@ -134,7 +133,7 @@ export class Blockchain {
     await this.init();
   }
 
-  add(block: BlockStruct): boolean {
+  async add(block: BlockStruct): Promise<boolean> {
     if (
       this.height + 1 !== block.height ||
       block.previousHash !== this.latestBlock.hash ||
@@ -142,12 +141,9 @@ export class Blockchain {
     ) {
       return false;
     }
+    await this.updateBlockData(String(block.height).padStart(16, '0'), JSON.stringify(block));
+    await this.processState(block);
     this.updateCache(block);
-
-    (async (b: BlockStruct) => {
-      await this.updateBlockData(String(b.height).padStart(16, '0'), JSON.stringify(b));
-      await this.processState(b);
-    })(block);
 
     return true;
   }
@@ -162,24 +158,26 @@ export class Blockchain {
       this.mapBlocks.delete(this.height - this.server.config.blockchain_max_blocks_in_memory);
     }
 
+    //@TODO test the stability of the algorithm over time
     // voting stake
     block.votes.forEach((v) => {
       this.hasPeer(v.origin) && this.mapVoteStake.set(v.origin, (this.mapVoteStake.get(v.origin) || 0) + 1);
     });
     if (this.mapVoteStake.size > 0) {
-      // alphabet, size 64 chars: ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
+      // alphabet (size 64 chars): ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
       // match probability, m: 1 / 64
       // hash length, n: 43
       // threshold (same char), k: STAKE_VOTE_MATCH_THRESHOLD
       // binomial coefficient, b: n!/[k!*(n-k)!]
       // P(k): b * m^k
-      // Example, 4 or more equal chars: 43! / (4! * (43-4)!) * ((1/64)^4) = 0.00735 = 0.74% = ~ every 136th block
-      // Example, 3 or more equal chars: 43! / (3! * (43-3)!) * ((1/64)^3) = 0.04707 = 4.71% = ~ every 21st block
+      // Examples, probabilities:
+      // P(3), 3 or more equal chars: 43! / (3! * (43-3)!) * ((1/64)^3) = 0.04707 = 4.71% = ~ every 21st block
+      // P(4), 4 or more equal chars: 43! / (4! * (43-4)!) * ((1/64)^4) = 0.00735 = 0.74% = ~ every 136th block
       if (
         (block.hash.match(new RegExp(block.hash.charAt(block.height % block.hash.length), 'g')) || []).length >=
         STAKE_VOTE_MATCH_THRESHOLD
       ) {
-        const vs = [...this.mapVoteStake.entries()].filter((a) => {
+        const vs = [...this.mapVoteStake.entries()].filter((a: [string, number]) => {
           return a[0] !== this.publicKey;
         });
         vs.sort((a, b) => (a[1] > b[1] ? -1 : a[1] === b[1] && a[0] > b[0] ? -1 : 1));
@@ -283,7 +281,7 @@ export class Blockchain {
 
   async getTransaction(origin: string, ident: string): Promise<{ height: number; transaction: TransactionStruct }> {
     // cache
-    for await (const b of [...this.mapBlocks.values()]) {
+    for (const b of [...this.mapBlocks.values()]) {
       const t = b.tx.find((t: TransactionStruct) => t.origin === origin && t.ident === ident);
       if (t) {
         return { height: b.height, transaction: t };
@@ -337,20 +335,13 @@ export class Blockchain {
     }
   }
 
-  getQuorum(): number {
-    if (this.quorum <= 0) {
-      throw new Error('Invalid quorum');
-    }
+  hasQuorumWeighted(arrayOrigin: Array<string>): boolean {
+    let w: number = 0;
+    arrayOrigin.forEach((origin: string) => {
+      w += this.getStake(origin);
+    });
 
-    return this.quorum * (2 / 3); // PBFT
-  }
-
-  getQuorumWeighted(): number {
-    if (this.quorumWeighted <= 0) {
-      throw new Error('Invalid weighted quorum');
-    }
-
-    return this.quorumWeighted * 0.5; // PoS
+    return w > this.quorumWeighted * 0.5; // PoS
   }
 
   getMapPeer(): Map<string, Peer> {
@@ -443,7 +434,7 @@ export class Blockchain {
       udp: command.udp,
       stake: 1,
     };
-    this.quorum++;
+    this.quorumWeighted = this.quorumWeighted + peer.stake;
 
     this.mapPeer.set(command.publicKey, peer);
     this.mapHttp.set(peer.http, command.publicKey);
@@ -457,7 +448,6 @@ export class Blockchain {
     }
     const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
     this.quorumWeighted = this.quorumWeighted - peer.stake;
-    this.quorum--;
 
     this.mapPeer.delete(command.publicKey);
     this.mapHttp.delete(peer.http);
@@ -470,7 +460,7 @@ export class Blockchain {
       return;
     }
 
-    // if the origin voted for this local node: the origin receives some credits
+    // if the origin voted for this local node: the origin receives credits
     command.publicKey === this.publicKey && this.server.incStakeCredit(origin);
 
     const i = [command.publicKey, command.ident, command.stake].join('');
@@ -481,19 +471,20 @@ export class Blockchain {
 
     a.push(origin);
     this.mapModifyStake.set(i, a);
-    if (a.length < this.getQuorum()) {
-      return;
-    }
-    this.mapModifyStake.delete(i);
+    //@TODO review: Stake modification
+    if (this.hasQuorumWeighted(a)) {
+      this.mapModifyStake.delete(i);
 
-    const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
-    if (peer.stake + command.stake < 1) {
-      command.stake = -1 * peer.stake;
+      const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
+      // stake cannot drop below 0
+      if (peer.stake + command.stake < 0) {
+        command.stake = -1 * peer.stake;
+      }
+      this.quorumWeighted += command.stake;
+      peer.stake += command.stake;
+      this.mapPeer.set(command.publicKey, peer);
+      await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
     }
-    this.quorumWeighted = this.quorumWeighted + command.stake;
-    peer.stake = peer.stake + command.stake;
-    this.mapPeer.set(command.publicKey, peer);
-    await this.updateStateData(Blockchain.STATE_PEER_IDENT + command.publicKey, peer.stake.toString());
   }
 
   private async updateBlockData(key: string, data: string) {

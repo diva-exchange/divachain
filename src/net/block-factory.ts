@@ -38,7 +38,7 @@ import { Block, BlockStruct } from '../chain/block';
 import { Message } from './message/message';
 import { ProposeBlock } from './message/propose-block';
 import { SignBlock } from './message/sign-block';
-import { ConfirmBlock } from './message/confirm-block';
+import { ConfirmBlock, VoteStruct } from './message/confirm-block';
 import { Status, ONLINE, OFFLINE } from './message/status';
 import { Util } from '../chain/util';
 
@@ -98,27 +98,18 @@ export class BlockFactory {
 
   // round-robin, respecting online peers
   private calcValidator(): void {
-    const h: number = this.blockchain.getHeight();
-    const a: Array<string> = this.network
-      .getArrayNetwork()
-      .map((p: Peer) => p.publicKey)
-      .sort();
-    const l: number = a.length;
-    const mod: number = h % l; // 0 >= mod < l
-    const shift: number = (h + Math.floor(h / l)) % l;
-    let i = mod;
-    let r = 0;
-    do {
-      if (this.network.getArrayOnline().includes(a[i])) {
-        this.validator = a[i];
-        return;
-      }
-      // round-robin
-      i = (!r ? i + shift : i) + 1;
-      i = i < l ? i : i - l;
-    } while (r++ < l);
+    const a: Array<string> = this.network.getArrayNetwork().map((p: Peer) => p.publicKey);
+    let i: number = this.blockchain.getHeight() % a.length;
+    if (!this.network.isOnline(a[i])) {
+      i = Util.stringDiff(this.blockchain.getLatestBlock().hash, this.blockchain.getLatestBlock().previousHash);
+      i = i % a.length;
+    }
 
-    Logger.warn('No validator found. Network unstable.');
+    while (!this.network.isOnline(a[i])) {
+      i++;
+      i = i >= a.length ? 0 : i;
+    }
+    this.validator = a[i];
   }
 
   private isValidator(origin: string = this.wallet.getPublicKey()) {
@@ -259,20 +250,19 @@ export class BlockFactory {
   // Validator process: incoming signature for block
   private processSignBlock(signBlock: SignBlock) {
     // process only valid signatures
-    if (
-      this.block.hash !== signBlock.hash() ||
-      this.block.votes.length >= this.blockchain.getQuorum() ||
-      this.block.votes.some((v) => v.origin === signBlock.origin())
-    ) {
+    if (this.block.hash !== signBlock.hash() || this.block.votes.some((v) => v.origin === signBlock.origin())) {
       return;
     }
 
-    if (this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() }) >= this.blockchain.getQuorum()) {
+    this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() });
+    if (this.blockchain.hasQuorumWeighted(this.block.votes.map((vs: VoteStruct) => vs.origin))) {
+      // add the block to the chain
+      (async (block: BlockStruct) => {
+        await this.addBlock(block);
+      })(this.block);
+
       // broadcast confirmation
       this.network.broadcast(new ConfirmBlock().create(this.wallet, this.block.hash, this.block.votes));
-
-      // add the block to the chain
-      this.addBlock(this.block);
     }
   }
 
@@ -283,7 +273,9 @@ export class BlockFactory {
     }
 
     this.block.votes = confirmBlock.votes();
-    this.addBlock(this.block);
+    (async (block: BlockStruct) => {
+      await this.addBlock(block);
+    })(this.block);
   }
 
   private processStatus(status: Status) {
@@ -294,11 +286,15 @@ export class BlockFactory {
         // fetch sync packets
         if (!this.isSyncing && h < status.height()) {
           this.isSyncing = true;
+
+          //@FIXME logging
+          Logger.trace(`${this.server.config.port} isSyncing ${h} -> ${status.height()}`);
+
           // fetch blocks and process them
           (async () => {
-            ((await this.network.fetchFromApi('sync/' + (h + 1))) || []).forEach((block: BlockStruct) => {
-              this.addBlock(block);
-            });
+            for (const block of (await this.network.fetchFromApi('sync/' + (h + 1))) || []) {
+              await this.addBlock(block);
+            }
             this.isSyncing = false;
           })();
         }
@@ -332,9 +328,10 @@ export class BlockFactory {
     }
   }
 
-  private addBlock(block: BlockStruct) {
-    if (!this.blockchain.add(block)) {
+  private async addBlock(block: BlockStruct) {
+    if (!(await this.blockchain.add(block))) {
       Logger.error(`${this.config.port}: addBlock failed - ${block.height}`);
+      return;
     }
 
     this.clear(block);
@@ -370,12 +367,10 @@ export class BlockFactory {
   private setupRetry() {
     clearTimeout(this.timeoutRetry);
     this.timeoutRetry = setTimeout(() => {
-      //@FIXME logging
-      Logger.trace(`${this.config.port} ${this.wallet.getPublicKey()}: RETRY`);
+      Logger.info('Retrying to generate consensus...');
       this.clear();
-      this.network.cleanMapOnline();
       this.doAddTx();
-    }, this.config.block_retry_timeout_ms * this.network.getArrayNetwork().length);
+    }, this.config.network_p2p_interval_ms * 2);
   }
 
   private removeTimeout() {

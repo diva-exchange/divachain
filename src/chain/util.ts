@@ -70,4 +70,26 @@ export class Util {
     const qi3 = as[Math.floor(array.length * 0.75)] - as[0];
     return (qi3 - qi1) / (qi3 + qi1);
   }
+
+  static stringXOR(a: string, b: string): string {
+    if (!a.length || a.length !== b.length) {
+      throw new Error('Invalid string input');
+    }
+    let r = '';
+    for (let i = 0; i < a.length; i++) {
+      r = (parseInt(a.charAt(i), 16) ^ parseInt(b.charAt(i), 16)).toString(16) + r;
+    }
+    return r;
+  }
+
+  static stringDiff(a: string, b: string): number {
+    if (!a.length || a.length !== b.length) {
+      throw new Error('Invalid string input');
+    }
+    let r: number = 0;
+    for (let i = 0; i < a.length; i++) {
+      r += Math.abs(a.charCodeAt(i) - b.charCodeAt(i));
+    }
+    return r;
+  }
 }

@@ -21,12 +21,12 @@ import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
 import { Message, MessageStruct } from './message/message';
 import { BlockStruct } from '../chain/block';
 import { Logger } from '../logger';
-import { CommandDecision, TransactionStruct } from '../chain/transaction';
+import { CommandDecision, CommandRemovePeer, TransactionStruct } from '../chain/transaction';
 import path from 'path';
 import { Util } from '../chain/util';
 import { Blockchain } from '../chain/blockchain';
 import { Server } from './server';
-import { MAX_NETWORK_SIZE } from '../config';
+import { VoteStruct } from './message/confirm-block';
 
 export class Validation {
   private readonly server: Server;
@@ -117,12 +117,23 @@ export class Validation {
 
     let _aOrigin: Array<string> = [];
 
-    // vote validation
-    if (doVoteValidation) {
-      if (votes.length < this.server.getBlockchain().getQuorum()) {
-        Logger.trace(`Validation.validateBlock() - not enough votes, block #${height}`);
+    // transaction validation
+    for (const transaction of tx) {
+      if (_aOrigin.includes(transaction.origin)) {
+        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
         return false;
       }
+      _aOrigin.push(transaction.origin);
+
+      if (!this.validateTx(height, transaction)) {
+        Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
+        return false;
+      }
+    }
+
+    // vote validation
+    if (doVoteValidation) {
+      _aOrigin = [];
       for (const vote of votes) {
         if (_aOrigin.includes(vote.origin)) {
           Logger.trace(`Validation.validateBlock() - Multiple votes from same origin, block #${height}`);
@@ -135,19 +146,11 @@ export class Validation {
           return false;
         }
       }
-    }
+      if (!this.server.getBlockchain().hasQuorumWeighted(votes.map((vs: VoteStruct) => vs.origin))) {
+        //@FIXME logging
+        Logger.trace(JSON.stringify(votes.map((vs: VoteStruct) => vs.origin)));
 
-    // transaction validation
-    _aOrigin = [];
-    for (const transaction of tx) {
-      if (_aOrigin.includes(transaction.origin)) {
-        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
-        return false;
-      }
-      _aOrigin.push(transaction.origin);
-
-      if (!this.validateTx(height, transaction)) {
-        Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
+        Logger.trace(`Validation.validateBlock() - votes not reaching quorum, block #${height}`);
         return false;
       }
     }
@@ -165,12 +168,12 @@ export class Validation {
       tx.commands.filter((c) => {
         switch (c.command || '') {
           case Blockchain.COMMAND_ADD_PEER:
-            // respect maximum network size
-            return this.server.getBlockchain().getMapPeer().size < MAX_NETWORK_SIZE;
-          case Blockchain.COMMAND_REMOVE_PEER:
           case Blockchain.COMMAND_MODIFY_STAKE:
           case Blockchain.COMMAND_DATA:
             return true;
+          case Blockchain.COMMAND_REMOVE_PEER:
+            //@TODO review - forced peer removal by a majority decision gets prevented with this
+            return tx.origin === (c as CommandRemovePeer).publicKey;
           case Blockchain.COMMAND_DECISION:
             return (
               (c as CommandDecision).h >= height && !this.server.getBlockchain().isDecisionTaken(c as CommandDecision)

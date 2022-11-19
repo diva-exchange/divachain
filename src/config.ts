@@ -62,8 +62,6 @@ export type Configuration = {
   network_p2p_interval_ms?: number;
   network_sync_size?: number;
 
-  block_retry_timeout_ms?: number;
-
   blockchain_max_blocks_in_memory?: number;
 
   api_max_query_size?: number;
@@ -100,9 +98,6 @@ const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
 const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
 const MIN_NETWORK_SYNC_SIZE = 10;
 const MAX_NETWORK_SYNC_SIZE = 100;
-
-const MIN_BLOCK_RETRY_TIMEOUT_MS = 1000;
-const MAX_BLOCK_RETRY_TIMEOUT_MS = 10000;
 
 const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
 const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
@@ -321,12 +316,6 @@ export class Config {
       c.network_sync_size || process.env.NETWORK_SYNC_SIZE,
       MIN_NETWORK_SYNC_SIZE,
       MAX_NETWORK_SYNC_SIZE
-    );
-
-    self.block_retry_timeout_ms = Config.b(
-      c.block_retry_timeout_ms || process.env.BLOCK_RETRY_TIMEOUT_MS,
-      MIN_BLOCK_RETRY_TIMEOUT_MS,
-      MAX_BLOCK_RETRY_TIMEOUT_MS
     );
 
     self.blockchain_max_blocks_in_memory = Config.b(
