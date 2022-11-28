@@ -18,6 +18,7 @@ class Blockchain {
         this.mapPeer = new Map();
         this.mapHttp = new Map();
         this.mapUdp = new Map();
+        this.quorum = 0;
         this.quorumWeighted = 0;
         this.mapModifyStake = new Map();
         this.mapVoteStake = new Map();
@@ -197,6 +198,9 @@ class Blockchain {
             return 0;
         }
     }
+    hasQuorum(arrayOrigin) {
+        return arrayOrigin.length >= this.quorum * (2 / 3);
+    }
     hasQuorumWeighted(arrayOrigin) {
         let w = 0;
         arrayOrigin.forEach((origin) => {
@@ -279,6 +283,7 @@ class Blockchain {
             udp: command.udp,
             stake: 1,
         };
+        this.quorum++;
         this.quorumWeighted = this.quorumWeighted + peer.stake;
         this.mapPeer.set(command.publicKey, peer);
         this.mapHttp.set(peer.http, command.publicKey);
@@ -290,6 +295,7 @@ class Blockchain {
             return;
         }
         const peer = this.mapPeer.get(command.publicKey);
+        this.quorum--;
         this.quorumWeighted = this.quorumWeighted - peer.stake;
         this.mapPeer.delete(command.publicKey);
         this.mapHttp.delete(peer.http);

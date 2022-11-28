@@ -46,7 +46,7 @@ class BlockFactory {
         const a = this.network.getArrayNetwork().map((p) => p.publicKey);
         let i = this.blockchain.getHeight() % a.length;
         if (!this.network.isOnline(a[i])) {
-            i = util_1.Util.stringDiff(this.blockchain.getLatestBlock().hash, this.blockchain.getLatestBlock().previousHash);
+            i = util_1.Util.stringDiff(this.blockchain.getLatestBlock().hash, a[i]);
             i = i % a.length;
         }
         while (!this.network.isOnline(a[i])) {
@@ -159,7 +159,7 @@ class BlockFactory {
             return;
         }
         this.block.votes.push({ origin: signBlock.origin(), sig: signBlock.sig() });
-        if (this.blockchain.hasQuorumWeighted(this.block.votes.map((vs) => vs.origin))) {
+        if (this.blockchain.hasQuorum(this.block.votes.map((vs) => vs.origin))) {
             (async (block) => {
                 await this.addBlock(block);
             })(this.block);
