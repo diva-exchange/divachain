@@ -37,5 +37,15 @@ class Util {
         const qi3 = as[Math.floor(array.length * 0.75)] - as[0];
         return (qi3 - qi1) / (qi3 + qi1);
     }
+    static stringDiff(a, b) {
+        if (!a.length || a.length !== b.length) {
+            throw new Error('Invalid string input');
+        }
+        let r = 0;
+        for (let i = 0; i < a.length; i++) {
+            r += Math.abs(a.charCodeAt(i) - b.charCodeAt(i));
+        }
+        return r;
+    }
 }
 exports.Util = Util;

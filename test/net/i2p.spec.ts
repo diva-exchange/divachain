@@ -50,7 +50,7 @@ class TestServerI2P {
     process.env.I2P_SAM_FORWARD_HTTP_PORT = process.env.I2P_SAM_FORWARD_HTTP_PORT || process.env.BASE_PORT;
     process.env.I2P_SAM_FORWARD_UDP_HOST = process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1';
     process.env.I2P_SAM_LISTEN_UDP_HOST = process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0';
-    process.env.DEBUG_PERFORMANCE = '1';
+    process.env.DEBUG_PERFORMANCE = '0';
 
     const pathGenesis = path.join(__dirname, '/../genesis', DEFAULT_NAME_GENESIS_BLOCK) + '.json';
     if (!fs.existsSync(pathGenesis) || !fs.existsSync(pathGenesis + '.config')) {
@@ -271,8 +271,9 @@ class TestServerI2P {
   @test
   @timeout(600000000)
   async stressMultiTransaction() {
-    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 5000;
+    const _outer = Number(process.env.TRANSACTIONS) > 5 ? Number(process.env.TRANSACTIONS) : 10000;
     const _inner = 6; // commands
+    Logger.trace(`Testing ${_outer} transactions...`);
 
     // create blocks containing multiple transactions
     let seq = 1;
@@ -282,7 +283,7 @@ class TestServerI2P {
     const arrayIdents: Array<string> = [];
     const arrayTimestamp: Array<number> = [];
 
-    for (let _i = 0; _i < _outer; _i++) {
+    for (let _i = 1; _i <= _outer; _i++) {
       const aT: Array<any> = [];
       for (let _j = 0; _j < _inner; _j++) {
         aT.push({ seq: seq++, command: 'data', ns: 'test:test', d: Date.now().toString() });
@@ -299,19 +300,22 @@ class TestServerI2P {
 
       const i = crypto.randomInt(0, arrayConfig.length);
       try {
+        const s: Server = TestServerI2P.mapServer.get(arrayOrigin[i]) || ({} as Server);
         const res = await chai
           .request(`http://${arrayConfig[i].ip}:${arrayConfig[i].port}`)
           .put('/transaction')
+          .set(NAME_HEADER_TOKEN_API, s.getWallet().getTokenAPI())
           .send(aT);
         if (res.status === 200) {
           arrayTimestamp.push(new Date().getTime());
           arrayRequests.push(arrayOrigin[i]);
           arrayIdents.push(res.body.ident);
+          _i % Math.floor(_outer * 0.1) === 0 && Logger.trace(`${_i}/${_outer} ${arrayConfig[i].port}`);
         }
       } catch (error) {
         console.error(error);
       }
-      await TestServerI2P.wait(Math.ceil(Math.random() * 1000));
+      await TestServerI2P.wait(Math.ceil(Math.random() * 500));
 
       // shutdown nodes in the middle of the process
       if (_i === Math.floor(_outer * 0.1) || _i === Math.floor(_outer * 0.25) || _i === Math.floor(_outer * 0.5)) {

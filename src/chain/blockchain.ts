@@ -62,6 +62,7 @@ export class Blockchain {
   private mapHttp: Map<string, string> = new Map();
   private mapUdp: Map<string, string> = new Map();
 
+  private quorum: number = 0;
   private quorumWeighted: number = 0;
 
   private mapModifyStake: Map<string, Array<string>> = new Map();
@@ -335,6 +336,10 @@ export class Blockchain {
     }
   }
 
+  hasQuorum(arrayOrigin: Array<string>): boolean {
+    return arrayOrigin.length >= this.quorum * (2/3); // BFT
+  }
+
   hasQuorumWeighted(arrayOrigin: Array<string>): boolean {
     let w: number = 0;
     arrayOrigin.forEach((origin: string) => {
@@ -434,6 +439,7 @@ export class Blockchain {
       udp: command.udp,
       stake: 1,
     };
+    this.quorum++;
     this.quorumWeighted = this.quorumWeighted + peer.stake;
 
     this.mapPeer.set(command.publicKey, peer);
@@ -447,6 +453,7 @@ export class Blockchain {
       return;
     }
     const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
+    this.quorum--;
     this.quorumWeighted = this.quorumWeighted - peer.stake;
 
     this.mapPeer.delete(command.publicKey);

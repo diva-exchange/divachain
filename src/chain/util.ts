@@ -71,17 +71,6 @@ export class Util {
     return (qi3 - qi1) / (qi3 + qi1);
   }
 
-  static stringXOR(a: string, b: string): string {
-    if (!a.length || a.length !== b.length) {
-      throw new Error('Invalid string input');
-    }
-    let r = '';
-    for (let i = 0; i < a.length; i++) {
-      r = (parseInt(a.charAt(i), 16) ^ parseInt(b.charAt(i), 16)).toString(16) + r;
-    }
-    return r;
-  }
-
   static stringDiff(a: string, b: string): number {
     if (!a.length || a.length !== b.length) {
       throw new Error('Invalid string input');
