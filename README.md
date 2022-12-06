@@ -316,4 +316,4 @@ Talk to us via [Telegram](https://t.me/diva_exchange_chat_de) (English or German
 
 ## License
 
-[AGPLv3](https://github.com/diva-exchange/divachain/blob/main/LICENSE)
+[AGPLv3](LICENSE)
