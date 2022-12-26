@@ -47,7 +47,7 @@ export class Message {
   constructor(msg?: Buffer) {
     this.msg = msg || Buffer.from('');
     if (this.msg.length > 0) {
-      this._unpack();
+      this.unpack();
     }
   }
 
@@ -92,7 +92,7 @@ export class Message {
     }
   }
 
-  private _unpack(): void {
+  private unpack(): void {
     let version: number = 0;
     let message: string = '';
     let sig: string = '';
@@ -118,7 +118,7 @@ export class Message {
         }
         break;
       default:
-        Logger.warn(`Message.unpack(): unsupported data version ${version}, length: ${this.msg.length}`);
+        Logger.warn(`Message.unpack(): unsupported version ${version}, length: ${this.msg.length}`);
         Logger.trace(this.msg.toString());
     }
   }

@@ -185,9 +185,13 @@ export class Network extends EventEmitter {
     }
 
     const pk = this.server.getBlockchain().getPublicKeyByUdp(from);
+    // invalid origin
+    if (!pk) {
+      return;
+    }
     const m: Message = new Message(data);
     // stateless validation
-    if (!pk || !this.server.getValidation().validateMessage(m)) {
+    if (!this.server.getValidation().validateMessage(m)) {
       return;
     }
 
@@ -200,7 +204,7 @@ export class Network extends EventEmitter {
       // process message
       this._onMessage(m);
 
-      //gossipping, once
+      //gossiping
       m.type() !== Message.TYPE_STATUS && pk === m.origin() && this.broadcast(m, true);
     }
   }

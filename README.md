@@ -253,9 +253,11 @@ Get a well-defined number of blocks starting from {height} (including). See NETW
 
 ## How to Run Unit Tests
 
+Unit tests require docker (see https://docs.docker.com/) and docker compose (v2.x or later). Check your installation using `docker compose version`.
+
 If a local I2P test environment is wanted, start the local testnet container:
 ```
-docker-compose -f test/local-i2p-testnet.yml up -d
+docker compose -f test/local-i2p-testnet.yml up -d
 ```
 
 Unit tests can be executed using:
@@ -268,7 +270,7 @@ Unit tests contain functional tests and will create some blocks within the local
 
 To stop the local I2P test environment (and purge all data):
 ```
-docker-compose -f test/local-i2p-testnet.yml down --volumes
+docker compose -f test/local-i2p-testnet.yml down --volumes
 ```
 
 ## Linting
