@@ -35,9 +35,8 @@
     "simulate": "npm run clean-simulator && tsc -p ./test/simulator/tsconfig.json && NODE_ENV=development node test/compiled-simulator/*.js | pino-pretty -t -i pid,hostname"
   },
   "pkg": {
-    "scripts": "dist/**/*.js",
+    "scripts": "dist/bundle.js",
     "assets": [
-      "dist/schema/**/*",
       "dist/version",
       "genesis/*",
       "node_modules/sodium-native/prebuilds/linux-x64/*"

@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
-# Copyright (C) 2021-2023 diva.exchange
+# Copyright (C) 2024 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -15,29 +15,10 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-# Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
+# Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
 #
 
 # -e  Exit immediately if a simple command exits with a non-zero status
 set -e
 
-PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
-cd "${PROJECT_PATH}"
-PROJECT_PATH=$( pwd )
-
-source "${PROJECT_PATH}"/bin/echos.sh
-source "${PROJECT_PATH}"/bin/helpers.sh
-
-npm i
-
-info "Packaging..."
-
-#classic-level prebuilds
-[[ -d "${PROJECT_PATH}"/node_modules/classic-level/prebuilds/ ]] &&
-  mkdir -p "${PROJECT_PATH}"/build/prebuilds &&
-  cp -r "${PROJECT_PATH}"/node_modules/classic-level/prebuilds/linux-x64 "${PROJECT_PATH}"/build/prebuilds/linux-x64
-
-pkg --no-bytecode \
-  --public \
-  --output "${PROJECT_PATH}"/build/divachain-linux-x64 \
-  .
+NODE_ENV=production node dist/main.js

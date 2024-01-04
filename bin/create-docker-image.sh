@@ -33,10 +33,6 @@ if ! command_exists docker; then
   exit 1
 fi
 
-TAG=$(<"${PROJECT_PATH}"/build/version)
+TAG=develop-tx
 info "Building docker image divax/divachain:${TAG}..."
-sudo docker build --force-rm --pull --no-cache -f "${PROJECT_PATH}"/Dockerfile -t divax/divachain:"${TAG}" .
-
-TAG=current
-info "Building  docker image divax/divachain:${TAG}..."
 sudo docker build --force-rm --pull --no-cache -f "${PROJECT_PATH}"/Dockerfile -t divax/divachain:"${TAG}" .

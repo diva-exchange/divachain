@@ -1,0 +1,87 @@
+#
+# Copyright (C) 2021-2024 diva.exchange
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
+#
+
+version: "3.7"
+services:
+  genesis-i2p-http:
+    container_name: genesis-i2p-http
+    image: divax/i2p:current
+    restart: unless-stopped
+    environment:
+      ENABLE_SOCKSPROXY: 1
+      ENABLE_SAM: 1
+      BANDWIDTH: P
+    networks:
+      network.genesis-i2p:
+        ipv4_address: 10.19.77.11
+
+  genesis-i2p-udp:
+    container_name: genesis-i2p-udp
+    image: divax/i2p:current
+    restart: unless-stopped
+    environment:
+      ENABLE_SAM: 1
+      BANDWIDTH: P
+    networks:
+      network.genesis-i2p:
+        ipv4_address: 10.19.77.12
+
+  genesis-i2p-chain:
+    container_name: genesis-i2p-chain
+    image: divax/divachain:develop-tx
+    depends_on:
+      - genesis-i2p-http
+      - genesis-i2p-udp
+    restart: unless-stopped
+    environment:
+      GENESIS: 1
+      GENESIS_PATH: /genesis/local-test.genesis.tx.v1.json
+      GENESIS_CONFIG_PATH: /genesis/local-test.genesis.config
+      SIZE_NETWORK: ${SIZE_NETWORK}
+      NODE_ENV: development
+      LOG_LEVEL: trace
+      IP: 10.19.77.21
+      PORT: 17468
+      BLOCK_FEED_PORT: 17469
+      I2P_SOCKS_HOST: 10.19.77.11
+      I2P_SOCKS_PORT: 4445
+      I2P_SAM_HTTP_HOST: 10.19.77.11
+      I2P_SAM_FORWARD_HTTP_HOST: 10.19.77.21
+      I2P_SAM_FORWARD_HTTP_PORT: 17468
+      I2P_SAM_UDP_HOST: 10.19.77.12
+      I2P_SAM_LISTEN_UDP_HOST: 10.19.77.21
+      I2P_SAM_LISTEN_UDP_PORT: 17470
+      I2P_SAM_FORWARD_HOST_UDP: 10.19.77.21
+      I2P_SAM_FORWARD_PORT_UDP: 17470
+    volumes:
+      - ./db/chain:/db/chain
+      - ./db/state:/db/state
+      - ./keys:/keys
+      - ./genesis:/genesis
+    networks:
+      network.genesis-i2p:
+        ipv4_address: 10.19.77.21
+
+networks:
+  network.genesis-i2p:
+    name: network.genesis-i2p
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.19.77.0/24

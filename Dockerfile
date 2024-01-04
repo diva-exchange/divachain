@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021-2022 diva.exchange
+# Copyright (C) 2021-2024 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,7 +17,7 @@
 # Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
 #
 
-FROM node:14-slim AS build
+FROM node:18-slim
 
 LABEL author="DIVA.EXCHANGE Association <contact@diva.exchange>" \
   maintainer="DIVA.EXCHANGE Association <contact@diva.exchange>" \
@@ -25,38 +25,16 @@ LABEL author="DIVA.EXCHANGE Association <contact@diva.exchange>" \
   description="Distributed digital value exchange upholding security, reliability and privacy" \
   url="https://diva.exchange"
 
-#############################################
-# First stage: container used to build the binary
-#############################################
-COPY bin /divachain/bin
-COPY src /divachain/src
-COPY genesis /divachain/genesis
-COPY package.json /divachain/package.json
-COPY tsconfig.json /divachain/tsconfig.json
-
-RUN mkdir /genesis-empty-mount \
-  && mkdir /keys-empty-mount
-
-RUN cd divachain \
-  && mkdir build \
-  && mkdir keys \
-  && mkdir dist \
-  && npm i -g pkg \
-  && npm i --production \
-  && bin/build-pkg.sh
-
-#############################################
-# Second stage: create the distroless image
-#############################################
-FROM gcr.io/distroless/cc
+COPY dist /dist
 COPY package.json /package.json
+COPY genesis /genesis
+COPY entrypoint.sh /entrypoint.sh
 
-# Copy the binary and the prebuilt dependencies
-COPY --from=build /divachain/build/divachain-linux-x64 /divachain
-COPY --from=build /divachain/build/prebuilds /prebuilds
+RUN mkdir /keys \
+  && mkdir -p /db/chain \
+  && mkdir -p /db/state \
+  && npm i --omit=dev \
+  && chmod +x /entrypoint.sh
 
-# genesis and keys folder are just created empty - the content must be provided externally (like: a volume mount)
-COPY --from=build /genesis-empty-mount /genesis
-COPY --from=build /keys-empty-mount /keys
-
-CMD [ "/divachain" ]
+WORKDIR "/"
+ENTRYPOINT ["/entrypoint.sh"]
