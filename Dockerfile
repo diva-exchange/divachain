@@ -27,7 +27,7 @@ LABEL author="DIVA.EXCHANGE Association <contact@diva.exchange>" \
 
 COPY dist /dist
 COPY package.json /package.json
-COPY genesis /genesis
+COPY genesis/* /genesis/
 COPY entrypoint.sh /entrypoint.sh
 
 RUN mkdir /keys \
