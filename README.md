@@ -1,6 +1,6 @@
 # Divachain
 
-WARNING: ALPHA state.
+WARNING: **ALPHA software - HIGHLY EXPERIMENTAL**
 
 This is a fully anonymous ("Privacy-By-Design", using I2P as a network layer), very lightweight, fast, low-energy and permissionless transaction chain.
 
