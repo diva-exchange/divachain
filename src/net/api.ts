@@ -89,17 +89,17 @@ export class Api {
     this.server.app.get('/tx/latest/:origin?', (req: Request, res: Response): Response => {
       return this.getLatest(req, res);
     });
-    this.server.app.get('/tx/search/:q/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.search(req, res);
-    });
-    this.server.app.get('/tx/page/:page/:size?/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.getPage(req, res);
-    });
     this.server.app.get('/tx/:height/:origin?', async (req: Request, res: Response): Promise<Response> => {
       return await this.getTx(req, res);
     });
 
     // GET - txs
+    this.server.app.get('/txs/search/:q/:origin?', async (req: Request, res: Response): Promise<Response> => {
+      return await this.search(req, res);
+    });
+    this.server.app.get('/txs/page/:page/:size?/:origin?', async (req: Request, res: Response): Promise<Response> => {
+      return await this.getPage(req, res);
+    });
     this.server.app.get('/txs/:gte?/:lte?/:origin?', async (req: Request, res: Response): Promise<Response> => {
       return await this.txs(req, res);
     });
