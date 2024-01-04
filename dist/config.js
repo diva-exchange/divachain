@@ -93,7 +93,7 @@ export class Config {
                 const _c = process.env.GENESIS_CONFIG_PATH || '';
                 if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
                     fs.writeFileSync(_c, JSON.stringify(obj.config.map((cnf) => {
-                        return { http: cnf[1].http, tcp: cnf[1].tcp };
+                        return { http: cnf[1].http, udp: cnf[1].udp };
                     })), { mode: '0644' });
                 }
             }

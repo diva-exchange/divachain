@@ -172,8 +172,8 @@ export class Config {
           fs.writeFileSync(
             _c,
             JSON.stringify(
-              obj.config.map((cnf: Array<any>): { http: string; tcp: string } => {
-                return { http: cnf[1].http, tcp: cnf[1].tcp };
+              obj.config.map((cnf: Array<any>): { http: string; udp: string } => {
+                return { http: cnf[1].http, udp: cnf[1].udp };
               })
             ),
             { mode: '0644' }
