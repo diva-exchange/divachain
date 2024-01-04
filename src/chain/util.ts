@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,11 +19,15 @@
 
 import { base64url } from 'rfc4648';
 import sodium from 'sodium-native';
+import { TxStruct } from './tx.js';
 
 export class Util {
-  static hash(s: string): string {
+  static hash(tx: TxStruct): string {
     const bufferOutput: Buffer = Buffer.alloc(sodium.crypto_hash_sha256_BYTES);
-    sodium.crypto_hash_sha256(bufferOutput, Buffer.from(s));
+    sodium.crypto_hash_sha256(
+      bufferOutput,
+      Buffer.from([tx.v, tx.height, tx.prev, tx.origin, JSON.stringify(tx.commands)].join(','))
+    );
     return base64url.stringify(bufferOutput, { pad: false });
   }
 
@@ -44,12 +48,12 @@ export class Util {
    * https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
    *
    * @param {Array<any>} array
-   * @return {Array<any>}
+   * @return {Array<any>} A copy of the array
    */
   static shuffleArray(array: Array<any>): Array<any> {
-    const a = array.slice();
-    for (let i = array.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+    const a: Array<any> = array.slice();
+    for (let i: number = array.length - 1; i > 0; i--) {
+      const j: number = Math.floor(Math.random() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
     }
 

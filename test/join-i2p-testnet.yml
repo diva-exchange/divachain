@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021-2022 diva.exchange
+# Copyright (C) 2021-2023 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -29,7 +29,7 @@ services:
       ENABLE_SAM: 1
       BANDWIDTH: P
     volumes:
-      - i2p.http.join.testnet.diva.i2p:/home/i2pd/data
+      - i2p.http.join.testnet.diva.i2p:/home/i2pd/_data
     networks:
       network.join.testnet.diva.i2p:
         ipv4_address: 172.19.79.11
@@ -43,7 +43,7 @@ services:
       ENABLE_SAM: 1
       BANDWIDTH: P
     volumes:
-      - i2p.udp.join.testnet.diva.i2p:/home/i2pd/data
+      - i2p.udp.join.testnet.diva.i2p:/home/i2pd/_data
     networks:
       network.join.testnet.diva.i2p:
         ipv4_address: 172.19.79.12

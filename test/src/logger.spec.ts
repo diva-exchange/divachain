@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -14,13 +14,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  *
- * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
+ * Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
  */
 
-import { pino } from 'pino';
+import { suite, test } from '@testdeck/mocha';
+import { expect } from 'chai';
 
-export const Logger = pino(
-  process.env.NODE_ENV === 'development'
-    ? { level: process.env.LOG_LEVEL || 'trace' }
-    : { level: process.env.LOG_LEVEL || 'warn' }
-);
+@suite
+class TestLogger {
+  @test
+  async logger() {
+    const l = await import('../../dist/logger.js');
+    expect(l.Logger).is.not.undefined;
+  }
+}

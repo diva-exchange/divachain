@@ -12,6 +12,7 @@
     "plugin:@typescript-eslint/eslint-recommended"
   ],
   "rules": {
+    "no-unused-vars": "off",
     "semi": "warn",
     "quotes": [
       "error",

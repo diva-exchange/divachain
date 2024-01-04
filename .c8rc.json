@@ -1,0 +1,13 @@
+{
+  "include": [
+    "dist/**/*.js"
+  ],
+  "extension": [
+    ".js"
+  ],
+  "reporter": [
+    "text-summary",
+    "html"
+  ],
+  "report-dir": "./test/coverage"
+}

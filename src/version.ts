@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,6 +19,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const pathPackage = path.join(__dirname, '../package.json');
-fs.writeFileSync(path.join(__dirname, '../build/version'), require(pathPackage).version);
+const _d: string = path.dirname(fileURLToPath(import.meta.url));
+const _p = JSON.parse(fs.readFileSync(path.join(_d, '../package.json')).toString());
+fs.writeFileSync(path.join(_d, './version'), _p.version);

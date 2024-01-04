@@ -1,13 +1,18 @@
 {
-  "extends": "@tsconfig/node16/tsconfig.json",
+  "extends": "@tsconfig/node18/tsconfig.json",
   "compilerOptions": {
-    "downlevelIteration": true,
-    "emitDecoratorMetadata": false,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "strict": true,
     "outDir": "dist",
     "preserveConstEnums": true,
-    "removeComments": true
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ESNext"
   },
   "include": [
-    "src/**/*"
+    "./src/**/*.ts",
+    "./src/types/simple-get.d.ts"
   ]
 }

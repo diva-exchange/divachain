@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,18 +17,17 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Logger } from '../logger';
-import { Server } from './server';
-import { Util } from '../chain/util';
-import { CommandAddPeer } from '../chain/transaction';
-import { BlockStruct } from '../chain/block';
+import { Logger } from '../logger.js';
+import { Server } from './server.js';
+import { Util } from '../chain/util.js';
+import { CommandAddPeer } from '../chain/tx.js';
 import { nanoid } from 'nanoid';
-import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
-import { Blockchain } from '../chain/blockchain';
+import { toB32 } from '@diva.exchange/i2p-sam';
+import { Chain } from '../chain/chain.js';
 
-const LENGTH_TOKEN = 32;
-const WAIT_JOIN_MS = 30000;
-const MAX_RETRY_JOIN = 10;
+const LENGTH_TOKEN: number = 32;
+const WAIT_JOIN_MS: number = 30000;
+const MAX_RETRY_JOIN: number = 10;
 
 export class Bootstrap {
   private readonly server: Server;
@@ -45,29 +44,31 @@ export class Bootstrap {
     this.mapToken = new Map();
   }
 
-  async syncWithNetwork() {
+  async syncWithNetwork(): Promise<void> {
     Logger.trace('Bootstrap: syncWithNetwork()');
-
+    //@TODO
+    /*
+    const genesis: TxStruct | undefined = await this.server.getNetwork().fetchFromApi('genesis');
     const blockNetwork: BlockStruct | undefined = await this.server.getNetwork().fetchFromApi('block/latest');
-    const genesis: BlockStruct | undefined = await this.server.getNetwork().fetchFromApi('block/genesis');
-    const blockLocal: BlockStruct = this.server.getBlockchain().getLatestBlock();
+    const txLocal: TxStruct = this.server.getChain().getLatestTx();
 
     if (blockNetwork && genesis && blockLocal.hash !== blockNetwork.hash) {
-      await this.server.getBlockchain().reset(genesis);
-      let h = 1;
+      await this.server.getChain().reset(genesis);
+      let h: number = 1;
       while (blockNetwork.height > h) {
         for (const b of (await this.server.getNetwork().fetchFromApi('sync/' + (h + 1))) || []) {
-          await this.server.getBlockchain().add(b);
+          await this.server.getChain().add(tx);
         }
-        h = this.server.getBlockchain().getLatestBlock().height;
+        h = this.server.getChain().getLatestTx().height;
       }
     }
+*/
 
     Logger.trace('Bootstrap: syncWithNetwork() done');
   }
 
   // executed by a new node only
-  async joinNetwork(publicKey: string) {
+  async joinNetwork(publicKey: string): Promise<void> {
     this.isJoiningNetwork = true;
     await this.server
       .getNetwork()
@@ -90,7 +91,7 @@ export class Bootstrap {
       !udp.length ||
       !/^[A-Za-z0-9_-]{43}$/.test(publicKey) ||
       this.mapToken.has(publicKey) ||
-      this.server.getBlockchain().hasPeer(publicKey)
+      this.server.getChain().hasPeer(publicKey)
     ) {
       this.mapToken.delete(publicKey);
       return false;
@@ -111,7 +112,7 @@ export class Bootstrap {
         // retry
         if (r < MAX_RETRY_JOIN) {
           this.mapToken.delete(publicKey);
-          setImmediate(() => {
+          setImmediate((): void => {
             this.join(http, udp, publicKey, r++);
           });
         } else {
@@ -124,8 +125,8 @@ export class Bootstrap {
   }
 
   // executed by an existing node, processing an incoming new node
-  private confirm(http: string, udp: string, publicKey: string, signedToken: string) {
-    const token = this.mapToken.get(publicKey) || '';
+  private confirm(http: string, udp: string, publicKey: string, signedToken: string): void {
+    const token: string = this.mapToken.get(publicKey) || '';
 
     if (!token || !Util.verifySignature(publicKey, signedToken, token)) {
       throw new Error('Bootstrap.confirm(): Util.verifySignature() failed');
@@ -134,8 +135,7 @@ export class Bootstrap {
     if (
       !this.server.stackTx([
         {
-          seq: 1,
-          command: Blockchain.COMMAND_ADD_PEER,
+          command: Chain.COMMAND_ADD_PEER,
           http: http,
           udp: udp,
           publicKey: publicKey,

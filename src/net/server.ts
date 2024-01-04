@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,41 +17,37 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Config } from '../config';
-import { Logger } from '../logger';
+import { Config } from '../config.js';
+import { Logger } from '../logger.js';
 import createError from 'http-errors';
 import express, { Express, NextFunction, Request, Response } from 'express';
 import http from 'http';
-import WebSocket from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import compression from 'compression';
-import { Bootstrap } from './bootstrap';
-import { Blockchain } from '../chain/blockchain';
-import { Validation } from './validation';
-import { Wallet } from '../chain/wallet';
-import { Network } from './network';
-import { Api } from './api';
-import { ArrayCommand, CommandModifyStake } from '../chain/transaction';
-import { BlockFactory } from './block-factory';
-import { BlockStruct } from '../chain/block';
-import { Message } from './message/message';
+import { Bootstrap } from './bootstrap.js';
+import { Chain } from '../chain/chain.js';
+import { Validation } from './validation.js';
+import { Wallet } from '../chain/wallet.js';
+import { Api } from './api.js';
+import { Command } from '../chain/tx.js';
+import { TxFactory } from './tx-factory.js';
+import { TxStruct } from '../chain/tx.js';
+import { Network } from './network.js';
 
 export class Server {
   public readonly config: Config;
   public readonly app: Express;
 
   private readonly httpServer: http.Server;
-  private readonly webSocketServerBlockFeed: WebSocket.Server;
+  private readonly webSocketServerTxFeed: WebSocketServer;
 
-  private blockFactory: BlockFactory = {} as BlockFactory;
+  private txFactory: TxFactory = {} as TxFactory;
 
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
   private network: Network = {} as Network;
-  private blockchain: Blockchain = {} as Blockchain;
+  private chain: Chain = {} as Chain;
   private validation: Validation = {} as Validation;
-
-  private mapStakeCredit: Map<string, number> = new Map();
-  private stackModifyStake: Array<CommandModifyStake> = [];
 
   constructor(config: Config) {
     this.config = config;
@@ -70,7 +66,7 @@ export class Server {
     this.app.use(express.json());
 
     // catch unavailable favicon.ico
-    this.app.get('/favicon.ico', (req: Request, res: Response) => {
+    this.app.get('/favicon.ico', (req: Request, res: Response): void => {
       res.sendStatus(204);
     });
 
@@ -79,7 +75,7 @@ export class Server {
     Logger.info('Api initialized');
 
     // catch 404 and forward to error handler
-    this.app.use((req: Request, res: Response, next: NextFunction) => {
+    this.app.use((req: Request, res: Response, next: NextFunction): void => {
       next(createError(404));
     });
 
@@ -88,30 +84,30 @@ export class Server {
 
     // Web Server
     this.httpServer = http.createServer(this.app);
-    this.httpServer.on('listening', () => {
+    this.httpServer.on('listening', (): void => {
       Logger.info(`HttpServer listening on ${this.config.ip}:${this.config.port}`);
     });
-    this.httpServer.on('close', () => {
+    this.httpServer.on('close', (): void => {
       Logger.info(`HttpServer closing on ${this.config.ip}:${this.config.port}`);
     });
 
     // standalone Websocket Server to feed block updates
-    this.webSocketServerBlockFeed = new WebSocket.Server({
+    this.webSocketServerTxFeed = new WebSocketServer({
       host: this.config.ip,
-      port: this.config.port_block_feed,
+      port: this.config.port_tx_feed,
       perMessageDeflate: false,
     });
-    this.webSocketServerBlockFeed.on('connection', (ws: WebSocket) => {
-      ws.on('error', (error: any) => {
-        Logger.warn('WebSocketServerBlockFeed.error: ' + error.toString());
+    this.webSocketServerTxFeed.on('connection', (ws: WebSocket): void => {
+      ws.on('error', (error: any): void => {
+        Logger.warn('WebSocketServerTxFeed.error: ' + error.toString());
         ws.terminate();
       });
     });
-    this.webSocketServerBlockFeed.on('close', () => {
-      Logger.info(`WebSocket Server closing on ${this.config.ip}:${this.config.port_block_feed}`);
+    this.webSocketServerTxFeed.on('close', (): void => {
+      Logger.info(`WebSocketServerTxFeed closing on ${this.config.ip}:${this.config.port_tx_feed}`);
     });
-    this.webSocketServerBlockFeed.on('listening', () => {
-      Logger.info(`WebSocket Server listening on ${this.config.ip}:${this.config.port_block_feed}`);
+    this.webSocketServerTxFeed.on('listening', (): void => {
+      Logger.info(`WebSocketServerTxFeed listening on ${this.config.ip}:${this.config.port_tx_feed}`);
     });
   }
 
@@ -122,31 +118,26 @@ export class Server {
     this.wallet = Wallet.make(this.config);
     Logger.info('Wallet initialized');
 
-    this.blockchain = await Blockchain.make(this);
-    if (this.blockchain.getHeight() === 0) {
-      await this.blockchain.reset(Blockchain.genesis(this.config.path_genesis));
-    }
-    Logger.info('Blockchain initialized');
+    this.chain = await Chain.make(this);
+    Logger.info('Chain initialized');
 
-    this.validation = Validation.make(this);
+    this.validation = Validation.make();
     Logger.info('Validation initialized');
 
-    this.network = Network.make(this, (m: Message) => {
-      this.blockFactory.processMessage(m);
-    });
+    this.network = Network.make(this);
 
-    this.blockFactory = BlockFactory.make(this);
-    Logger.info('BlockFactory initialized');
+    this.txFactory = TxFactory.make(this);
+    Logger.info('TxFactory initialized');
 
     this.httpServer.listen(this.config.port, this.config.ip);
 
-    return new Promise((resolve) => {
-      this.network.once('ready', async () => {
+    return new Promise((resolve): void => {
+      this.network.once('ready', async (): Promise<void> => {
         this.bootstrap = Bootstrap.make(this);
         if (this.config.bootstrap) {
           // bootstrapping (entering the network)
           await this.bootstrap.syncWithNetwork();
-          if (!this.blockchain.hasNetworkHttp(this.config.http)) {
+          if (!this.chain.hasNetworkHttp(this.config.http)) {
             await this.bootstrap.joinNetwork(this.wallet.getPublicKey());
           }
         }
@@ -156,10 +147,10 @@ export class Server {
   }
 
   async shutdown(): Promise<void> {
-    typeof this.blockFactory.shutdown === 'function' && this.blockFactory.shutdown();
+    typeof this.txFactory.shutdown === 'function' && this.txFactory.shutdown();
     typeof this.network.shutdown === 'function' && this.network.shutdown();
     typeof this.wallet.close === 'function' && this.wallet.close();
-    typeof this.blockchain.shutdown === 'function' && (await this.blockchain.shutdown());
+    typeof this.chain.shutdown === 'function' && (await this.chain.shutdown());
 
     if (typeof this.httpServer.close === 'function') {
       return await new Promise((resolve) => {
@@ -180,8 +171,8 @@ export class Server {
     return this.wallet;
   }
 
-  getBlockchain(): Blockchain {
-    return this.blockchain;
+  getChain(): Chain {
+    return this.chain;
   }
 
   getValidation(): Validation {
@@ -192,70 +183,23 @@ export class Server {
     return this.network;
   }
 
-  getBlockFactory(): BlockFactory {
-    return this.blockFactory;
+  getTxFactory(): TxFactory {
+    return this.txFactory;
   }
 
-  getStackModifyStake(): Array<CommandModifyStake> {
-    return this.stackModifyStake;
+  stackTx(commands: Array<Command>): boolean {
+    return this.txFactory.stack(commands);
   }
 
-  proposeModifyStake(forPublicKey: string, ident: string, stake: number): boolean {
-    if (this.stackModifyStake.some((cmd) => cmd.publicKey === forPublicKey && cmd.ident === ident)) {
-      return false;
-    }
-
-    const credit = (this.mapStakeCredit.get(forPublicKey) || 0) - 1;
-
-    //@TODO test the stability of the algorithm over time
-    // simple algorithm for credits equalizes the stake distribution
-    if (credit > -1 * (this.network.getArrayOnline().length / 3)) {
-      this.mapStakeCredit.set(forPublicKey, credit);
-      this.stackModifyStake.push({
-        command: Blockchain.COMMAND_MODIFY_STAKE,
-        publicKey: forPublicKey,
-        ident: ident,
-        stake: stake,
-      } as CommandModifyStake);
-
-      if (this.stackModifyStake.length >= this.network.getArrayOnline().length / 3) {
-        this.stackTx(this.stackModifyStake);
-        this.stackModifyStake = [];
-      }
-    }
-
-    return true;
-  }
-
-  incStakeCredit(publicKey: string) {
-    this.mapStakeCredit.set(publicKey, (this.mapStakeCredit.get(publicKey) || 0) + 1);
-  }
-
-  stackTx(commands: ArrayCommand, ident: string = '') {
-    let s = 1;
-    const i = this.blockFactory.stack(
-      commands.map((c) => {
-        c.seq = s;
-        s++;
-        return c;
-      }),
-      ident
-    );
-    if (!i) {
-      return false;
-    }
-    return i;
-  }
-
-  feedBlock(block: BlockStruct) {
-    setImmediate((block: BlockStruct) => {
-      this.webSocketServerBlockFeed.clients.forEach(
-        (ws) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(block))
+  queueWebSocketFeed(tx: TxStruct): void {
+    setImmediate((tx: TxStruct): void => {
+      this.webSocketServerTxFeed.clients.forEach(
+        (ws) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(tx))
       );
-    }, block);
+    }, tx);
   }
 
-  private static error(err: any, req: Request, res: Response, next: NextFunction) {
+  private static error(err: any, req: Request, res: Response, next: NextFunction): void {
     res.status(err.status || 500);
 
     res.json({

@@ -17,35 +17,13 @@
 #
 # Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
 #
-
 # -e  Exit immediately if a simple command exits with a non-zero status
 set -e
 
 PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
 cd "${PROJECT_PATH}"
-PROJECT_PATH=$( pwd )
+PROJECT_PATH=$(pwd)
 
-source "${PROJECT_PATH}"/bin/echos.sh
-source "${PROJECT_PATH}"/bin/helpers.sh
+# remove compiled simulator scripts
+rm -rf "${PROJECT_PATH}"/test/compiled-simulator/*
 
-if ! command_exists npm; then
-  error "npm not available. Install node";
-  exit 1
-fi
-
-npm i --omit-dev
-
-info "Clean up..."
-rm -rf "${PROJECT_PATH}"/dist/*
-rm -rf "${PROJECT_PATH}"/build/prebuilds
-rm -rf "${PROJECT_PATH}"/build/divachain-*
-
-info "Transpiling TypeScript to JavaScript..."
-tsc
-cp -r "${PROJECT_PATH}"/src/schema "${PROJECT_PATH}"/dist/schema
-
-# create a static version file
-node "${PROJECT_PATH}"/dist/version.js
-rm -rf "${PROJECT_PATH}"/dist/version.js
-rm -rf "${PROJECT_PATH}"/dist/version.js.map
-rm -rf "${PROJECT_PATH}"/dist/version.d.ts

@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021-2022 diva.exchange
+# Copyright (C) 2021-2023 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -24,10 +24,9 @@ services:
     image: divax/i2p:current
     restart: unless-stopped
     environment:
-      ENABLE_HIDDEN: 0
+      ENABLE_HIDDEN: 1
       ENABLE_SOCKSPROXY: 1
       ENABLE_SAM: 1
-      BANDWIDTH: P
     volumes:
       - local-i2p-testnet-http:/home/i2pd/
     networks:
@@ -39,9 +38,8 @@ services:
     image: divax/i2p:current
     restart: unless-stopped
     environment:
-      ENABLE_HIDDEN: 0
+      ENABLE_HIDDEN: 1
       ENABLE_SAM: 1
-      BANDWIDTH: P
     volumes:
       - local-i2p-testnet-udp:/home/i2pd/
     networks:

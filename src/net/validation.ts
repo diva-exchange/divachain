@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,171 +17,89 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import Ajv, { JSONSchemaType, ValidateFunction } from 'ajv';
-import { Message, MessageStruct } from './message/message';
-import { BlockStruct } from '../chain/block';
-import { Logger } from '../logger';
-import { CommandDecision, CommandRemovePeer, TransactionStruct } from '../chain/transaction';
-import path from 'path';
-import { Util } from '../chain/util';
-import { Blockchain } from '../chain/blockchain';
-import { Server } from './server';
-import { VoteStruct } from './message/confirm-block';
+import Ajv, { ValidateFunction } from 'ajv';
+
+import addPeerV1 from '../schema/tx/v1/add-peer.json' assert { type: 'json' };
+import removePeerV1 from '../schema/tx/v1/remove-peer.json' assert { type: 'json' };
+import modifyStakeV1 from '../schema/tx/v1/modify-stake.json' assert { type: 'json' };
+import dataV1 from '../schema/tx/v1/data.json' assert { type: 'json' };
+import votesV1 from '../schema/tx/v1/votes.json' assert { type: 'json' };
+
+import Tx from '../schema/tx/v1/tx.json' assert { type: 'json' };
+import Vote from '../schema/message/vote.json' assert { type: 'json' };
+import Status from '../schema/message/status.json' assert { type: 'json' };
+
+import { Chain } from '../chain/chain.js';
+import { Command, CommandRemovePeer } from '../chain/tx.js';
+import { TxMessageStruct } from './message/tx.js';
+import { VoteMessageStruct } from './message/vote.js';
+import { StatusMessageStruct } from './message/status.js';
 
 export class Validation {
-  private readonly server: Server;
-  private readonly message: ValidateFunction;
-  private readonly tx: ValidateFunction;
+  private readonly Tx: ValidateFunction;
+  private readonly Vote: ValidateFunction;
+  private readonly Status: ValidateFunction;
 
-  static make(server: Server) {
-    return new Validation(server);
+  static make(): Validation {
+    return new Validation();
   }
 
-  private constructor(server: Server) {
-    this.server = server;
-    const pathSchema = path.join(__dirname, '../schema/');
+  private constructor() {
+    this.Tx = new Ajv.default({ strict: true, allErrors: true })
+      .addSchema(addPeerV1)
+      .addSchema(removePeerV1)
+      .addSchema(modifyStakeV1)
+      .addSchema(dataV1)
+      .addSchema(votesV1)
+      .compile(Tx);
 
-    const schemaMessage: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/message.json');
-    const schemaAddTx: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/add-tx.json');
-    const schemaProposeBlock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/propose-block.json');
-    const schemaSignBlock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/sign-block.json');
-    const schemaConfirmBlock: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/confirm-block.json');
-    const schemaStatus: JSONSchemaType<MessageStruct> = require(pathSchema + 'message/status.json');
+    this.Vote = new Ajv.default({ strict: true, allErrors: true }).addSchema(votesV1).compile(Vote);
 
-    const schemaBlockv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/block.json');
-    const schemaTxv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/tx.json');
-    const schemaVotev7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/vote.json');
-    const schemaAddPeerv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/add-peer.json');
-    const schemaRemovePeerv7: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v7/transaction/remove-peer.json');
-    const schemaModifyStakev7: JSONSchemaType<BlockStruct> = require(pathSchema +
-      'block/v7/transaction/modify-stake.json');
-    const schemaDatav7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/data.json');
-    const schemaDecisionv7: JSONSchemaType<BlockStruct> = require(pathSchema + 'block/v7/transaction/decision.json');
-
-    this.message = new Ajv({
-      schemas: [
-        schemaAddTx,
-        schemaProposeBlock,
-        schemaSignBlock,
-        schemaConfirmBlock,
-        schemaStatus,
-        schemaBlockv7,
-        schemaTxv7,
-        schemaVotev7,
-        schemaAddPeerv7,
-        schemaRemovePeerv7,
-        schemaModifyStakev7,
-        schemaDatav7,
-        schemaDecisionv7,
-      ],
-    }).compile(schemaMessage);
-
-    this.tx = new Ajv({
-      schemas: [schemaAddPeerv7, schemaRemovePeerv7, schemaModifyStakev7, schemaDatav7, schemaDecisionv7],
-    }).compile(schemaTxv7);
-  }
-
-  // stateless
-  validateMessage(m: Message): boolean {
-    switch (m.type()) {
-      case Message.TYPE_ADD_TX:
-      case Message.TYPE_PROPOSE_BLOCK:
-      case Message.TYPE_SIGN_BLOCK:
-      case Message.TYPE_CONFIRM_BLOCK:
-      case Message.TYPE_STATUS:
-        if (!this.message(m.getMessage())) {
-          Logger.trace('Validation.validateMessage() failed');
-          Logger.trace(`${JSON.stringify(this.message.errors)}`);
-          return false;
-        }
-        return true;
-      default:
-        Logger.trace('Unknown message type');
-        return false;
-    }
-  }
-
-  // stateful
-  validateBlock(structBlock: BlockStruct, doVoteValidation: boolean = true): boolean {
-    const { version, previousHash, hash, height, tx, votes } = structBlock;
-
-    if (!tx.length) {
-      Logger.trace(`Validation.validateBlock() - empty tx, block #${height}`);
-      return false;
-    }
-    if (Util.hash([version, previousHash, JSON.stringify(tx), height].join()) !== hash) {
-      Logger.trace(`Validation.validateBlock() - invalid hash, block #${height}`);
-      return false;
-    }
-
-    let _aOrigin: Array<string> = [];
-
-    // transaction validation
-    for (const transaction of tx) {
-      if (_aOrigin.includes(transaction.origin)) {
-        Logger.trace(`Validation.validateBlock() - Multiple transactions from same origin, block #${height}`);
-        return false;
-      }
-      _aOrigin.push(transaction.origin);
-
-      if (!this.validateTx(height, transaction)) {
-        Logger.trace(`Validation.validateBlock() - invalid tx, block #${height}, tx #${transaction.ident}`);
-        return false;
-      }
-    }
-
-    // vote validation
-    if (doVoteValidation) {
-      _aOrigin = [];
-      for (const vote of votes) {
-        if (_aOrigin.includes(vote.origin)) {
-          Logger.trace(`Validation.validateBlock() - Multiple votes from same origin, block #${height}`);
-          return false;
-        }
-        _aOrigin.push(vote.origin);
-
-        if (!Util.verifySignature(vote.origin, vote.sig, hash)) {
-          Logger.trace(`Validation.validateBlock() - invalid vote, block #${height}, origin ${vote.origin}`);
-          return false;
-        }
-      }
-      if (!this.server.getBlockchain().hasQuorumWeighted(votes.map((vs: VoteStruct) => vs.origin))) {
-        //@FIXME logging
-        Logger.trace(JSON.stringify(votes.map((vs: VoteStruct) => vs.origin)));
-
-        Logger.trace(`Validation.validateBlock() - votes not reaching quorum, block #${height}`);
-        return false;
-      }
-    }
-
-    return true;
+    this.Status = new Ajv.default({ strict: true, allErrors: true }).compile(Status);
   }
 
   // stateless && stateful
-  validateTx(height: number, tx: TransactionStruct): boolean {
-    return (
-      this.tx(tx) &&
-      height > 0 &&
-      Array.isArray(tx.commands) &&
-      Util.verifySignature(tx.origin, tx.sig, height + JSON.stringify(tx.commands)) &&
-      tx.commands.filter((c) => {
+  //@throws an Exception if Validation fails
+  validateTx(struct: TxMessageStruct): void {
+    if (!this.Tx(struct)) {
+      throw new Error(`validateTx() invalid message ${JSON.stringify(this.Tx.errors)}`);
+    }
+    this.statefulTx(struct);
+  }
+
+  private statefulTx(struct: TxMessageStruct): void {
+    // if there are commands available, they must comply with the given rules
+    const lc: boolean =
+      struct.commands.filter((c: Command): boolean => {
         switch (c.command || '') {
-          case Blockchain.COMMAND_ADD_PEER:
-          case Blockchain.COMMAND_MODIFY_STAKE:
-          case Blockchain.COMMAND_DATA:
+          case Chain.COMMAND_ADD_PEER:
+          case Chain.COMMAND_MODIFY_STAKE:
+          case Chain.COMMAND_DATA:
             return true;
-          case Blockchain.COMMAND_REMOVE_PEER:
+          case Chain.COMMAND_REMOVE_PEER:
             //@TODO review - forced peer removal by a majority decision gets prevented with this
-            return tx.origin === (c as CommandRemovePeer).publicKey;
-          case Blockchain.COMMAND_DECISION:
-            return (
-              (c as CommandDecision).h >= height && !this.server.getBlockchain().isDecisionTaken(c as CommandDecision)
-            );
+            // reason: limits the usage of CommandRemovePeer to the tx.origin (only self-removal is possible)
+            return struct.origin === (c as CommandRemovePeer).publicKey;
           default:
             return false;
         }
-      }).length === tx.commands.length
-    );
+      }).length === struct.commands.length;
+    if (!lc) {
+      throw new Error(`validateTx() invalid commands #${struct.height}`);
+    }
+
+    //@FIXME check the votes
+  }
+
+  validateVote(struct: VoteMessageStruct): void {
+    if (!this.Vote(struct)) {
+      throw new Error(`validateVote invalid message ${JSON.stringify(this.Vote.errors)}`);
+    }
+  }
+
+  validateStatus(struct: StatusMessageStruct): void {
+    if (!this.Status(struct)) {
+      throw new Error(`validateStatus invalid message ${JSON.stringify(this.Status.errors)}`);
+    }
   }
 }

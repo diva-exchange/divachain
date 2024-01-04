@@ -17,10 +17,28 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { pino } from 'pino';
+import { iMessage, Message, TYPE_VOTE } from './message.js';
+import { VoteStruct } from '../../chain/tx.js';
 
-export const Logger = pino(
-  process.env.NODE_ENV === 'development'
-    ? { level: process.env.LOG_LEVEL || 'trace' }
-    : { level: process.env.LOG_LEVEL || 'warn' }
-);
+export type VoteMessageStruct = {
+  hash: string;
+  votes: Array<VoteStruct>;
+};
+
+interface iVoteMessage extends iMessage {
+  hash(): string;
+  votes(): Array<VoteStruct>;
+}
+
+export class VoteMessage extends Message implements iVoteMessage {
+  constructor(struct: VoteMessageStruct, pkOrigin: string) {
+    super(struct, TYPE_VOTE, pkOrigin);
+  }
+
+  hash(): string {
+    return (this.message as VoteMessageStruct).hash;
+  }
+  votes(): Array<VoteStruct> {
+    return (this.message as VoteMessageStruct).votes;
+  }
+}

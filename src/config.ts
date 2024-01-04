@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -19,8 +19,8 @@
 
 import path from 'path';
 import fs from 'fs';
-import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
-import { Genesis } from './genesis';
+import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam';
+import { Genesis } from './genesis.js';
 
 export type Configuration = {
   no_bootstrapping?: number;
@@ -28,82 +28,88 @@ export type Configuration = {
 
   ip?: string;
   port?: number;
-  port_block_feed?: number;
+  port_tx_feed?: number;
 
   path_app?: string;
   path_genesis?: string;
-  path_blockstore?: string;
+  path_chain?: string;
   path_state?: string;
   path_keys?: string;
 
-  i2p_socks_host?: string;
-  i2p_socks_port?: number;
+  i2p_socks?: string;
 
-  i2p_sam_http_host?: string;
-  i2p_sam_http_port_tcp?: number;
-  i2p_sam_udp_host?: string;
-  i2p_sam_udp_port_tcp?: number;
-  i2p_sam_udp_port_udp?: number;
-  i2p_sam_forward_http_host?: string;
-  i2p_sam_forward_http_port?: number;
-  i2p_sam_listen_udp_host?: string;
-  i2p_sam_listen_udp_port?: number;
-  i2p_sam_forward_udp_host?: string;
-  i2p_sam_forward_udp_port?: number;
+  i2p_sam_http?: string;
+  i2p_sam_forward_http?: string;
   i2p_public_key_http?: string;
   i2p_private_key_http?: string;
+
+  i2p_sam_tcp?: string;
+  i2p_sam_listen_tcp?: string;
+  i2p_sam_forward_tcp?: string;
+  i2p_sam_tcp_client?: Array<string>;
+  i2p_public_key_tcp?: string;
+  i2p_private_key_tcp?: string;
+
+  i2p_sam_udp?: string;
+  i2p_sam_udp_port_udp?: number;
+  i2p_sam_listen_udp?: string;
+  i2p_sam_forward_udp?: string;
   i2p_public_key_udp?: string;
   i2p_private_key_udp?: string;
 
+  i2p_sam_tunnel_var_min?: number;
+  i2p_sam_tunnel_var_max?: number;
+
   http?: string;
+  tcp?: string;
   udp?: string;
 
+  network_has_tcp?: boolean;
   network_timeout_ms?: number;
   network_p2p_interval_ms?: number;
   network_sync_size?: number;
 
-  blockchain_max_blocks_in_memory?: number;
+  chain_max_txs_in_memory?: number;
 
   api_max_query_size?: number;
 };
 
-export const BLOCK_VERSION = 7;
-export const DEFAULT_NAME_GENESIS_BLOCK = 'block.v' + BLOCK_VERSION;
-export const MAX_NETWORK_SIZE = 16;
-export const STAKE_PING_IDENT = 'ping';
-export const STAKE_PING_AMOUNT = 1;
-export const STAKE_PING_SAMPLE_SIZE = 32;
-export const STAKE_PING_QUARTILE_COEFF_MIN = 0.4;
-export const STAKE_PING_QUARTILE_COEFF_MAX = 0.6;
-export const STAKE_VOTE_IDENT = 'vote';
-export const STAKE_VOTE_MATCH_THRESHOLD = 3;
-export const STAKE_VOTE_AMOUNT = 1;
+export const TX_VERSION: number = 1;
+export const DEFAULT_NAME_GENESIS: string = 'tx.v' + TX_VERSION;
+export const MAX_NETWORK_SIZE: number = 24;
 
-const DEFAULT_IP = '127.0.0.1';
-const DEFAULT_PORT = 17468;
-const DEFAULT_BLOCK_FEED_PORT = DEFAULT_PORT + 1;
+const DEFAULT_IP: string = '127.0.0.1';
+const DEFAULT_PORT: number = 17468;
+const DEFAULT_TX_FEED_PORT: number = DEFAULT_PORT + 1;
 
-const DEFAULT_I2P_SOCKS_PORT = 4445;
+const DEFAULT_I2P_SOCKS_PORT: number = 4445;
 
-const DEFAULT_I2P_SAM_TCP_PORT = 7656;
-const DEFAULT_I2P_SAM_UDP_PORT = 7655;
-const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = DEFAULT_PORT;
-const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_PORT + 2;
-const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
+const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT: number = DEFAULT_PORT;
 
-const DEFAULT_NETWORK_TIMEOUT_MS = 10000;
-const MIN_NETWORK_TIMEOUT_MS = 1000;
-const MAX_NETWORK_TIMEOUT_MS = 60000;
-const MIN_NETWORK_P2P_INTERVAL_MS = 10000;
-const MAX_NETWORK_P2P_INTERVAL_MS = 30000;
-const MIN_NETWORK_SYNC_SIZE = 10;
-const MAX_NETWORK_SYNC_SIZE = 100;
+const DEFAULT_I2P_SAM_TCP_PORT: number = 7656;
 
-const MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 100;
-const MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY = 1000;
+const DEFAULT_I2P_SAM_UDP_PORT: number = 7656;
+const DEFAULT_I2P_SAM_UDP_PORT_UDP: number = 7655;
 
-const MIN_API_MAX_QUERY_SIZE = 10;
-const MAX_API_MAX_QUERY_SIZE = 100;
+const DEFAULT_I2P_SAM_LISTEN_UDP_PORT: number = DEFAULT_PORT + 2;
+const DEFAULT_I2P_SAM_FORWARD_UDP_PORT: number = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
+
+const DEFAULT_I2P_SAM_TUNNEL_VAR_MIN: number = 0;
+const DEFAULT_I2P_SAM_TUNNEL_VAR_MAX: number = 2;
+
+const DEFAULT_NETWORK_TIMEOUT_MS: number = 10000;
+const MIN_NETWORK_TIMEOUT_MS: number = 1000;
+const MAX_NETWORK_TIMEOUT_MS: number = 60000;
+const MIN_NETWORK_P2P_INTERVAL_MS: number = 10000;
+const MAX_NETWORK_P2P_INTERVAL_MS: number = 30000;
+const MIN_NETWORK_SYNC_SIZE: number = 10;
+const MAX_NETWORK_SYNC_SIZE: number = 100;
+
+const MIN_CHAIN_MAX_TXS_IN_MEMORY: number = 100;
+const MAX_CHAIN_MAX_TXS_IN_MEMORY: number = 1000;
+
+const MIN_API_MAX_QUERY_SIZE: number = 10;
+const MAX_API_MAX_QUERY_SIZE: number = 100;
 
 export class Config {
   public is_testnet: boolean = true;
@@ -113,47 +119,44 @@ export class Config {
 
   public ip: string = '';
   public port: number = 0;
-  public port_block_feed: number = 0;
+  public port_tx_feed: number = 0;
 
   public path_app: string = '';
   public path_genesis: string = '';
-  public path_blockstore: string = '';
+  public path_chain: string = '';
   public path_state: string = '';
   public path_keys: string = '';
 
-  public http: string = '';
-  public udp: string = '';
+  public i2p_socks: string = '';
 
-  public i2p_socks_host: string = '';
-  public i2p_socks_port: number = 0;
-  public i2p_sam_http_host: string = '';
-  public i2p_sam_http_port_tcp: number = 0;
-  public i2p_sam_udp_host: string = '';
-  public i2p_sam_udp_port_tcp: number = 0;
-  public i2p_sam_udp_port_udp: number = 0;
-  public i2p_sam_forward_http_host: string = '';
-  public i2p_sam_forward_http_port: number = 0;
-  public i2p_sam_listen_udp_host: string = '';
-  public i2p_sam_listen_udp_port: number = 0;
-  public i2p_sam_forward_udp_host: string = '';
-  public i2p_sam_forward_udp_port: number = 0;
+  public i2p_sam_http: string = '';
+  public i2p_sam_forward_http: string = '';
   public i2p_public_key_http: string = '';
   public i2p_private_key_http: string = '';
+  public http: string = '';
+
+  public i2p_sam_udp: string = '';
+  public i2p_sam_udp_port_udp: number = 0; // specs 7655
+  public i2p_sam_listen_udp: string = '';
+  public i2p_sam_forward_udp: string = '';
   public i2p_public_key_udp: string = '';
   public i2p_private_key_udp: string = '';
+  public udp: string = '';
+
+  public i2p_sam_tunnel_var_min: number = 0;
+  public i2p_sam_tunnel_var_max: number = 0;
 
   public network_timeout_ms: number = 0;
   public network_p2p_interval_ms: number = 0;
   public network_sync_size: number = 0;
 
-  public block_retry_timeout_ms: number = 0;
-
-  public blockchain_max_blocks_in_memory: number = 0;
+  public chain_max_txs_in_memory: number = 0;
 
   public api_max_query_size: number = 0;
 
   static async make(c: Configuration): Promise<Config> {
-    const self = new Config();
+    const ___dirname: string = path.dirname(import.meta.url.replace(/^file:\/\//, ''));
+    const self: Config = new Config();
 
     // TESTNET mode
     self.is_testnet = (process.env.IS_TESTNET || false) === '1';
@@ -161,16 +164,16 @@ export class Config {
     // GENESIS mode
     if (process.env.GENESIS === '1') {
       const obj: { genesis: any; config: Array<any> } = await Genesis.create();
-      const _p = process.env.GENESIS_PATH || '';
+      const _p: string = process.env.GENESIS_PATH || '';
       if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
         fs.writeFileSync(_p, JSON.stringify(obj.genesis), { mode: '0644' });
-        const _c = process.env.GENESIS_CONFIG_PATH || '';
+        const _c: string = process.env.GENESIS_CONFIG_PATH || '';
         if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
           fs.writeFileSync(
             _c,
             JSON.stringify(
-              obj.config.map((cnf: Array<any>) => {
-                return { http: cnf[1].http, udp: cnf[1].udp };
+              obj.config.map((cnf: Array<any>): { http: string; tcp: string } => {
+                return { http: cnf[1].http, tcp: cnf[1].tcp };
               })
             ),
             { mode: '0644' }
@@ -189,7 +192,7 @@ export class Config {
     }
 
     if (!c.path_app || !fs.existsSync(c.path_app)) {
-      self.path_app = path.join(__dirname, '/../');
+      self.path_app = path.join(___dirname, '/../');
     } else {
       self.path_app = c.path_app;
     }
@@ -197,20 +200,20 @@ export class Config {
     self.debug_performance = Config.tf(process.env.DEBUG_PERFORMANCE);
 
     self.bootstrap =
-      (c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
+      +(c.no_bootstrapping || process.env.NO_BOOTSTRAPPING || 0) > 0 ? '' : c.bootstrap || process.env.BOOTSTRAP || '';
 
     try {
-      self.VERSION = fs.readFileSync(path.join(__dirname, 'version')).toString();
+      self.VERSION = fs.readFileSync(path.join(___dirname, 'version')).toString();
     } catch (error) {
       if (!fs.existsSync(path.join(self.path_app, 'package.json'))) {
         throw new Error('File not found: ' + path.join(self.path_app, 'package.json'));
       }
-      self.VERSION = require(path.join(self.path_app, 'package.json')).version;
+      self.VERSION = (await import(path.join(self.path_app, 'package.json'))).version;
     }
 
     self.ip = c.ip || process.env.IP || DEFAULT_IP;
     self.port = Config.port(c.port || process.env.PORT || DEFAULT_PORT);
-    self.port_block_feed = Config.port(c.port_block_feed || process.env.BLOCK_FEED_PORT || DEFAULT_BLOCK_FEED_PORT);
+    self.port_tx_feed = Config.port(c.port_tx_feed || process.env.BLOCK_FEED_PORT || DEFAULT_TX_FEED_PORT);
 
     if (!c.path_keys || !fs.existsSync(c.path_keys)) {
       self.path_keys = path.join(self.path_app, 'keys/');
@@ -222,33 +225,17 @@ export class Config {
     }
 
     self.http = c.http || process.env.HTTP || '';
-    self.udp = c.udp || process.env.UDP || '';
 
-    self.i2p_socks_host = c.i2p_socks_host || process.env.I2P_SOCKS_HOST || self.ip;
-    self.i2p_socks_port = Config.port(c.i2p_socks_port || process.env.I2P_SOCKS_PORT) || DEFAULT_I2P_SOCKS_PORT;
-    self.i2p_sam_http_host = c.i2p_sam_http_host || process.env.I2P_SAM_HTTP_HOST || self.ip;
-    self.i2p_sam_http_port_tcp =
-      Config.port(c.i2p_sam_http_port_tcp || process.env.I2P_SAM_HTTP_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
-    self.i2p_sam_udp_host = c.i2p_sam_udp_host || process.env.I2P_SAM_UDP_HOST || self.ip;
-    self.i2p_sam_udp_port_tcp =
-      Config.port(c.i2p_sam_udp_port_tcp || process.env.I2P_SAM_UDP_PORT_TCP) || DEFAULT_I2P_SAM_TCP_PORT;
-    self.i2p_sam_udp_port_udp =
-      Config.port(c.i2p_sam_udp_port_udp || process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT;
-    self.i2p_sam_forward_http_host = c.i2p_sam_forward_http_host || process.env.I2P_SAM_FORWARD_HTTP_HOST || self.ip;
-    self.i2p_sam_forward_http_port =
-      Config.port(c.i2p_sam_forward_http_port || process.env.I2P_SAM_FORWARD_HTTP_PORT) ||
-      DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
-    self.i2p_sam_listen_udp_host = c.i2p_sam_listen_udp_host || process.env.I2P_SAM_LISTEN_UDP_HOST || self.ip;
-    self.i2p_sam_listen_udp_port =
-      Config.port(c.i2p_sam_listen_udp_port || process.env.I2P_SAM_LISTEN_UDP_PORT) || DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
-    self.i2p_sam_forward_udp_host = c.i2p_sam_forward_udp_host || process.env.I2P_SAM_FORWARD_UDP_HOST || self.ip;
-    self.i2p_sam_forward_udp_port =
-      Config.port(c.i2p_sam_forward_udp_port || process.env.I2P_SAM_FORWARD_UDP_PORT) ||
-      DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
+    // SOCKS
+    self.i2p_socks = c.i2p_socks || process.env.I2P_SOCKS || self.ip + ':' + DEFAULT_I2P_SOCKS_PORT;
 
+    // HTTP
+    self.i2p_sam_http = c.i2p_sam_http || process.env.I2P_SAM_HTTP || self.ip + ':' + DEFAULT_I2P_SAM_TCP_PORT;
+    self.i2p_sam_forward_http =
+      c.i2p_sam_forward_http || process.env.I2P_SAM_FORWARD_HTTP || self.ip + ':' + DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
     if (self.http.length > 0) {
-      const _b32 = /\.b32\.i2p$/.test(self.http) ? self.http : toB32(self.http) + '.b32.i2p';
-      const _p = path.join(self.path_keys, _b32);
+      const _b32: string = /\.b32\.i2p$/.test(self.http) ? self.http : toB32(self.http) + '.b32.i2p';
+      const _p: string = path.join(self.path_keys, _b32);
       self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
       self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
     } else {
@@ -258,9 +245,17 @@ export class Config {
     }
     self.http = self.i2p_public_key_http;
 
+    // UDP
+    self.i2p_sam_udp = c.i2p_sam_udp || process.env.I2P_SAM_UDP || self.ip + ':' + DEFAULT_I2P_SAM_UDP_PORT;
+    self.i2p_sam_udp_port_udp =
+      c.i2p_sam_udp_port_udp || Number(process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT_UDP;
+    self.i2p_sam_listen_udp =
+      c.i2p_sam_listen_udp || process.env.I2P_SAM_LISTEN_UDP || self.ip + ':' + DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
+    self.i2p_sam_forward_udp =
+      c.i2p_sam_forward_udp || process.env.I2P_SAM_FORWARD_UDP || self.ip + ':' + DEFAULT_I2P_SAM_FORWARD_UDP_PORT;
     if (self.udp.length > 0) {
-      const _b32 = /\.b32\.i2p$/.test(self.udp) ? self.udp : toB32(self.udp) + '.b32.i2p';
-      const _p = path.join(self.path_keys, _b32);
+      const _b32: string = /\.b32\.i2p$/.test(self.udp) ? self.udp : toB32(self.udp) + '.b32.i2p';
+      const _p: string = path.join(self.path_keys, _b32);
       self.i2p_public_key_udp = fs.readFileSync(_p + '.public').toString();
       self.i2p_private_key_udp = fs.readFileSync(_p + '.private').toString();
     } else {
@@ -270,29 +265,42 @@ export class Config {
     }
     self.udp = self.i2p_public_key_udp;
 
+    //@TODO max is hardcoded (3)
+    // i2p tunnel length variance
+    self.i2p_sam_tunnel_var_min = Config.b(
+      c.i2p_sam_tunnel_var_min || process.env.I2P_SAM_TUNNEL_VAR_MIN || DEFAULT_I2P_SAM_TUNNEL_VAR_MIN,
+      0,
+      3
+    );
+    self.i2p_sam_tunnel_var_max = Config.b(
+      c.i2p_sam_tunnel_var_max || process.env.I2P_SAM_TUNNEL_VAR_MAX || DEFAULT_I2P_SAM_TUNNEL_VAR_MAX,
+      self.i2p_sam_tunnel_var_min,
+      3
+    );
+
     if (!c.path_genesis || !fs.existsSync(c.path_genesis)) {
       self.path_genesis = path.join(self.path_app, 'genesis/');
     } else {
       self.path_genesis = c.path_genesis;
     }
     if (!/\.json$/.test(self.path_genesis)) {
-      self.path_genesis = self.path_genesis + DEFAULT_NAME_GENESIS_BLOCK + '.json';
+      self.path_genesis = self.path_genesis + DEFAULT_NAME_GENESIS + '.json';
     }
     if (!fs.existsSync(self.path_genesis)) {
       throw new Error(`Path to genesis block not found: ${self.path_genesis}`);
     }
 
-    if (!c.path_blockstore || !fs.existsSync(c.path_blockstore)) {
-      self.path_blockstore = path.join(self.path_app, 'blockstore/');
+    if (!c.path_chain || !fs.existsSync(c.path_chain)) {
+      self.path_chain = path.join(self.path_app, 'db/chain/');
     } else {
-      self.path_blockstore = c.path_blockstore;
+      self.path_chain = c.path_chain;
     }
-    if (!fs.existsSync(self.path_blockstore)) {
-      throw new Error(`Path to the blockstore database not found: ${self.path_blockstore}`);
+    if (!fs.existsSync(self.path_chain)) {
+      throw new Error(`Path to the database not found: ${self.path_chain}`);
     }
 
     if (!c.path_state || !fs.existsSync(c.path_state)) {
-      self.path_state = path.join(self.path_app, 'state/');
+      self.path_state = path.join(self.path_app, 'db/state/');
     } else {
       self.path_state = c.path_state;
     }
@@ -318,12 +326,10 @@ export class Config {
       MAX_NETWORK_SYNC_SIZE
     );
 
-    self.blockchain_max_blocks_in_memory = Config.b(
-      c.blockchain_max_blocks_in_memory ||
-        process.env.BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY ||
-        MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY,
-      MIN_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY,
-      MAX_BLOCKCHAIN_MAX_BLOCKS_IN_MEMORY
+    self.chain_max_txs_in_memory = Config.b(
+      c.chain_max_txs_in_memory || process.env.BLOCKCHAIN_MAX_TXS_IN_MEMORY || MAX_CHAIN_MAX_TXS_IN_MEMORY,
+      MIN_CHAIN_MAX_TXS_IN_MEMORY,
+      MAX_CHAIN_MAX_TXS_IN_MEMORY
     );
     self.api_max_query_size = Config.b(
       c.api_max_query_size || process.env.API_MAX_QUERY_SIZE || MAX_API_MAX_QUERY_SIZE,
@@ -334,24 +340,25 @@ export class Config {
     return self;
   }
 
-  private constructor() {}
-
-  private static async createI2PDestination(self: Config) {
-    const obj = await createLocalDestination({
+  private static async createI2PDestination(
+    self: Config
+  ): Promise<{ address: string; public: string; private: string }> {
+    const [host, port] = self.i2p_sam_http.split(':');
+    const sam: { address: string; public: string; private: string } = await createLocalDestination({
       sam: {
-        host: self.i2p_sam_http_host,
-        portTCP: self.i2p_sam_http_port_tcp,
+        host: host,
+        portTCP: Number(port),
       },
     });
 
-    const pathDestination = path.join(self.path_keys, obj.address);
+    const pathDestination = path.join(self.path_keys, sam.address);
     if (fs.existsSync(pathDestination + '.public') || fs.existsSync(pathDestination + '.private')) {
       throw new Error(`Address already exists: ${pathDestination}`);
     }
-    fs.writeFileSync(pathDestination + '.public', obj.public, { mode: '0644' });
-    fs.writeFileSync(pathDestination + '.private', obj.private, { mode: '0600' });
+    fs.writeFileSync(pathDestination + '.public', sam.public, { mode: '0644' });
+    fs.writeFileSync(pathDestination + '.private', sam.private, { mode: '0600' });
 
-    return obj;
+    return sam;
   }
 
   private static tf(n: any): boolean {

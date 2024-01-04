@@ -1,12 +1,13 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "noImplicitAny": false,
+    "declaration": false,
+    "outDir": "dist",
     "emitDecoratorMetadata": true,
-    "experimentalDecorators": true,
-    "sourceMap": true
+    "experimentalDecorators": true
   },
   "include": [
-    "./**/*.spec.ts"
+    "src/**/*.spec.ts",
+    "../src/types/simple-get.d.ts"
   ]
 }

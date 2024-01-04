@@ -27,25 +27,21 @@ PROJECT_PATH=$( pwd )
 
 source "${PROJECT_PATH}"/bin/echos.sh
 source "${PROJECT_PATH}"/bin/helpers.sh
+source "${PROJECT_PATH}"/bin/compile.sh
 
-if ! command_exists npm; then
-  error "npm not available. Install node";
-  exit 1
+if command_exists pkg; then
+  info "Packaging..."
+
+  #classic-level prebuilds
+  [[ -d "${PROJECT_PATH}"/node_modules/classic-level/prebuilds/ ]] &&
+    mkdir -p "${PROJECT_PATH}"/build/prebuilds &&
+    cp -r "${PROJECT_PATH}"/node_modules/classic-level/prebuilds/linux-x64 "${PROJECT_PATH}"/build/prebuilds/linux-x64
+
+  pkg --no-bytecode \
+    --public \
+    --output "${PROJECT_PATH}"/build/divachain-linux-x64 \
+    .
+else
+  info "Skipping Packaging..."
+  warn "Reason: pkg not available. Install it with npm i -g pkg";
 fi
-
-npm i --omit-dev
-
-info "Clean up..."
-rm -rf "${PROJECT_PATH}"/dist/*
-rm -rf "${PROJECT_PATH}"/build/prebuilds
-rm -rf "${PROJECT_PATH}"/build/divachain-*
-
-info "Transpiling TypeScript to JavaScript..."
-tsc
-cp -r "${PROJECT_PATH}"/src/schema "${PROJECT_PATH}"/dist/schema
-
-# create a static version file
-node "${PROJECT_PATH}"/dist/version.js
-rm -rf "${PROJECT_PATH}"/dist/version.js
-rm -rf "${PROJECT_PATH}"/dist/version.js.map
-rm -rf "${PROJECT_PATH}"/dist/version.d.ts

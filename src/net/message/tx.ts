@@ -17,10 +17,21 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { pino } from 'pino';
+import { iMessage, Message, TYPE_TX } from './message.js';
+import { TxStruct } from '../../chain/tx.js';
 
-export const Logger = pino(
-  process.env.NODE_ENV === 'development'
-    ? { level: process.env.LOG_LEVEL || 'trace' }
-    : { level: process.env.LOG_LEVEL || 'warn' }
-);
+export type TxMessageStruct = TxStruct;
+
+interface iTxMessage extends iMessage {
+  tx(): TxStruct;
+}
+
+export class TxMessage extends Message implements iTxMessage {
+  constructor(struct: TxMessageStruct, pkOrigin: string) {
+    super(struct, TYPE_TX, pkOrigin);
+  }
+
+  tx(): TxStruct {
+    return this.message as TxStruct;
+  }
+}

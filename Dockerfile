@@ -43,7 +43,7 @@ RUN cd divachain \
   && mkdir dist \
   && npm i -g pkg \
   && npm i --production \
-  && bin/build.sh
+  && bin/build-pkg.sh
 
 #############################################
 # Second stage: create the distroless image

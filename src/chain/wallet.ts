@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -20,9 +20,9 @@
 import sodium from 'sodium-native';
 import fs from 'fs';
 import path from 'path';
-import { Config } from '../config';
+import { Config } from '../config.js';
 import { base64url } from 'rfc4648';
-import { toB32 } from '@diva.exchange/i2p-sam/dist/i2p-sam';
+import { toB32 } from '@diva.exchange/i2p-sam';
 import { nanoid } from 'nanoid';
 import crypto from 'crypto';
 
@@ -48,12 +48,15 @@ export class Wallet {
   }
 
   private createTokenAPI() {
-    const p = path.join(this.config.path_keys, toB32(this.config.http) + '.token');
+    const p: string = path.join(this.config.path_keys, toB32(this.config.http) + '.token');
     fs.writeFileSync(p, nanoid(DEFAULT_LENGTH_TOKEN_API), { mode: '0600' });
     this.tokenAPI = fs.readFileSync(p).toString();
-    setTimeout(() => {
-      this.createTokenAPI();
-    }, crypto.randomInt(180000, 600000)); // between 3 and 10 minutes
+    setTimeout(
+      () => {
+        this.createTokenAPI();
+      },
+      crypto.randomInt(180000, 600000)
+    ); // between 3 and 10 minutes
   }
 
   getTokenAPI(): string {
@@ -66,8 +69,8 @@ export class Wallet {
     sodium.sodium_mlock(this.secretKey);
 
     // look for keys
-    const pathPublic = path.join(this.config.path_keys, this.ident + '.public');
-    const pathSecret = path.join(this.config.path_keys, this.ident + '.private');
+    const pathPublic: string = path.join(this.config.path_keys, this.ident + '.public');
+    const pathSecret: string = path.join(this.config.path_keys, this.ident + '.private');
     if (fs.existsSync(pathPublic) && fs.existsSync(pathSecret)) {
       this.publicKey.fill(fs.readFileSync(pathPublic));
       this.secretKey.fill(fs.readFileSync(pathSecret));
@@ -81,7 +84,7 @@ export class Wallet {
     return this;
   }
 
-  close() {
+  close(): void {
     sodium.sodium_munlock(this.secretKey);
   }
 

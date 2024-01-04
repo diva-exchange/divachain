@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022 diva.exchange
+ * Copyright (C) 2022-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,35 +17,27 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Message } from './message';
-import { Wallet } from '../../chain/wallet';
+import { iMessage, Message, TYPE_STATUS } from './message.js';
 
-type StatusStruct = {
-  type: number;
-  status: number;
-  height: number;
+export type StatusMatrixRecord = { origin: string; height: number };
+
+export type StatusMessageStruct = {
+  seq: number;
+  matrix: Array<StatusMatrixRecord>;
 };
 
-export const ONLINE = 1;
-export const OFFLINE = 2;
+interface iStatus extends iMessage {
+  matrix(): Array<{ origin: string; height: number }>;
+}
 
-export class Status extends Message {
-  create(wallet: Wallet, status: number, height: number): Status {
-    this.init(wallet.getPublicKey());
-    this.message.data = {
-      type: Message.TYPE_STATUS,
-      status: status,
-      height: height,
-    } as StatusStruct;
-    this.pack(wallet);
-    return this;
+export class StatusMessage extends Message implements iStatus {
+  private static seq: number = 1;
+  constructor(struct: StatusMessageStruct, pkOrigin: string) {
+    struct.seq = StatusMessage.seq++;
+    super(struct, TYPE_STATUS, pkOrigin);
   }
 
-  status(): number {
-    return this.message.data.status;
-  }
-
-  height(): number {
-    return this.message.data.height;
+  matrix(): Array<StatusMatrixRecord> {
+    return (this.message as StatusMessageStruct).matrix;
   }
 }

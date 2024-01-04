@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2022 diva.exchange
+ * Copyright (C) 2021-2024 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,9 +17,9 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Server } from './net/server';
-import { Config, Configuration } from './config';
-import { Logger } from './logger';
+import { Server } from './net/server.js';
+import { Config, Configuration } from './config.js';
+import { Logger } from './logger.js';
 
 class Main {
   private config: Config = {} as Config;
@@ -31,7 +31,7 @@ class Main {
   }
 
   private async start() {
-    const server = new Server(this.config);
+    const server: Server = new Server(this.config);
 
     // termination handlers
     process.once('SIGINT', async () => {

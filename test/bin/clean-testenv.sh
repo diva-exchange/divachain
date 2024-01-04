@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright (C) 2021 diva.exchange
+# Copyright (C) 2021-2023 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,11 +21,15 @@
 set -e
 
 PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"/../
-cd ${PROJECT_PATH}
-PROJECT_PATH=`pwd`/
+cd "${PROJECT_PATH}"
+PROJECT_PATH=$(pwd)
 
-# tests
-rm -rf ${PROJECT_PATH}keys/*
-rm -rf ${PROJECT_PATH}blockstore/*
-rm -rf ${PROJECT_PATH}state/*
-rm -f ${PROJECT_PATH}genesis/*
+# remove test data
+rm -rf "${PROJECT_PATH}"/dist/*
+
+# remove test data contents
+rm -rf "${PROJECT_PATH}"/genesis/*
+rm -rf "${PROJECT_PATH}"/keys/*
+rm -rf "${PROJECT_PATH}"/db/chain/*
+rm -rf "${PROJECT_PATH}"/db/state/*
+
