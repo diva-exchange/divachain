@@ -1,0 +1,39 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "/schema/message/status.json",
+    "type": "object",
+    "properties": {
+        "seq": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "matrix": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "origin": {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9_-]{43}$"
+                    },
+                    "height": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "origin",
+                    "height"
+                ],
+                "additionalProperties": false
+            },
+            "minItems": 1,
+            "uniqueItems": true
+        }
+    },
+    "required": [
+        "seq",
+        "matrix"
+    ],
+    "additionalProperties": false
+}

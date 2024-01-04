@@ -1,0 +1,1 @@
+{"version":3,"file":"tx.js","sourceRoot":"","sources":["../../../src/net/message/tx.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;GAiBG;AAEH,OAAO,EAAY,OAAO,EAAE,OAAO,EAAE,MAAM,cAAc,CAAC;AAS1D,MAAM,OAAO,SAAU,SAAQ,OAAO;IACpC,YAAY,MAAuB,EAAE,QAAgB;QACnD,KAAK,CAAC,MAAM,EAAE,OAAO,EAAE,QAAQ,CAAC,CAAC;IACnC,CAAC;IAED,EAAE;QACA,OAAO,IAAI,CAAC,OAAmB,CAAC;IAClC,CAAC;CACF"}

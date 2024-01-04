@@ -1,0 +1,25 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "/schema/tx/v1/votes.json",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "origin": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{43}$"
+            },
+            "sig": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{86}$"
+            }
+        },
+        "required": [
+            "origin",
+            "sig"
+        ],
+        "additionalProperties": false
+    },
+    "minItems": 1,
+    "uniqueItems": true
+}
