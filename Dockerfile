@@ -27,10 +27,10 @@ LABEL author="DIVA.EXCHANGE Association <contact@diva.exchange>" \
 
 COPY dist /dist
 COPY package.json /package.json
-COPY genesis/* /genesis/
 COPY entrypoint.sh /entrypoint.sh
 
-RUN mkdir /keys \
+RUN mkdir /genesis \
+  && mkdir /keys \
   && mkdir -p /db/chain \
   && mkdir -p /db/state \
   && npm i --omit=dev \
