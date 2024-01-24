@@ -20,16 +20,17 @@ import path from 'path';
 import fs from 'fs';
 import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam';
 import { Genesis } from './genesis.js';
+import { Logger } from './logger.js';
 export const TX_VERSION = 1;
 export const DEFAULT_NAME_GENESIS = 'tx.v' + TX_VERSION;
-export const MAX_NETWORK_SIZE = 24;
-const DEFAULT_IP = '127.0.0.1';
-const DEFAULT_PORT = 17468;
-const DEFAULT_TX_FEED_PORT = DEFAULT_PORT + 1;
-const DEFAULT_I2P_SOCKS_PORT = 4445;
+export const MAX_NETWORK_SIZE = 64;
+export const DEFAULT_IP = '127.0.0.1';
+export const DEFAULT_PORT = 17468;
+export const DEFAULT_TX_FEED_PORT = DEFAULT_PORT + 1;
+export const DEFAULT_I2P_SOCKS_PORT = 4445;
 const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT = DEFAULT_PORT;
-const DEFAULT_I2P_SAM_TCP_PORT = 7656;
-const DEFAULT_I2P_SAM_UDP_PORT = 7656;
+export const DEFAULT_I2P_SAM_TCP_PORT = 7656;
+export const DEFAULT_I2P_SAM_UDP_PORT = 7656;
 const DEFAULT_I2P_SAM_UDP_PORT_UDP = 7655;
 const DEFAULT_I2P_SAM_LISTEN_UDP_PORT = DEFAULT_PORT + 2;
 const DEFAULT_I2P_SAM_FORWARD_UDP_PORT = DEFAULT_I2P_SAM_LISTEN_UDP_PORT;
@@ -86,15 +87,18 @@ export class Config {
         self.is_testnet = (process.env.IS_TESTNET || false) === '1';
         // GENESIS mode
         if (process.env.GENESIS === '1') {
+            Logger.info(`${___dirname}: genesis mode`);
             const obj = await Genesis.create();
             const _p = process.env.GENESIS_PATH || '';
             if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
                 fs.writeFileSync(_p, JSON.stringify(obj.genesis), { mode: '0644' });
+                Logger.info(`${_p}: new genesis file`);
                 const _c = process.env.GENESIS_CONFIG_PATH || '';
                 if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
                     fs.writeFileSync(_c, JSON.stringify(obj.config.map((cnf) => {
-                        return { http: cnf[1].http, udp: cnf[1].udp };
+                        return { http: cnf.http, udp: cnf.udp };
                     })), { mode: '0644' });
+                    Logger.info(`${_c}: new configuration file`);
                 }
             }
             else {
@@ -136,10 +140,10 @@ export class Config {
         if (!fs.existsSync(self.path_keys)) {
             throw new Error(`Path to the keys storage not found: ${self.path_keys}`);
         }
-        self.http = c.http || process.env.HTTP || '';
         // SOCKS
         self.i2p_socks = c.i2p_socks || process.env.I2P_SOCKS || self.ip + ':' + DEFAULT_I2P_SOCKS_PORT;
         // HTTP
+        self.http = c.http || process.env.HTTP || '';
         self.i2p_sam_http = c.i2p_sam_http || process.env.I2P_SAM_HTTP || self.ip + ':' + DEFAULT_I2P_SAM_TCP_PORT;
         self.i2p_sam_forward_http =
             c.i2p_sam_forward_http || process.env.I2P_SAM_FORWARD_HTTP || self.ip + ':' + DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
@@ -156,6 +160,7 @@ export class Config {
         }
         self.http = self.i2p_public_key_http;
         // UDP
+        self.udp = c.udp || process.env.UDP || '';
         self.i2p_sam_udp = c.i2p_sam_udp || process.env.I2P_SAM_UDP || self.ip + ':' + DEFAULT_I2P_SAM_UDP_PORT;
         self.i2p_sam_udp_port_udp =
             c.i2p_sam_udp_port_udp || Number(process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT_UDP;

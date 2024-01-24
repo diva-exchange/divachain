@@ -200,7 +200,9 @@ export class Network extends EventEmitter {
           //@FIXME recovering?
           Logger.warn(`${this.server.config.port}: SAM UDP ERROR ${error.toString()}`);
         });
-      Logger.info(`UDP ready, ${toB32(_c.udp)}.b32.i2p (${inboundLV}/${outboundLV}) to ${_c.i2p_sam_forward_udp}`);
+      Logger.info(
+        `UDP ready, ${toB32(_c.udp)}.b32.i2p (${inboundLV}/${outboundLV}) listen on ${udp_listen_host}:${Number(udp_listen_port)}`
+      );
     } catch (error: any) {
       Logger.trace(`${this.server.config.port}: UDP error ${error}`);
       Object.keys(this.samUdp).length && this.samUdp.close();
@@ -214,6 +216,7 @@ export class Network extends EventEmitter {
   private onUdpData(data: Buffer): void {
     try {
       const uid: string = data.subarray(2, 16).toString();
+
       if (this.arrayProcessedMsgUid.includes(uid)) {
         return;
       }
@@ -357,7 +360,8 @@ export class Network extends EventEmitter {
         const matrix: Array<StatusMatrixRecord> = this.arrayNetwork.map((p: Peer): StatusMatrixRecord => {
           return { origin: p.publicKey, height: this.server.getChain().getHeight(p.publicKey) || 0 };
         });
-        this.broadcast(new StatusMessage({ seq: 0, matrix: matrix }, this.publicKey).asString(this.server.getWallet()));
+        const sm: StatusMessage = new StatusMessage({ seq: 0, matrix: matrix }, this.publicKey);
+        this.broadcast(sm.asString(this.server.getWallet()));
       },
       Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.9)
     );
@@ -384,12 +388,13 @@ export class Network extends EventEmitter {
     const aUdp: Array<Buffer> = this.split(zlib.brotliCompressSync(Buffer.from(data)));
 
     // distribute the message to the network, via UDP
-    Util.shuffleArray(this.arrayBroadcast.filter((pk: string): boolean => pkOrigin !== pk && (!to || to === pk)))
-      .forEach((pk): void => {
-        Util.shuffleArray(aUdp).forEach((b: Buffer): void => {
-          this.samUdp.send(this.server.getChain().getPeer(pk).udp, b);
-        });
+    Util.shuffleArray(
+      this.arrayBroadcast.filter((pk: string): boolean => pkOrigin !== pk && (!to || to === pk))
+    ).forEach((pk): void => {
+      Util.shuffleArray(aUdp).forEach((b: Buffer): void => {
+        this.samUdp.send(this.server.getChain().getPeer(pk).udp, b);
       });
+    });
   }
 
   // split message into chunks (of max 12KB size) - max 26 message parts = upper limit of 312KB
@@ -422,6 +427,10 @@ export class Network extends EventEmitter {
 
   getArrayNetwork(): Array<Peer> {
     return this.arrayNetwork;
+  }
+
+  getArrayBroadcast(): Array<string> {
+    return this.arrayBroadcast;
   }
 
   async fetchFromApi(endpoint: string, timeout: number = 0): Promise<any> {

@@ -59,6 +59,12 @@ export type Configuration = {
 export declare const TX_VERSION: number;
 export declare const DEFAULT_NAME_GENESIS: string;
 export declare const MAX_NETWORK_SIZE: number;
+export declare const DEFAULT_IP: string;
+export declare const DEFAULT_PORT: number;
+export declare const DEFAULT_TX_FEED_PORT: number;
+export declare const DEFAULT_I2P_SOCKS_PORT: number;
+export declare const DEFAULT_I2P_SAM_TCP_PORT: number;
+export declare const DEFAULT_I2P_SAM_UDP_PORT: number;
 export declare class Config {
     is_testnet: boolean;
     debug_performance: boolean;

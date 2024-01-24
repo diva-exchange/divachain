@@ -69,7 +69,17 @@ export class Api {
         : res.status(403).end();
     });
 
-    // GET - network
+    // GET - network status
+    this.server.app.get('/network/status', (req: Request, res: Response): Response => {
+      return this.status(res);
+    });
+
+    // GET - broadcasting network
+    this.server.app.get('/network/broadcast', (req: Request, res: Response): Response => {
+      return this.broadcast(res);
+    });
+
+    // GET - total network
     this.server.app.get('/network/:stake?', (req: Request, res: Response): Response => {
       return this.network(req, res);
     });
@@ -80,6 +90,11 @@ export class Api {
     });
     this.server.app.get('/state/:key', async (req: Request, res: Response): Promise<Response> => {
       return await this.state(req, res);
+    });
+
+    // GET - stack
+    this.server.app.get('/stack', async (req: Request, res: Response): Promise<Response> => {
+      return this.getStack(res);
     });
 
     // GET - tx
@@ -117,10 +132,12 @@ export class Api {
         : res.status(401).end();
     });
 
+    /*
     // GET - debug
     this.server.app.get('/debug/performance/:height', async (req: Request, res: Response): Promise<Response> => {
       return res.json(await this.server.getChain().getPerformance(Number(req.params.height || 0)));
     });
+*/
   }
 
   private join(req: Request, res: Response): Response {
@@ -154,7 +171,7 @@ export class Api {
 
   private async sync(req: Request, res: Response): Promise<Response> {
     const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
-    const h: number = Math.floor(Number(req.params.height) || 1);
+    const h: number = Math.floor(Number(req.params.height)) || 1;
     const height: number = this.server.getChain().getHeight(origin) || 0;
     return height >= h
       ? res.json(await this.server.getChain().getRange(h, h + this.server.config.network_sync_size, origin))
@@ -170,9 +187,17 @@ export class Api {
   }
 
   private network(req: Request, res: Response): Response {
-    const s: number = Math.floor(Number(req.params.stake) || 0);
+    const s: number = Math.floor(Number(req.params.stake)) || 0;
     const a: Array<Peer> = this.server.getNetwork().getArrayNetwork();
     return res.json(s > 0 ? a.filter((r: Peer): boolean => r['stake'] >= s) : a);
+  }
+
+  private broadcast(res: Response): Response {
+    return res.json(this.server.getNetwork().getArrayBroadcast());
+  }
+
+  private status(res: Response): Response {
+    return res.json(this.server.getTxFactory().getStatus());
   }
 
   private async stateSearch(req: Request, res: Response): Promise<Response> {
@@ -185,51 +210,69 @@ export class Api {
     return state ? res.json(state) : res.status(404).end();
   }
 
+  private getStack(res: Response): Response {
+    return res.json(this.server.getTxFactory().getStack());
+  }
+
   private async getGenesis(res: Response): Promise<Response> {
     const tx: TxStruct | undefined = await this.server.getChain().getTx(1, this.server.getWallet().getPublicKey());
     return tx ? res.json(tx) : res.status(404).end();
   }
 
   private getLatest(req: Request, res: Response): Response {
-    const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
+    const origin: string = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
     const tx: TxStruct | undefined = this.server.getChain().getLatestTx(origin);
     return tx ? res.json(tx) : res.status(404).end();
   }
 
   private async getTx(req: Request, res: Response): Promise<Response> {
-    const height: number = Number(req.params.height || 0);
-    const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
+    const origin: string = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
+    const height: number = Number(req.params.height) || 0;
     const tx: TxStruct | undefined = await this.server.getChain().getTx(height, origin);
     return tx ? res.json(tx) : res.status(404).end();
   }
 
   private async search(req: Request, res: Response): Promise<Response> {
-    const q: string = req.params.q || '';
-    const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
-    const a: Array<TxStruct> | undefined = await this.server.getChain().search(q, origin);
-    return a ? res.json(a) : res.status(404).end();
+    const q: string = (req.params.q || '').trim();
+    if (q.length < 3) {
+      return res.status(403).end();
+    }
+
+    let a: Array<TxStruct> = [];
+    // search single origin
+    if (req.params.origin) {
+      return res.json(await this.server.getChain().search(q, req.params.origin) || []);
+    }
+    // search all
+    for (const origin of this.server.getChain().getListPeer()) {
+      a = a.concat(await this.server.getChain().search(q, origin) || []);
+    }
+    return res.json(a);
   }
 
   private async getPage(req: Request, res: Response): Promise<Response> {
-    const page: number = Number(req.params.page || 1);
-    const size: number = Number(req.params.size || 0);
-    const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
+    const page: number = Number(req.params.page) || 1;
+    const size: number = Number(req.params.size) || 0;
+    let origin: string = req.params.origin || req.params.size || '';
+    origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
     const a: Array<TxStruct> | undefined = await this.server.getChain().getPage(page, size, origin);
-    return a ? res.json(a) : res.status(404).end();
+    return a ? res.json(a.reverse()) : res.status(404).end();
   }
 
   private async txs(req: Request, res: Response): Promise<Response> {
-    const gte: number = Math.floor(Number(req.params.gte || 1));
-    const lte: number = Math.floor(Number(req.params.lte || 0));
-    const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
-    if (gte < 1) {
-      return res.status(404).end();
-    }
+    const gte: number = Math.floor(Number(req.params.gte)) || 1;
+    const lte: number = Math.floor(Number(req.params.lte)) || 0;
+    let origin: string = req.params.origin || req.params.lte || req.params.gte || '';
+    origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
     const a: Array<TxStruct> | undefined = await this.server.getChain().getRange(gte, lte, origin);
     return a ? res.json(a) : res.status(404).end();
   }
 
   private putTransaction(req: Request, res: Response): Response {
     return this.server.stackTx(req.body) ? res.status(200).end() : res.status(403).end();
+  }
+
+  private isStringPublicKey(s: string): boolean {
+    return /^[A-Za-z0-9_-]{43}$/.test(s);
   }
 }

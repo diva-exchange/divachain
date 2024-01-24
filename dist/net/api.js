@@ -56,7 +56,15 @@ export class Api {
                 ? res.json({ header: NAME_HEADER_TOKEN_API, token: this.server.getWallet().getTokenAPI() })
                 : res.status(403).end();
         });
-        // GET - network
+        // GET - network status
+        this.server.app.get('/network/status', (req, res) => {
+            return this.status(res);
+        });
+        // GET - broadcasting network
+        this.server.app.get('/network/broadcast', (req, res) => {
+            return this.broadcast(res);
+        });
+        // GET - total network
         this.server.app.get('/network/:stake?', (req, res) => {
             return this.network(req, res);
         });
@@ -66,6 +74,10 @@ export class Api {
         });
         this.server.app.get('/state/:key', async (req, res) => {
             return await this.state(req, res);
+        });
+        // GET - stack
+        this.server.app.get('/stack', async (req, res) => {
+            return this.getStack(res);
         });
         // GET - tx
         this.server.app.get('/genesis', async (req, res) => {
@@ -99,10 +111,12 @@ export class Api {
                 ? this.leave(res)
                 : res.status(401).end();
         });
+        /*
         // GET - debug
-        this.server.app.get('/debug/performance/:height', async (req, res) => {
-            return res.json(await this.server.getChain().getPerformance(Number(req.params.height || 0)));
+        this.server.app.get('/debug/performance/:height', async (req: Request, res: Response): Promise<Response> => {
+          return res.json(await this.server.getChain().getPerformance(Number(req.params.height || 0)));
         });
+    */
     }
     join(req, res) {
         return this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
@@ -130,7 +144,7 @@ export class Api {
     }
     async sync(req, res) {
         const origin = req.params.origin || this.server.getWallet().getPublicKey();
-        const h = Math.floor(Number(req.params.height) || 1);
+        const h = Math.floor(Number(req.params.height)) || 1;
         const height = this.server.getChain().getHeight(origin) || 0;
         return height >= h
             ? res.json(await this.server.getChain().getRange(h, h + this.server.config.network_sync_size, origin))
@@ -144,9 +158,15 @@ export class Api {
         });
     }
     network(req, res) {
-        const s = Math.floor(Number(req.params.stake) || 0);
+        const s = Math.floor(Number(req.params.stake)) || 0;
         const a = this.server.getNetwork().getArrayNetwork();
         return res.json(s > 0 ? a.filter((r) => r['stake'] >= s) : a);
+    }
+    broadcast(res) {
+        return res.json(this.server.getNetwork().getArrayBroadcast());
+    }
+    status(res) {
+        return res.json(this.server.getTxFactory().getStatus());
     }
     async stateSearch(req, res) {
         return res.json(await this.server.getChain().searchState(req.params.q || ''));
@@ -156,46 +176,61 @@ export class Api {
         const state = await this.server.getChain().getState(key);
         return state ? res.json(state) : res.status(404).end();
     }
+    getStack(res) {
+        return res.json(this.server.getTxFactory().getStack());
+    }
     async getGenesis(res) {
         const tx = await this.server.getChain().getTx(1, this.server.getWallet().getPublicKey());
         return tx ? res.json(tx) : res.status(404).end();
     }
     getLatest(req, res) {
-        const origin = req.params.origin || this.server.getWallet().getPublicKey();
+        const origin = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
         const tx = this.server.getChain().getLatestTx(origin);
         return tx ? res.json(tx) : res.status(404).end();
     }
     async getTx(req, res) {
-        const height = Number(req.params.height || 0);
-        const origin = req.params.origin || this.server.getWallet().getPublicKey();
+        const origin = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
+        const height = Number(req.params.height) || 0;
         const tx = await this.server.getChain().getTx(height, origin);
         return tx ? res.json(tx) : res.status(404).end();
     }
     async search(req, res) {
-        const q = req.params.q || '';
-        const origin = req.params.origin || this.server.getWallet().getPublicKey();
-        const a = await this.server.getChain().search(q, origin);
-        return a ? res.json(a) : res.status(404).end();
+        const q = (req.params.q || '').trim();
+        if (q.length < 3) {
+            return res.status(403).end();
+        }
+        let a = [];
+        // search single origin
+        if (req.params.origin) {
+            return res.json(await this.server.getChain().search(q, req.params.origin) || []);
+        }
+        // search all
+        for (const origin of this.server.getChain().getListPeer()) {
+            a = a.concat(await this.server.getChain().search(q, origin) || []);
+        }
+        return res.json(a);
     }
     async getPage(req, res) {
-        const page = Number(req.params.page || 1);
-        const size = Number(req.params.size || 0);
-        const origin = req.params.origin || this.server.getWallet().getPublicKey();
+        const page = Number(req.params.page) || 1;
+        const size = Number(req.params.size) || 0;
+        let origin = req.params.origin || req.params.size || '';
+        origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
         const a = await this.server.getChain().getPage(page, size, origin);
-        return a ? res.json(a) : res.status(404).end();
+        return a ? res.json(a.reverse()) : res.status(404).end();
     }
     async txs(req, res) {
-        const gte = Math.floor(Number(req.params.gte || 1));
-        const lte = Math.floor(Number(req.params.lte || 0));
-        const origin = req.params.origin || this.server.getWallet().getPublicKey();
-        if (gte < 1) {
-            return res.status(404).end();
-        }
+        const gte = Math.floor(Number(req.params.gte)) || 1;
+        const lte = Math.floor(Number(req.params.lte)) || 0;
+        let origin = req.params.origin || req.params.lte || req.params.gte || '';
+        origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
         const a = await this.server.getChain().getRange(gte, lte, origin);
         return a ? res.json(a) : res.status(404).end();
     }
     putTransaction(req, res) {
         return this.server.stackTx(req.body) ? res.status(200).end() : res.status(403).end();
+    }
+    isStringPublicKey(s) {
+        return /^[A-Za-z0-9_-]{43}$/.test(s);
     }
 }
 //# sourceMappingURL=api.js.map

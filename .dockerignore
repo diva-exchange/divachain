@@ -3,5 +3,4 @@ build/
 db/
 keys/
 log/
-node_modules/
 test/

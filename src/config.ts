@@ -21,6 +21,7 @@ import path from 'path';
 import fs from 'fs';
 import { createLocalDestination, toB32 } from '@diva.exchange/i2p-sam';
 import { Genesis } from './genesis.js';
+import { Logger } from './logger.js';
 
 export type Configuration = {
   no_bootstrapping?: number;
@@ -74,21 +75,27 @@ export type Configuration = {
   api_max_query_size?: number;
 };
 
+type I2PDestination = {
+  address: string;
+  public: string;
+  private: string;
+};
+
 export const TX_VERSION: number = 1;
 export const DEFAULT_NAME_GENESIS: string = 'tx.v' + TX_VERSION;
-export const MAX_NETWORK_SIZE: number = 24;
+export const MAX_NETWORK_SIZE: number = 64;
 
-const DEFAULT_IP: string = '127.0.0.1';
-const DEFAULT_PORT: number = 17468;
-const DEFAULT_TX_FEED_PORT: number = DEFAULT_PORT + 1;
+export const DEFAULT_IP: string = '127.0.0.1';
+export const DEFAULT_PORT: number = 17468;
+export const DEFAULT_TX_FEED_PORT: number = DEFAULT_PORT + 1;
 
-const DEFAULT_I2P_SOCKS_PORT: number = 4445;
+export const DEFAULT_I2P_SOCKS_PORT: number = 4445;
 
 const DEFAULT_I2P_SAM_FORWARD_HTTP_PORT: number = DEFAULT_PORT;
 
-const DEFAULT_I2P_SAM_TCP_PORT: number = 7656;
+export const DEFAULT_I2P_SAM_TCP_PORT: number = 7656;
 
-const DEFAULT_I2P_SAM_UDP_PORT: number = 7656;
+export const DEFAULT_I2P_SAM_UDP_PORT: number = 7656;
 const DEFAULT_I2P_SAM_UDP_PORT_UDP: number = 7655;
 
 const DEFAULT_I2P_SAM_LISTEN_UDP_PORT: number = DEFAULT_PORT + 2;
@@ -163,21 +170,25 @@ export class Config {
 
     // GENESIS mode
     if (process.env.GENESIS === '1') {
+      Logger.info(`${___dirname}: genesis mode`);
+
       const obj: { genesis: any; config: Array<any> } = await Genesis.create();
       const _p: string = process.env.GENESIS_PATH || '';
       if (_p && fs.existsSync(path.dirname(_p)) && /\.json$/.test(_p)) {
         fs.writeFileSync(_p, JSON.stringify(obj.genesis), { mode: '0644' });
+        Logger.info(`${_p}: new genesis file`);
         const _c: string = process.env.GENESIS_CONFIG_PATH || '';
         if (_c && fs.existsSync(path.dirname(_c)) && /\.config$/.test(_c)) {
           fs.writeFileSync(
             _c,
             JSON.stringify(
-              obj.config.map((cnf: Array<any>): { http: string; udp: string } => {
-                return { http: cnf[1].http, udp: cnf[1].udp };
+              obj.config.map((cnf: Config): { http: string; udp: string } => {
+                return { http: cnf.http, udp: cnf.udp };
               })
             ),
             { mode: '0644' }
           );
+          Logger.info(`${_c}: new configuration file`);
         }
       } else {
         process.stdout.write(JSON.stringify(obj.genesis));
@@ -224,12 +235,11 @@ export class Config {
       throw new Error(`Path to the keys storage not found: ${self.path_keys}`);
     }
 
-    self.http = c.http || process.env.HTTP || '';
-
     // SOCKS
     self.i2p_socks = c.i2p_socks || process.env.I2P_SOCKS || self.ip + ':' + DEFAULT_I2P_SOCKS_PORT;
 
     // HTTP
+    self.http = c.http || process.env.HTTP || '';
     self.i2p_sam_http = c.i2p_sam_http || process.env.I2P_SAM_HTTP || self.ip + ':' + DEFAULT_I2P_SAM_TCP_PORT;
     self.i2p_sam_forward_http =
       c.i2p_sam_forward_http || process.env.I2P_SAM_FORWARD_HTTP || self.ip + ':' + DEFAULT_I2P_SAM_FORWARD_HTTP_PORT;
@@ -239,13 +249,14 @@ export class Config {
       self.i2p_public_key_http = fs.readFileSync(_p + '.public').toString();
       self.i2p_private_key_http = fs.readFileSync(_p + '.private').toString();
     } else {
-      const obj = await Config.createI2PDestination(self);
+      const obj: I2PDestination = await Config.createI2PDestination(self);
       self.i2p_public_key_http = obj.public;
       self.i2p_private_key_http = obj.private;
     }
     self.http = self.i2p_public_key_http;
 
     // UDP
+    self.udp = c.udp || process.env.UDP || '';
     self.i2p_sam_udp = c.i2p_sam_udp || process.env.I2P_SAM_UDP || self.ip + ':' + DEFAULT_I2P_SAM_UDP_PORT;
     self.i2p_sam_udp_port_udp =
       c.i2p_sam_udp_port_udp || Number(process.env.I2P_SAM_UDP_PORT_UDP) || DEFAULT_I2P_SAM_UDP_PORT_UDP;
@@ -340,9 +351,7 @@ export class Config {
     return self;
   }
 
-  private static async createI2PDestination(
-    self: Config
-  ): Promise<{ address: string; public: string; private: string }> {
+  private static async createI2PDestination(self: Config): Promise<I2PDestination> {
     const [host, port] = self.i2p_sam_http.split(':');
     const sam: { address: string; public: string; private: string } = await createLocalDestination({
       sam: {
@@ -351,7 +360,7 @@ export class Config {
       },
     });
 
-    const pathDestination = path.join(self.path_keys, sam.address);
+    const pathDestination: string = path.join(self.path_keys, sam.address);
     if (fs.existsSync(pathDestination + '.public') || fs.existsSync(pathDestination + '.private')) {
       throw new Error(`Address already exists: ${pathDestination}`);
     }

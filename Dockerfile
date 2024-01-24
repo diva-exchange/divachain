@@ -26,14 +26,15 @@ LABEL author="DIVA.EXCHANGE Association <contact@diva.exchange>" \
   url="https://diva.exchange"
 
 COPY dist /dist
+COPY node_modules /node_modules
 COPY package.json /package.json
+COPY package-lock.json /package-lock.json
 COPY entrypoint.sh /entrypoint.sh
 
 RUN mkdir /genesis \
   && mkdir /keys \
   && mkdir -p /db/chain \
   && mkdir -p /db/state \
-  && npm i --omit=dev \
   && chmod +x /entrypoint.sh
 
 WORKDIR "/"

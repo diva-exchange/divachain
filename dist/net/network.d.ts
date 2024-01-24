@@ -49,6 +49,7 @@ export declare class Network extends EventEmitter {
     broadcast(data: string, to?: string): void;
     private split;
     getArrayNetwork(): Array<Peer>;
+    getArrayBroadcast(): Array<string>;
     fetchFromApi(endpoint: string, timeout?: number): Promise<any>;
     private fetch;
     private bootstrapNetwork;

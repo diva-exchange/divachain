@@ -124,6 +124,12 @@ Default: Maximum
 #### GET /about
 Returns an object containing the version, the license and the public key of the peer.
 
+#### GET /network/status
+Returns the matrix of the network status messages from all known peers. 
+
+#### GET /network/broadcast
+Returns the list of peers broadcasting to.
+
 #### GET /network/:stake?
 Returns the network participants. If stake is given and greater than zero, only network participants with a stake greater-or-equal than the given threshold will be returned.  
 
@@ -139,44 +145,56 @@ Get a specific state from the local state database. The local state database is 
 
 _Example:_ `http://url-divachain-api/state/decision:DivaExchange:Auction:BTC_ETH`
 
+#### GET /stack
+Get the local transaction stack.
+
 #### GET /genesis
 Get the genesis transaction.
 
 #### GET /tx/latest/:origin?
-Get the latest transaction on the local chain. If :origin is given (a public key of a peer), the latest available transaction from this specific peer gets returned.
+Get the latest local transaction. If :origin is given (a public key of a peer), the latest locally available transaction of this specific peer gets returned.
 
 #### GET /tx/:height/:origin?
-Get a specific transaction on the local chain on the given :height. If :origin is given (a public key of a peer), the latest available transaction from this specific peer gets returned. 
+Get a specific local transaction on the given :height. If :origin is given (a public key of a peer), the locally available transaction on the given :height of this specific peer gets returned. 
 
 _Example:_ `http://url-divachain-api/tx/10` will return the local transaction on height 10.
 
-_Error handling:_ If a transaction is not yet available, 404 (Not Found) will be returned.
+_Error handling:_ If a transaction at the given height is not available, 404 (Not Found) will be returned.
 
 #### GET /txs/:gte?/:lte?/:origin?
-Get all transactions between :gte "from height" (inclusive) and :lte "to height" (inclusive). If :lte is not yet available, the transactions until the current height will be returned.
+Get the local transactions between :gte "from height" (inclusive) and :lte "to height" (inclusive). If :lte is not yet available, the transactions until the current height will be returned. If :origin is given (a public key of a peer), the locally available transactions of this specific peer are returned.
+
+If a :gte is greater than the available height, an empty array gets returned.
 
 _Example:_ `http://url-divachain-api/txss/10/19/` will return 10 transactions (transaction 10 until 19, if all transactions are already available).
  
-_Example:_ `http://url-divachain-api/txs` will return the latest API_MAX_QUERY_SIZE transactions (at most).
+_Example:_ `http://url-divachain-api/txs` will return the latest local API_MAX_QUERY_SIZE transactions (at most).
 
-_Error handling:_ 404 (Not Found) will be returned.
+_Error handling:_ 404 (Not Found) will be returned, if an :origin is not available locally.
 
 _Remark:_ Not more than API_MAX_QUERY_SIZE transactions can be requested at once.
 
 #### GET /txs/page/:page/:size?/:origin?
-Get a specific page of the chain, starting at the current height (reverse order).
-If size is not given, it will return API_MAX_QUERY_SIZE transactions or less. 
+This API endpoint is mainly useful for user interaction (UI/UX) and it's grouping transactions into pages of a given size.
+
+Get a specific page of the chain, starting at 1. The chain gets sorted in reverse order, hence the latest transactions are on page 1. If size is not given, it will return API_MAX_QUERY_SIZE transactions or less. If :origin is given (a public key of a peer), the locally available transactions of this specific peer are returned.
+
+If a page is not available, an empty array gets returned.
 
 _Example:_ `http://url-divachain-api/txs/page/1/5` will return the **last** 5 or fewer transactions of the chain.
 
 _Remark:_ Not more than API_MAX_QUERY_SIZE transactions can be requested at once.
 
+_Error handling:_ 404 (Not Found) will be returned, if an :origin is not available locally.
+
 #### GET /txs/search/:q/:origin?
-Search transactions using a search string. If no search string is given, it returns the last API_MAX_QUERY_SIZE transactions. 
+Search all locally available transactions using a search string. If :origin is given (a public key of a peer), the locally available transactions of this specific peer are searched. If the search string isn't found, an empty array gets returned.
 
 _Example:_ `http://url-divachain-api/txs/search/XMR` will return the latest transactions containing the string XMR.
 
 _Remark:_ Not more than API_MAX_QUERY_SIZE transactions can be requested at once.
+
+_Error handling:_ 403 (Forbidden) gets returned if search string is shorter than 3 characters.
 
 ### Transmitting Transactions
 

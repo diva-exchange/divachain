@@ -121,8 +121,6 @@ export class Chain {
   }
 
   private async reset(): Promise<void> {
-    Logger.warn(`${this.server.config.port}: reset, loading genesis`);
-
     for (const [origin, db] of this.mapDbChain.entries()) {
       await db.clear();
       await db.close();
@@ -211,8 +209,11 @@ export class Chain {
     if (!height || !mT || !db) {
       return;
     }
+    if (gte > height) {
+      return [];
+    }
 
-    gte = gte <= height ? (gte < 1 ? 1 : Math.floor(gte)) : height;
+    gte = gte < 1 ? 1 : Math.floor(gte);
     lte = lte < 0 ? gte : Math.floor(lte < 1 ? height : lte);
     lte = lte <= height ? lte : height;
     gte = lte - gte > 0 ? gte : lte;
@@ -248,14 +249,18 @@ export class Chain {
         : Math.floor(size);
 
     let gte: number = height - page * size + 1;
+    if (gte + size - 1 < 1) {
+      return [];
+    }
     gte = gte < 1 ? 1 : gte;
 
     return this.getRange(gte, gte + size - 1, origin);
   }
 
   async search(q: string, origin: string): Promise<Array<TxStruct> | undefined> {
+    // support only search strings with more than 2 characters
     const db: Level<string, any> | undefined = this.mapDbChain.get(origin);
-    if (!db) {
+    if (q.length < 3 || !db) {
       return;
     }
 
@@ -264,7 +269,11 @@ export class Chain {
       reverse: true,
       limit: this.server.config.api_max_query_size,
     })) {
-      (!q.length || value.indexOf(q) > -1) && a.push(value);
+      try {
+        JSON.stringify(value).indexOf(q) > -1 && a.push(value);
+      } catch (e) {
+        Logger.warn(`${this.server.config.port}: ${e}`);
+      }
     }
     return a.reverse();
   }

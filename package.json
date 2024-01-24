@@ -1,6 +1,6 @@
 {
   "name": "@diva.exchange/divachain",
-  "version": "0.50.0",
+  "version": "0.50.1",
   "description": "diva - Distributed value exchange upholding security, reliability and privacy",
   "type": "module",
   "bin": "./dist/main.js",
@@ -49,7 +49,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@diva.exchange/i2p-sam": "^5.4.0",
+    "@diva.exchange/i2p-sam": "^5.4.1",
     "ajv": "^8.12.0",
     "compression": "^1.7.4",
     "express": "^4.18.2",
@@ -60,7 +60,7 @@
     "rfc4648": "^1.5.3",
     "simple-get": "^4.0.1",
     "socks-proxy-agent": "^8.0.2",
-    "sodium-native": "^4.0.4",
+    "sodium-native": "^4.0.5",
     "ws": "^8.16.0"
   },
   "devDependencies": {
@@ -73,22 +73,22 @@
     "@types/http-errors": "^2.0.4",
     "@types/level": "^6.0.3",
     "@types/mocha": "^10.0.6",
-    "@types/node": "^20.10.6",
+    "@types/node": "^20.11.6",
     "@types/sodium-native": "^2.3.9",
     "@types/ws": "^8.5.10",
-    "@typescript-eslint/eslint-plugin": "^6.17.0",
-    "@typescript-eslint/parser": "^6.17.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.1",
+    "@typescript-eslint/parser": "^6.19.1",
     "ajv-cli": "^5.0.0",
-    "c8": "^8.0.1",
-    "chai": "^4.3.10",
+    "c8": "^9.1.0",
+    "chai": "^4.4.1",
     "chai-http": "^4.4.0",
     "eslint": "^8.56.0",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-prettier": "^5.1.2",
+    "eslint-plugin-prettier": "^5.1.3",
     "mocha": "^10.2.0",
     "pino-pretty": "^10.3.1",
     "pkg": "^5.8.1",
-    "prettier": "^3.1.1",
+    "prettier": "^3.2.4",
     "typescript": "^5.3.3"
   }
 }

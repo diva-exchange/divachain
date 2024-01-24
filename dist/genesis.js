@@ -17,67 +17,45 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 import path from 'path';
-import { Config, DEFAULT_NAME_GENESIS, MAX_NETWORK_SIZE } from './config.js';
+import { Config, DEFAULT_IP, DEFAULT_PORT, DEFAULT_TX_FEED_PORT, DEFAULT_I2P_SOCKS_PORT, DEFAULT_I2P_SAM_TCP_PORT, DEFAULT_I2P_SAM_UDP_PORT, DEFAULT_NAME_GENESIS, MAX_NETWORK_SIZE, } from './config.js';
 import { Wallet } from './chain/wallet.js';
 import { Util } from './chain/util.js';
 import { Chain } from './chain/chain.js';
 export class Genesis {
     static async create(pathApplication = '') {
         process.env.GENESIS = '0';
-        const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 11);
+        const SIZE_NETWORK = Number(process.env.SIZE_NETWORK || 9);
         if (SIZE_NETWORK > MAX_NETWORK_SIZE) {
             throw new Error(`Fatal: maximum network size of ${MAX_NETWORK_SIZE} nodes exceeded.`);
         }
-        const IP = process.env.IP || '127.27.27.1';
-        const BASE_PORT = Number(process.env.BASE_PORT || 17000);
-        const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || 18000);
-        const I2P_SOCKS_HOST = process.env.I2P_SOCKS_HOST || '';
-        const I2P_SOCKS_PORT = I2P_SOCKS_HOST ? Number(process.env.I2P_SOCKS_PORT || 4445) : 0;
-        const I2P_SAM_HTTP_HOST = process.env.I2P_SAM_HTTP_HOST || I2P_SOCKS_HOST;
-        const I2P_SAM_HTTP_PORT = I2P_SAM_HTTP_HOST ? Number(process.env.I2P_SAM_HTTP_PORT || 7656) : 0;
-        const I2P_SAM_FORWARD_HTTP_HOST = I2P_SAM_HTTP_HOST
-            ? process.env.I2P_SAM_FORWARD_HTTP_HOST || '172.19.75.1'
-            : '';
-        const I2P_SAM_FORWARD_HTTP_PORT = I2P_SAM_HTTP_HOST
-            ? Number(process.env.I2P_SAM_FORWARD_HTTP_PORT || BASE_PORT)
-            : 0;
-        const I2P_SAM_UDP_HOST = process.env.I2P_SAM_UDP_HOST || I2P_SOCKS_HOST;
-        const I2P_SAM_UDP_PORT = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_UDP_PORT || 7656) : 0;
-        const I2P_SAM_LISTEN_UDP_HOST = I2P_SAM_UDP_HOST ? process.env.I2P_SAM_LISTEN_UDP_HOST || '0.0.0.0' : '';
-        const I2P_SAM_LISTEN_UDP_PORT = I2P_SAM_UDP_HOST ? Number(process.env.I2P_SAM_LISTEN_UDP_PORT || 20000) : 0;
-        const I2P_SAM_FORWARD_UDP_HOST = I2P_SAM_UDP_HOST
-            ? process.env.I2P_SAM_FORWARD_UDP_HOST || '172.19.75.1'
-            : '';
-        const I2P_SAM_FORWARD_UDP_PORT = I2P_SAM_UDP_HOST
-            ? Number(process.env.I2P_SAM_FORWARD_UDP_PORT || 20000)
-            : 0;
+        const IP = process.env.IP || DEFAULT_IP;
+        const BASE_PORT = Number(process.env.BASE_PORT || DEFAULT_PORT);
+        const BASE_PORT_FEED = Number(process.env.BASE_PORT_FEED || DEFAULT_TX_FEED_PORT);
+        const I2P_SOCKS = process.env.I2P_SOCKS || IP + ':' + DEFAULT_I2P_SOCKS_PORT;
+        const I2P_SAM_HTTP = process.env.I2P_SAM_HTTP || IP + ':' + DEFAULT_I2P_SAM_TCP_PORT;
+        const I2P_SAM_UDP = process.env.I2P_SAM_UDP_HOST || IP + ':' + DEFAULT_I2P_SAM_UDP_PORT;
         const ___dirname = path.dirname(import.meta.url.replace(/^file:\/\//, ''));
         const pathApp = pathApplication || path.join(___dirname, '/../');
         const pathGenesis = path.join(___dirname, '/../genesis', DEFAULT_NAME_GENESIS + '.json');
         let genesis = Chain.genesis(pathGenesis);
-        const map = new Map();
+        const arrayConfig = [];
         const cmds = [];
         let config = {};
         for (let i = 1; i <= SIZE_NETWORK; i++) {
+            const iPort = i * MAX_NETWORK_SIZE;
             config = await Config.make({
                 no_bootstrapping: 1,
                 ip: IP,
-                port: BASE_PORT + i,
-                port_tx_feed: BASE_PORT_FEED + i,
+                port: BASE_PORT + iPort,
+                port_tx_feed: BASE_PORT_FEED + iPort,
                 path_app: pathApp,
                 path_genesis: pathGenesis,
-                chain_max_txs_in_memory: 100,
-                i2p_socks: I2P_SOCKS_HOST + ':' + I2P_SOCKS_PORT,
-                i2p_sam_http: I2P_SAM_HTTP_HOST + ':' + I2P_SAM_HTTP_PORT,
-                http: I2P_SAM_HTTP_HOST ? '' : `${IP}:${BASE_PORT + i}`,
-                i2p_sam_forward_http: I2P_SAM_FORWARD_HTTP_HOST + ':' + (I2P_SAM_FORWARD_HTTP_PORT > 0 ? I2P_SAM_FORWARD_HTTP_PORT + i : 0),
-                i2p_sam_udp: I2P_SAM_UDP_HOST + ':' + I2P_SAM_UDP_PORT,
-                i2p_sam_listen_udp: I2P_SAM_LISTEN_UDP_HOST + ':' + (I2P_SAM_LISTEN_UDP_PORT > 0 ? I2P_SAM_LISTEN_UDP_PORT + i : 0),
-                i2p_sam_forward_udp: I2P_SAM_FORWARD_UDP_HOST + ':' + (I2P_SAM_FORWARD_UDP_PORT > 0 ? I2P_SAM_FORWARD_UDP_PORT + i : 0),
-                udp: I2P_SAM_UDP_HOST ? '' : `${IP}:${BASE_PORT + 3000 + i}`,
+                i2p_socks: I2P_SOCKS,
+                i2p_sam_http: I2P_SAM_HTTP,
+                i2p_sam_udp: I2P_SAM_UDP,
             });
             const publicKey = Wallet.make(config).getPublicKey();
-            map.set(publicKey, config);
+            arrayConfig.push(config);
             cmds.push({
                 command: 'addPeer',
                 http: config.http,
@@ -95,7 +73,7 @@ export class Genesis {
             votes: genesis.votes,
         };
         genesis.hash = Util.hash(genesis);
-        return Promise.resolve({ genesis: genesis, config: [...map] });
+        return Promise.resolve({ genesis: genesis, config: arrayConfig });
     }
 }
 //# sourceMappingURL=genesis.js.map

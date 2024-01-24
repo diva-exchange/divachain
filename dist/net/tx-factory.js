@@ -29,6 +29,7 @@ export class TxFactory {
     validation;
     wallet;
     stackTransaction = [];
+    mapStatus = new Map();
     ownTx = {};
     mapTx = new Map(); // hash -> TxStruct
     static make(server) {
@@ -46,11 +47,16 @@ export class TxFactory {
         //@TODO cleanup
     }
     stack(commands) {
+        //@FIXME logging
+        Logger.trace(`${this.config.port}: Stacking TX...`);
         if (this.stackTransaction.push({ commands: commands })) {
             this.createOwnTx();
             return true;
         }
         return false;
+    }
+    getStack() {
+        return this.stackTransaction;
     }
     createOwnTx() {
         const me = this.wallet.getPublicKey();
@@ -158,6 +164,10 @@ export class TxFactory {
                 r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
             }
         })();
+        this.mapStatus.set(status.getOrigin(), status);
+    }
+    getStatus() {
+        return [...this.mapStatus.values()];
     }
     async addTx(structTx) {
         //@FIXME logging

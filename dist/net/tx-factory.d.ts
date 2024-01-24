@@ -21,6 +21,9 @@ import { Command } from '../chain/tx.js';
 import { TxMessage } from './message/tx.js';
 import { VoteMessage } from './message/vote.js';
 import { StatusMessage } from './message/status.js';
+type recordStack = {
+    commands: Array<Command>;
+};
 export declare class TxFactory {
     private readonly server;
     private readonly config;
@@ -29,16 +32,20 @@ export declare class TxFactory {
     private readonly validation;
     private readonly wallet;
     private stackTransaction;
+    private mapStatus;
     private ownTx;
     private mapTx;
     static make(server: Server): TxFactory;
     private constructor();
     shutdown(): void;
     stack(commands: Array<Command>): boolean;
+    getStack(): Array<recordStack>;
     private createOwnTx;
     processTx(tx: TxMessage): void;
     processVote(vote: VoteMessage): void;
     processStatus(status: StatusMessage): void;
+    getStatus(): Array<StatusMessage>;
     private addTx;
     private broadcastTx;
 }
+export {};

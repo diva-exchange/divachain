@@ -44,6 +44,8 @@ export class TxFactory {
 
   private stackTransaction: Array<recordStack> = [];
 
+  private mapStatus: Map<string, StatusMessage> = new Map();
+
   private ownTx: TxStruct = {} as TxStruct;
   private mapTx: Map<string, TxStruct> = new Map(); // hash -> TxStruct
 
@@ -65,11 +67,18 @@ export class TxFactory {
   }
 
   stack(commands: Array<Command>): boolean {
+    //@FIXME logging
+    Logger.trace(`${this.config.port}: Stacking TX...`);
+
     if (this.stackTransaction.push({ commands: commands })) {
       this.createOwnTx();
       return true;
     }
     return false;
+  }
+
+  getStack(): Array<recordStack> {
+    return this.stackTransaction;
   }
 
   private createOwnTx(): void {
@@ -200,6 +209,11 @@ export class TxFactory {
         r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
       }
     })();
+    this.mapStatus.set(status.getOrigin(), status);
+  }
+
+  getStatus(): Array<StatusMessage> {
+    return [...this.mapStatus.values()];
   }
 
   private async addTx(structTx: TxStruct): Promise<void> {

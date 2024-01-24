@@ -163,7 +163,7 @@ export class Network extends EventEmitter {
                 //@FIXME recovering?
                 Logger.warn(`${this.server.config.port}: SAM UDP ERROR ${error.toString()}`);
             });
-            Logger.info(`UDP ready, ${toB32(_c.udp)}.b32.i2p (${inboundLV}/${outboundLV}) to ${_c.i2p_sam_forward_udp}`);
+            Logger.info(`UDP ready, ${toB32(_c.udp)}.b32.i2p (${inboundLV}/${outboundLV}) listen on ${udp_listen_host}:${Number(udp_listen_port)}`);
         }
         catch (error) {
             Logger.trace(`${this.server.config.port}: UDP error ${error}`);
@@ -309,7 +309,8 @@ export class Network extends EventEmitter {
             const matrix = this.arrayNetwork.map((p) => {
                 return { origin: p.publicKey, height: this.server.getChain().getHeight(p.publicKey) || 0 };
             });
-            this.broadcast(new StatusMessage({ seq: 0, matrix: matrix }, this.publicKey).asString(this.server.getWallet()));
+            const sm = new StatusMessage({ seq: 0, matrix: matrix }, this.publicKey);
+            this.broadcast(sm.asString(this.server.getWallet()));
         }, Math.floor(Math.random() * this.server.config.network_p2p_interval_ms * 0.9));
     }
     broadcast(data, to) {
@@ -331,8 +332,7 @@ export class Network extends EventEmitter {
         const pkOrigin = re[1];
         const aUdp = this.split(zlib.brotliCompressSync(Buffer.from(data)));
         // distribute the message to the network, via UDP
-        Util.shuffleArray(this.arrayBroadcast.filter((pk) => pkOrigin !== pk && (!to || to === pk)))
-            .forEach((pk) => {
+        Util.shuffleArray(this.arrayBroadcast.filter((pk) => pkOrigin !== pk && (!to || to === pk))).forEach((pk) => {
             Util.shuffleArray(aUdp).forEach((b) => {
                 this.samUdp.send(this.server.getChain().getPeer(pk).udp, b);
             });
@@ -367,6 +367,9 @@ export class Network extends EventEmitter {
     }
     getArrayNetwork() {
         return this.arrayNetwork;
+    }
+    getArrayBroadcast() {
+        return this.arrayBroadcast;
     }
     async fetchFromApi(endpoint, timeout = 0) {
         // http:// is perfectly fine, the endpoint is within I2P

@@ -29,8 +29,11 @@ export declare class Api {
     private sync;
     private about;
     private network;
+    private broadcast;
+    private status;
     private stateSearch;
     private state;
+    private getStack;
     private getGenesis;
     private getLatest;
     private getTx;
@@ -38,4 +41,5 @@ export declare class Api {
     private getPage;
     private txs;
     private putTransaction;
+    private isStringPublicKey;
 }

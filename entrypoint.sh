@@ -21,4 +21,4 @@
 # -e  Exit immediately if a simple command exits with a non-zero status
 set -e
 
-NODE_ENV=production node dist/main.js
+node dist/main.js
