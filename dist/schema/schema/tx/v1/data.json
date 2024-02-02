@@ -10,11 +10,11 @@
     },
     "ns": {
       "type": "string",
-      "pattern": "^([A-Za-z_-]{4,15}:){1,4}[A-Za-z0-9_-]{1,64}$"
+      "pattern": "^([A-Za-z0-9_-]{2,16}:){1,7}[A-Za-z0-9_-]{2,16}$"
     },
     "d": {
       "type": "string",
-      "maxLength": 1024
+      "maxLength": 8024
     }
   },
   "additionalProperties": false,
