@@ -50,8 +50,7 @@ export class TxFactory {
         //@FIXME logging
         Logger.trace(`${this.config.port}: Stacking TX...`);
         if (this.stackTransaction.push({ commands: commands })) {
-            this.createOwnTx();
-            return true;
+            return this.createOwnTx();
         }
         return false;
     }
@@ -59,18 +58,30 @@ export class TxFactory {
         return this.stackTransaction;
     }
     createOwnTx() {
+        if (this.ownTx.height) {
+            return true;
+        }
         const me = this.wallet.getPublicKey();
         const prevTx = this.chain.getLatestTx(me);
-        if (this.ownTx.height || !this.stackTransaction.length || !prevTx) {
-            return;
+        if (!this.stackTransaction.length || !prevTx) {
+            return false;
         }
         const r = this.stackTransaction.shift();
-        this.ownTx = new Tx(this.wallet, prevTx, r.commands).get();
+        try {
+            const tx = new Tx(this.wallet, prevTx, r.commands).get();
+            this.validation.validateTx(tx);
+            this.ownTx = tx;
+        }
+        catch (e) {
+            Logger.warn(`${this.config.port}: local TX validation failed ${e}`);
+            return false;
+        }
         this.mapTx.set(this.ownTx.hash, this.ownTx);
         // broadcast ownTx
         this.broadcastTx(this.ownTx);
         //@FIXME logging
         Logger.trace(`${this.config.port}: TX created on ${me} #${this.chain.getListPeer().indexOf(me)}`);
+        return true;
     }
     processTx(tx) {
         const structTx = tx.tx();
