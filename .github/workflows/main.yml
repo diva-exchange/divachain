@@ -1,8 +1,16 @@
 on:
   workflow_dispatch:
+  pull_request:
+  push:
+      branches:
+        - main
+        - develop
+        - develop-tx
+        - develop-ci
+
 jobs:
   build_appimg:
-    name: Build App Image
+    name: Build App Package
     runs-on: ubuntu-18.0
     steps:
       - name: Checkout
