@@ -1,0 +1,20 @@
+on:
+  workflow_dispatch:
+jobs:
+  build_appimg:
+    name: Build App Image
+    runs-on: ubuntu-18.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.13.x
+          cache: npm
+      - name: Install Dependencies
+        run: npm install
+      - name: Build divachain
+        run: npm run build
+      - name: Build divachain.pkg
+        run: npm run build-pkg
