@@ -97,7 +97,7 @@ export class TxFactory {
       const tx: TxStruct = new Tx(this.wallet, prevTx, r.commands).get();
       this.validation.validateTx(tx);
       this.ownTx = tx;
-    } catch(e: any) {
+    } catch (e: any) {
       Logger.warn(`${this.config.port}: local TX validation failed ${e}`);
       return false;
     }
@@ -112,7 +112,7 @@ export class TxFactory {
     return true;
   }
 
-  processTx(tx: TxMessage): void {
+  async processTx(tx: TxMessage): Promise<void> {
     const structTx: TxStruct = tx.tx();
     const prevTx: TxStruct | undefined = this.chain.getLatestTx(structTx.origin);
 
@@ -158,19 +158,11 @@ export class TxFactory {
       structTx.votes = structTx.votes.concat({ origin: me, sig: this.wallet.sign(structTx.hash) });
       this.mapTx.set(structTx.hash, structTx);
 
-      // new valid tx?
-      if (this.chain.hasQuorum(structTx.votes.length)) {
-        (async (): Promise<void> => {
-          await this.addTx(structTx);
-        })();
-      } else {
-        const struct: VoteMessageStruct = { hash: structTx.hash, votes: structTx.votes };
-        this.network.broadcast(new VoteMessage(struct, me).asString(this.wallet));
-      }
+      await this.addTx(structTx);
     }
   }
 
-  processVote(vote: VoteMessage): void {
+  async processVote(vote: VoteMessage): Promise<void> {
     const structTx: TxStruct | undefined = this.mapTx.get(vote.hash());
 
     // not interested
@@ -193,34 +185,23 @@ export class TxFactory {
     structTx.votes = structTx.votes.concat(aV);
     this.mapTx.set(vote.hash(), structTx);
 
-    // new valid tx?
-    if (this.chain.hasQuorum(structTx.votes.length)) {
-      (async (): Promise<void> => {
-        await this.addTx(structTx);
-      })();
-    } else {
-      const me: string = this.wallet.getPublicKey();
-      const struct: VoteMessageStruct = { hash: structTx.hash, votes: structTx.votes };
-      this.network.broadcast(new VoteMessage(struct, me).asString(this.wallet));
-    }
+    await this.addTx(structTx);
   }
 
-  processStatus(status: StatusMessage): void {
+  async processStatus(status: StatusMessage): Promise<void> {
     const me: string = this.wallet.getPublicKey();
-    (async (): Promise<void> => {
-      for await (const r of status.matrix()) {
-        let height: number = this.chain.getHeight(r.origin) || 0;
-        //@TODO hardcoded limit of 5 txs
-        height = height > r.height + 5 ? r.height + 5 : height;
-        for (let h = r.height + 1; h <= height; h++) {
-          const structTx: TxStruct | undefined = await this.chain.getTx(h, r.origin);
-          structTx && this.broadcastTx(structTx, status.getOrigin());
-        }
-
-        // resend ownTx
-        r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
+    for await (const r of status.matrix()) {
+      let height: number = this.chain.getHeight(r.origin) || 0;
+      //@TODO hardcoded limit of 5 txs
+      height = height > r.height + 5 ? r.height + 5 : height;
+      for (let h = r.height + 1; h <= height; h++) {
+        const structTx: TxStruct | undefined = await this.chain.getTx(h, r.origin);
+        structTx && this.broadcastTx(structTx, status.getOrigin());
       }
-    })();
+
+      // resend ownTx
+      r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
+    }
     this.mapStatus.set(status.getOrigin(), status);
   }
 
@@ -229,6 +210,12 @@ export class TxFactory {
   }
 
   private async addTx(structTx: TxStruct): Promise<void> {
+    if (!this.chain.hasQuorum(structTx.votes.length)) {
+      const me: string = this.wallet.getPublicKey();
+      this.network.broadcast(new VoteMessage({ hash: structTx.hash, votes: structTx.votes }, me).asString(this.wallet));
+      return;
+    }
+
     //@FIXME logging
     Logger.trace(`${this.config.port}: NEW TX stored locally #${structTx.height} from ${structTx.origin}`);
 

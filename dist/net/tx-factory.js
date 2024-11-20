@@ -83,7 +83,7 @@ export class TxFactory {
         Logger.trace(`${this.config.port}: TX created on ${me} #${this.chain.getListPeer().indexOf(me)}`);
         return true;
     }
-    processTx(tx) {
+    async processTx(tx) {
         const structTx = tx.tx();
         const prevTx = this.chain.getLatestTx(structTx.origin);
         // not interested
@@ -119,19 +119,10 @@ export class TxFactory {
         })) {
             structTx.votes = structTx.votes.concat({ origin: me, sig: this.wallet.sign(structTx.hash) });
             this.mapTx.set(structTx.hash, structTx);
-            // new valid tx?
-            if (this.chain.hasQuorum(structTx.votes.length)) {
-                (async () => {
-                    await this.addTx(structTx);
-                })();
-            }
-            else {
-                const struct = { hash: structTx.hash, votes: structTx.votes };
-                this.network.broadcast(new VoteMessage(struct, me).asString(this.wallet));
-            }
+            await this.addTx(structTx);
         }
     }
-    processVote(vote) {
+    async processVote(vote) {
         const structTx = this.mapTx.get(vote.hash());
         // not interested
         if (!structTx) {
@@ -148,39 +139,32 @@ export class TxFactory {
         }
         structTx.votes = structTx.votes.concat(aV);
         this.mapTx.set(vote.hash(), structTx);
-        // new valid tx?
-        if (this.chain.hasQuorum(structTx.votes.length)) {
-            (async () => {
-                await this.addTx(structTx);
-            })();
-        }
-        else {
-            const me = this.wallet.getPublicKey();
-            const struct = { hash: structTx.hash, votes: structTx.votes };
-            this.network.broadcast(new VoteMessage(struct, me).asString(this.wallet));
-        }
+        await this.addTx(structTx);
     }
-    processStatus(status) {
+    async processStatus(status) {
         const me = this.wallet.getPublicKey();
-        (async () => {
-            for await (const r of status.matrix()) {
-                let height = this.chain.getHeight(r.origin) || 0;
-                //@TODO hardcoded limit of 5 txs
-                height = height > r.height + 5 ? r.height + 5 : height;
-                for (let h = r.height + 1; h <= height; h++) {
-                    const structTx = await this.chain.getTx(h, r.origin);
-                    structTx && this.broadcastTx(structTx, status.getOrigin());
-                }
-                // resend ownTx
-                r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
+        for await (const r of status.matrix()) {
+            let height = this.chain.getHeight(r.origin) || 0;
+            //@TODO hardcoded limit of 5 txs
+            height = height > r.height + 5 ? r.height + 5 : height;
+            for (let h = r.height + 1; h <= height; h++) {
+                const structTx = await this.chain.getTx(h, r.origin);
+                structTx && this.broadcastTx(structTx, status.getOrigin());
             }
-        })();
+            // resend ownTx
+            r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
+        }
         this.mapStatus.set(status.getOrigin(), status);
     }
     getStatus() {
         return [...this.mapStatus.values()];
     }
     async addTx(structTx) {
+        if (!this.chain.hasQuorum(structTx.votes.length)) {
+            const me = this.wallet.getPublicKey();
+            this.network.broadcast(new VoteMessage({ hash: structTx.hash, votes: structTx.votes }, me).asString(this.wallet));
+            return;
+        }
         //@FIXME logging
         Logger.trace(`${this.config.port}: NEW TX stored locally #${structTx.height} from ${structTx.origin}`);
         try {

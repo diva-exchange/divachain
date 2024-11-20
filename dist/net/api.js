@@ -36,78 +36,78 @@ export class Api {
     }
     route() {
         // GET - general
-        this.server.app.get('/about', async (req, res) => {
-            return await this.about(res);
+        this.server.app.get('/about', (req, res) => {
+            this.about(res);
         });
         // GET - joining
         this.server.app.get('/join/:http/:udp/:publicKey', (req, res) => {
-            return this.join(req, res);
+            this.join(req, res);
         });
         this.server.app.get('/challenge/:token', (req, res) => {
-            return this.challenge(req, res);
+            this.challenge(req, res);
         });
         // GET - synchronization
         this.server.app.get('/sync/:height/:origin?', async (req, res) => {
-            return await this.sync(req, res);
+            await this.sync(req, res);
         });
         // GET testnet
-        this.server.app.get('/testnet/token', async (req, res) => {
-            return this.server.config.is_testnet
+        this.server.app.get('/testnet/token', (req, res) => {
+            this.server.config.is_testnet
                 ? res.json({ header: NAME_HEADER_TOKEN_API, token: this.server.getWallet().getTokenAPI() })
                 : res.status(403).end();
         });
         // GET - network status
         this.server.app.get('/network/status', (req, res) => {
-            return this.status(res);
+            this.status(res);
         });
         // GET - broadcasting network
         this.server.app.get('/network/broadcast', (req, res) => {
-            return this.broadcast(res);
+            this.broadcast(res);
         });
         // GET - total network
         this.server.app.get('/network/:stake?', (req, res) => {
-            return this.network(req, res);
+            this.network(req, res);
         });
         // GET - state
         this.server.app.get('/state/search/:q?', async (req, res) => {
-            return await this.stateSearch(req, res);
+            await this.stateSearch(req, res);
         });
         this.server.app.get('/state/:key', async (req, res) => {
-            return await this.state(req, res);
+            await this.state(req, res);
         });
         // GET - stack
         this.server.app.get('/stack', async (req, res) => {
-            return this.getStack(res);
+            this.getStack(res);
         });
         // GET - tx
         this.server.app.get('/genesis', async (req, res) => {
-            return await this.getGenesis(res);
+            await this.getGenesis(res);
         });
         this.server.app.get('/tx/latest/:origin?', (req, res) => {
-            return this.getLatest(req, res);
+            this.getLatest(req, res);
         });
         this.server.app.get('/tx/:height/:origin?', async (req, res) => {
-            return await this.getTx(req, res);
+            await this.getTx(req, res);
         });
         // GET - txs
         this.server.app.get('/txs/search/:q/:origin?', async (req, res) => {
-            return await this.search(req, res);
+            await this.search(req, res);
         });
         this.server.app.get('/txs/page/:page/:size?/:origin?', async (req, res) => {
-            return await this.getPage(req, res);
+            await this.getPage(req, res);
         });
         this.server.app.get('/txs/:gte?/:lte?/:origin?', async (req, res) => {
-            return await this.txs(req, res);
+            await this.txs(req, res);
         });
         //@TODO access rights? (next to the token)
         // PUT
         this.server.app.put('/tx', (req, res) => {
-            return req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
+            req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
                 ? this.putTransaction(req, res)
                 : res.status(401).end();
         });
         this.server.app.put('/leave', (req, res) => {
-            return req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
+            req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
                 ? this.leave(res)
                 : res.status(401).end();
         });
@@ -119,7 +119,7 @@ export class Api {
     */
     }
     join(req, res) {
-        return this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
+        this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
             ? res.status(200).json({
                 http: toB32(req.params.http),
                 udp: toB32(req.params.udp),
@@ -134,24 +134,26 @@ export class Api {
                 publicKey: this.server.getWallet().getPublicKey(),
             },
         ])) {
-            return res.status(200).end();
+            res.status(200).end();
         }
-        return res.status(403).end();
+        else {
+            res.status(403).end();
+        }
     }
     challenge(req, res) {
         const signedToken = this.server.getBootstrap().challenge(req.params.token);
-        return signedToken ? res.status(200).json({ token: signedToken }) : res.status(403).end();
+        signedToken ? res.status(200).json({ token: signedToken }) : res.status(403).end();
     }
     async sync(req, res) {
         const origin = req.params.origin || this.server.getWallet().getPublicKey();
         const h = Math.floor(Number(req.params.height)) || 1;
         const height = this.server.getChain().getHeight(origin) || 0;
-        return height >= h
+        height >= h
             ? res.json(await this.server.getChain().getRange(h, h + this.server.config.network_sync_size, origin))
             : res.status(404).end();
     }
-    async about(res) {
-        return res.json({
+    about(res) {
+        res.json({
             version: this.package.version,
             license: this.package.license,
             publicKey: this.server.getWallet().getPublicKey(),
@@ -160,55 +162,62 @@ export class Api {
     network(req, res) {
         const s = Math.floor(Number(req.params.stake)) || 0;
         const a = this.server.getNetwork().getArrayNetwork();
-        return res.json(s > 0 ? a.filter((r) => r['stake'] >= s) : a);
+        res.json(s > 0 ? a.filter((r) => r['stake'] >= s) : a);
     }
     broadcast(res) {
-        return res.json(this.server.getNetwork().getArrayBroadcast());
+        res.json(this.server.getNetwork().getArrayBroadcast());
     }
     status(res) {
-        return res.json(this.server.getTxFactory().getStatus());
+        res.json(this.server.getTxFactory().getStatus());
     }
     async stateSearch(req, res) {
-        return res.json(await this.server.getChain().searchState(req.params.q || ''));
+        res.json(await this.server.getChain().searchState(req.params.q || ''));
     }
     async state(req, res) {
         const key = req.params.key || '';
         const state = await this.server.getChain().getState(key);
-        return state ? res.json(state) : res.status(404).end();
+        state ? res.json(state) : res.status(404).end();
     }
     getStack(res) {
-        return res.json(this.server.getTxFactory().getStack());
+        res.json(this.server.getTxFactory().getStack());
     }
     async getGenesis(res) {
         const tx = await this.server.getChain().getTx(1, this.server.getWallet().getPublicKey());
-        return tx ? res.json(tx) : res.status(404).end();
+        tx ? res.json(tx) : res.status(404).end();
     }
     getLatest(req, res) {
-        const origin = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
+        const origin = this.isStringPublicKey(req.params.origin || '')
+            ? req.params.origin
+            : this.server.getWallet().getPublicKey();
         const tx = this.server.getChain().getLatestTx(origin);
-        return tx ? res.json(tx) : res.status(404).end();
+        tx ? res.json(tx) : res.status(404).end();
     }
     async getTx(req, res) {
-        const origin = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
+        const origin = this.isStringPublicKey(req.params.origin || '')
+            ? req.params.origin
+            : this.server.getWallet().getPublicKey();
         const height = Number(req.params.height) || 0;
         const tx = await this.server.getChain().getTx(height, origin);
-        return tx ? res.json(tx) : res.status(404).end();
+        tx ? res.json(tx) : res.status(404).end();
     }
     async search(req, res) {
         const q = (req.params.q || '').trim();
         if (q.length < 3) {
-            return res.status(403).end();
+            res.status(403).end();
+            return;
         }
         let a = [];
         // search single origin
         if (req.params.origin) {
-            return res.json(await this.server.getChain().search(q, req.params.origin) || []);
+            res.json((await this.server.getChain().search(q, req.params.origin)) || []);
         }
-        // search all
-        for (const origin of this.server.getChain().getListPeer()) {
-            a = a.concat(await this.server.getChain().search(q, origin) || []);
+        else {
+            // search all
+            for (const origin of this.server.getChain().getListPeer()) {
+                a = a.concat((await this.server.getChain().search(q, origin)) || []);
+            }
+            res.json(a);
         }
-        return res.json(a);
     }
     async getPage(req, res) {
         const page = Number(req.params.page) || 1;
@@ -216,7 +225,7 @@ export class Api {
         let origin = req.params.origin || req.params.size || '';
         origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
         const a = await this.server.getChain().getPage(page, size, origin);
-        return a ? res.json(a.reverse()) : res.status(404).end();
+        a ? res.json(a.reverse()) : res.status(404).end();
     }
     async txs(req, res) {
         const gte = Math.floor(Number(req.params.gte)) || 1;
@@ -224,10 +233,10 @@ export class Api {
         let origin = req.params.origin || req.params.lte || req.params.gte || '';
         origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
         const a = await this.server.getChain().getRange(gte, lte, origin);
-        return a ? res.json(a) : res.status(404).end();
+        a ? res.json(a) : res.status(404).end();
     }
     putTransaction(req, res) {
-        return this.server.stackTx(req.body) ? res.status(200).end() : res.status(403).end();
+        this.server.stackTx(req.body) ? res.status(200).end() : res.status(403).end();
     }
     isStringPublicKey(s) {
         return /^[A-Za-z0-9_-]{43}$/.test(s);

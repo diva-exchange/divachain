@@ -16,7 +16,6 @@
  *
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
-/// <reference types="node" resolution-mode="require"/>
 import EventEmitter from 'events';
 import { Server } from './server.js';
 import { Peer } from '../chain/chain.js';

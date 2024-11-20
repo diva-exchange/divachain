@@ -261,22 +261,24 @@ export class Network extends EventEmitter {
             //@TODO this is a serious breach - what is the action?
             return;
         }
-        try {
-            if (type === TYPE_TX) {
-                this.server.getTxFactory().processTx(new TxMessage(struct, pkOrigin));
+        (async () => {
+            try {
+                if (type === TYPE_TX) {
+                    await this.server.getTxFactory().processTx(new TxMessage(struct, pkOrigin));
+                }
+                else if (type === TYPE_VOTE) {
+                    await this.server.getTxFactory().processVote(new VoteMessage(struct, pkOrigin));
+                }
+                else if (type === TYPE_STATUS) {
+                    await this.server.getTxFactory().processStatus(new StatusMessage(struct, pkOrigin));
+                }
             }
-            else if (type === TYPE_VOTE) {
-                this.server.getTxFactory().processVote(new VoteMessage(struct, pkOrigin));
+            catch (error) {
+                Logger.trace(`${this.server.config.port}: Message processing failed, ${error}`);
+                //@TODO this is a serious breach - what is the action?
+                return;
             }
-            else if (type === TYPE_STATUS) {
-                this.server.getTxFactory().processStatus(new StatusMessage(struct, pkOrigin));
-            }
-        }
-        catch (error) {
-            Logger.trace(`${this.server.config.port}: Message processing failed, ${error}`);
-            //@TODO this is a serious breach - what is the action?
-            return;
-        }
+        })();
         // efficiency
         this.arrayIn.push(uidMsg) > this.arrayBroadcast.length * 100 &&
             (this.arrayIn = this.arrayIn.slice(this.arrayBroadcast.length * -10));

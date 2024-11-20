@@ -16,4 +16,4 @@
  *
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
-export declare const Logger: import("pino").Logger<never>;
+export declare const Logger: import("pino").Logger<never, boolean>;

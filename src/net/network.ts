@@ -305,19 +305,21 @@ export class Network extends EventEmitter {
       return;
     }
 
-    try {
-      if (type === TYPE_TX) {
-        this.server.getTxFactory().processTx(new TxMessage(struct as TxMessageStruct, pkOrigin));
-      } else if (type === TYPE_VOTE) {
-        this.server.getTxFactory().processVote(new VoteMessage(struct as VoteMessageStruct, pkOrigin));
-      } else if (type === TYPE_STATUS) {
-        this.server.getTxFactory().processStatus(new StatusMessage(struct as StatusMessageStruct, pkOrigin));
+    (async (): Promise<void> => {
+      try {
+        if (type === TYPE_TX) {
+          await this.server.getTxFactory().processTx(new TxMessage(struct as TxMessageStruct, pkOrigin));
+        } else if (type === TYPE_VOTE) {
+          await this.server.getTxFactory().processVote(new VoteMessage(struct as VoteMessageStruct, pkOrigin));
+        } else if (type === TYPE_STATUS) {
+          await this.server.getTxFactory().processStatus(new StatusMessage(struct as StatusMessageStruct, pkOrigin));
+        }
+      } catch (error) {
+        Logger.trace(`${this.server.config.port}: Message processing failed, ${error}`);
+        //@TODO this is a serious breach - what is the action?
+        return;
       }
-    } catch (error) {
-      Logger.trace(`${this.server.config.port}: Message processing failed, ${error}`);
-      //@TODO this is a serious breach - what is the action?
-      return;
-    }
+    })();
 
     // efficiency
     this.arrayIn.push(uidMsg) > this.arrayBroadcast.length * 100 &&

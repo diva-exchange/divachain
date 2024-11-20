@@ -45,89 +45,89 @@ export class Api {
 
   private route(): void {
     // GET - general
-    this.server.app.get('/about', async (req: Request, res: Response): Promise<Response> => {
-      return await this.about(res);
+    this.server.app.get('/about', (req: Request, res: Response) => {
+      this.about(res);
     });
 
     // GET - joining
-    this.server.app.get('/join/:http/:udp/:publicKey', (req: Request, res: Response): Response => {
-      return this.join(req, res);
+    this.server.app.get('/join/:http/:udp/:publicKey', (req: Request, res: Response) => {
+      this.join(req, res);
     });
-    this.server.app.get('/challenge/:token', (req: Request, res: Response): Response => {
-      return this.challenge(req, res);
+    this.server.app.get('/challenge/:token', (req: Request, res: Response) => {
+      this.challenge(req, res);
     });
 
     // GET - synchronization
-    this.server.app.get('/sync/:height/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.sync(req, res);
+    this.server.app.get('/sync/:height/:origin?', async (req: Request, res: Response) => {
+      await this.sync(req, res);
     });
 
     // GET testnet
-    this.server.app.get('/testnet/token', async (req: Request, res: Response): Promise<Response> => {
-      return this.server.config.is_testnet
+    this.server.app.get('/testnet/token', (req: Request, res: Response) => {
+      this.server.config.is_testnet
         ? res.json({ header: NAME_HEADER_TOKEN_API, token: this.server.getWallet().getTokenAPI() })
         : res.status(403).end();
     });
 
     // GET - network status
-    this.server.app.get('/network/status', (req: Request, res: Response): Response => {
-      return this.status(res);
+    this.server.app.get('/network/status', (req: Request, res: Response) => {
+      this.status(res);
     });
 
     // GET - broadcasting network
-    this.server.app.get('/network/broadcast', (req: Request, res: Response): Response => {
-      return this.broadcast(res);
+    this.server.app.get('/network/broadcast', (req: Request, res: Response) => {
+      this.broadcast(res);
     });
 
     // GET - total network
-    this.server.app.get('/network/:stake?', (req: Request, res: Response): Response => {
-      return this.network(req, res);
+    this.server.app.get('/network/:stake?', (req: Request, res: Response) => {
+      this.network(req, res);
     });
 
     // GET - state
-    this.server.app.get('/state/search/:q?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.stateSearch(req, res);
+    this.server.app.get('/state/search/:q?', async (req: Request, res: Response) => {
+      await this.stateSearch(req, res);
     });
-    this.server.app.get('/state/:key', async (req: Request, res: Response): Promise<Response> => {
-      return await this.state(req, res);
+    this.server.app.get('/state/:key', async (req: Request, res: Response) => {
+      await this.state(req, res);
     });
 
     // GET - stack
-    this.server.app.get('/stack', async (req: Request, res: Response): Promise<Response> => {
-      return this.getStack(res);
+    this.server.app.get('/stack', async (req: Request, res: Response) => {
+      this.getStack(res);
     });
 
     // GET - tx
-    this.server.app.get('/genesis', async (req: Request, res: Response): Promise<Response> => {
-      return await this.getGenesis(res);
+    this.server.app.get('/genesis', async (req: Request, res: Response) => {
+      await this.getGenesis(res);
     });
-    this.server.app.get('/tx/latest/:origin?', (req: Request, res: Response): Response => {
-      return this.getLatest(req, res);
+    this.server.app.get('/tx/latest/:origin?', (req: Request, res: Response) => {
+      this.getLatest(req, res);
     });
-    this.server.app.get('/tx/:height/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.getTx(req, res);
+    this.server.app.get('/tx/:height/:origin?', async (req: Request, res: Response) => {
+      await this.getTx(req, res);
     });
 
     // GET - txs
-    this.server.app.get('/txs/search/:q/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.search(req, res);
+    this.server.app.get('/txs/search/:q/:origin?', async (req: Request, res: Response) => {
+      await this.search(req, res);
     });
-    this.server.app.get('/txs/page/:page/:size?/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.getPage(req, res);
+    this.server.app.get('/txs/page/:page/:size?/:origin?', async (req: Request, res: Response) => {
+      await this.getPage(req, res);
     });
-    this.server.app.get('/txs/:gte?/:lte?/:origin?', async (req: Request, res: Response): Promise<Response> => {
-      return await this.txs(req, res);
+    this.server.app.get('/txs/:gte?/:lte?/:origin?', async (req: Request, res: Response) => {
+      await this.txs(req, res);
     });
 
     //@TODO access rights? (next to the token)
     // PUT
-    this.server.app.put('/tx', (req: Request, res: Response): Response => {
-      return req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
+    this.server.app.put('/tx', (req: Request, res: Response) => {
+      req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
         ? this.putTransaction(req, res)
         : res.status(401).end();
     });
-    this.server.app.put('/leave', (req: Request, res: Response): Response => {
-      return req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
+    this.server.app.put('/leave', (req: Request, res: Response) => {
+      req.headers[NAME_HEADER_TOKEN_API] === this.server.getWallet().getTokenAPI()
         ? this.leave(res)
         : res.status(401).end();
     });
@@ -140,8 +140,8 @@ export class Api {
 */
   }
 
-  private join(req: Request, res: Response): Response {
-    return this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
+  private join(req: Request, res: Response) {
+    this.server.getBootstrap().join(req.params.http, req.params.udp, req.params.publicKey)
       ? res.status(200).json({
           http: toB32(req.params.http),
           udp: toB32(req.params.udp),
@@ -150,7 +150,7 @@ export class Api {
       : res.status(403).end();
   }
 
-  private leave(res: Response): Response {
+  private leave(res: Response) {
     if (
       this.server.stackTx([
         {
@@ -159,117 +159,124 @@ export class Api {
         } as CommandRemovePeer,
       ])
     ) {
-      return res.status(200).end();
+      res.status(200).end();
+    } else {
+      res.status(403).end();
     }
-    return res.status(403).end();
   }
 
-  private challenge(req: Request, res: Response): Response {
+  private challenge(req: Request, res: Response) {
     const signedToken: string = this.server.getBootstrap().challenge(req.params.token);
-    return signedToken ? res.status(200).json({ token: signedToken }) : res.status(403).end();
+    signedToken ? res.status(200).json({ token: signedToken }) : res.status(403).end();
   }
 
-  private async sync(req: Request, res: Response): Promise<Response> {
+  private async sync(req: Request, res: Response) {
     const origin: string = req.params.origin || this.server.getWallet().getPublicKey();
     const h: number = Math.floor(Number(req.params.height)) || 1;
     const height: number = this.server.getChain().getHeight(origin) || 0;
-    return height >= h
+    height >= h
       ? res.json(await this.server.getChain().getRange(h, h + this.server.config.network_sync_size, origin))
       : res.status(404).end();
   }
 
-  private async about(res: Response): Promise<Response> {
-    return res.json({
+  private about(res: Response) {
+    res.json({
       version: this.package.version,
       license: this.package.license,
       publicKey: this.server.getWallet().getPublicKey(),
     });
   }
 
-  private network(req: Request, res: Response): Response {
+  private network(req: Request, res: Response) {
     const s: number = Math.floor(Number(req.params.stake)) || 0;
     const a: Array<Peer> = this.server.getNetwork().getArrayNetwork();
-    return res.json(s > 0 ? a.filter((r: Peer): boolean => r['stake'] >= s) : a);
+    res.json(s > 0 ? a.filter((r: Peer): boolean => r['stake'] >= s) : a);
   }
 
-  private broadcast(res: Response): Response {
-    return res.json(this.server.getNetwork().getArrayBroadcast());
+  private broadcast(res: Response) {
+    res.json(this.server.getNetwork().getArrayBroadcast());
   }
 
-  private status(res: Response): Response {
-    return res.json(this.server.getTxFactory().getStatus());
+  private status(res: Response) {
+    res.json(this.server.getTxFactory().getStatus());
   }
 
-  private async stateSearch(req: Request, res: Response): Promise<Response> {
-    return res.json(await this.server.getChain().searchState(req.params.q || ''));
+  private async stateSearch(req: Request, res: Response) {
+    res.json(await this.server.getChain().searchState(req.params.q || ''));
   }
 
-  private async state(req: Request, res: Response): Promise<Response> {
+  private async state(req: Request, res: Response) {
     const key: string = req.params.key || '';
     const state: { key: string; value: string } | false = await this.server.getChain().getState(key);
-    return state ? res.json(state) : res.status(404).end();
+    state ? res.json(state) : res.status(404).end();
   }
 
-  private getStack(res: Response): Response {
-    return res.json(this.server.getTxFactory().getStack());
+  private getStack(res: Response) {
+    res.json(this.server.getTxFactory().getStack());
   }
 
-  private async getGenesis(res: Response): Promise<Response> {
+  private async getGenesis(res: Response) {
     const tx: TxStruct | undefined = await this.server.getChain().getTx(1, this.server.getWallet().getPublicKey());
-    return tx ? res.json(tx) : res.status(404).end();
+    tx ? res.json(tx) : res.status(404).end();
   }
 
-  private getLatest(req: Request, res: Response): Response {
-    const origin: string = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
+  private getLatest(req: Request, res: Response) {
+    const origin: string = this.isStringPublicKey(req.params.origin || '')
+      ? req.params.origin
+      : this.server.getWallet().getPublicKey();
     const tx: TxStruct | undefined = this.server.getChain().getLatestTx(origin);
-    return tx ? res.json(tx) : res.status(404).end();
+    tx ? res.json(tx) : res.status(404).end();
   }
 
-  private async getTx(req: Request, res: Response): Promise<Response> {
-    const origin: string = this.isStringPublicKey(req.params.origin || '') ? req.params.origin : this.server.getWallet().getPublicKey();
+  private async getTx(req: Request, res: Response) {
+    const origin: string = this.isStringPublicKey(req.params.origin || '')
+      ? req.params.origin
+      : this.server.getWallet().getPublicKey();
     const height: number = Number(req.params.height) || 0;
     const tx: TxStruct | undefined = await this.server.getChain().getTx(height, origin);
-    return tx ? res.json(tx) : res.status(404).end();
+    tx ? res.json(tx) : res.status(404).end();
   }
 
-  private async search(req: Request, res: Response): Promise<Response> {
+  private async search(req: Request, res: Response) {
     const q: string = (req.params.q || '').trim();
     if (q.length < 3) {
-      return res.status(403).end();
+      res.status(403).end();
+      return;
     }
 
     let a: Array<TxStruct> = [];
     // search single origin
     if (req.params.origin) {
-      return res.json(await this.server.getChain().search(q, req.params.origin) || []);
+      res.json((await this.server.getChain().search(q, req.params.origin)) || []);
+    } else {
+      // search all
+      for (const origin of this.server.getChain().getListPeer()) {
+        a = a.concat((await this.server.getChain().search(q, origin)) || []);
+      }
+      res.json(a);
     }
-    // search all
-    for (const origin of this.server.getChain().getListPeer()) {
-      a = a.concat(await this.server.getChain().search(q, origin) || []);
-    }
-    return res.json(a);
   }
 
-  private async getPage(req: Request, res: Response): Promise<Response> {
+  private async getPage(req: Request, res: Response) {
     const page: number = Number(req.params.page) || 1;
     const size: number = Number(req.params.size) || 0;
     let origin: string = req.params.origin || req.params.size || '';
     origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
     const a: Array<TxStruct> | undefined = await this.server.getChain().getPage(page, size, origin);
-    return a ? res.json(a.reverse()) : res.status(404).end();
+    a ? res.json(a.reverse()) : res.status(404).end();
   }
 
-  private async txs(req: Request, res: Response): Promise<Response> {
+  private async txs(req: Request, res: Response) {
     const gte: number = Math.floor(Number(req.params.gte)) || 1;
     const lte: number = Math.floor(Number(req.params.lte)) || 0;
     let origin: string = req.params.origin || req.params.lte || req.params.gte || '';
     origin = this.isStringPublicKey(origin) ? origin : this.server.getWallet().getPublicKey();
     const a: Array<TxStruct> | undefined = await this.server.getChain().getRange(gte, lte, origin);
-    return a ? res.json(a) : res.status(404).end();
+    a ? res.json(a) : res.status(404).end();
   }
 
-  private putTransaction(req: Request, res: Response): Response {
-    return this.server.stackTx(req.body) ? res.status(200).end() : res.status(403).end();
+  private putTransaction(req: Request, res: Response) {
+    this.server.stackTx(req.body) ? res.status(200).end() : res.status(403).end();
   }
 
   private isStringPublicKey(s: string): boolean {

@@ -41,9 +41,9 @@ export declare class TxFactory {
     stack(commands: Array<Command>): boolean;
     getStack(): Array<recordStack>;
     private createOwnTx;
-    processTx(tx: TxMessage): void;
-    processVote(vote: VoteMessage): void;
-    processStatus(status: StatusMessage): void;
+    processTx(tx: TxMessage): Promise<void>;
+    processVote(vote: VoteMessage): Promise<void>;
+    processStatus(status: StatusMessage): Promise<void>;
     getStatus(): Array<StatusMessage>;
     private addTx;
     private broadcastTx;

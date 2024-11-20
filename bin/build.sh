@@ -41,7 +41,7 @@ rm -rf "${PROJECT_PATH}"/build/prebuilds
 rm -rf "${PROJECT_PATH}"/build/divachain-*
 
 info "Transpiling TypeScript to JavaScript..."
-tsc
+node_modules/.bin/tsc
 cp -r "${PROJECT_PATH}"/src/schema "${PROJECT_PATH}"/dist/schema
 
 # create a static version file

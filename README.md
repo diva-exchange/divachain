@@ -124,6 +124,9 @@ Default: Maximum
 #### GET /about
 Returns an object containing the version, the license and the public key of the peer.
 
+#### GET /testnet/token
+Returns an object containing the header and the token to PUT a transaction on the testnet.
+
 #### GET /network/status
 Returns the matrix of the network status messages from all known peers. 
 
