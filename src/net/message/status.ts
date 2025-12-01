@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022-2024 diva.exchange
+ * Copyright (C) 2022-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,12 +17,11 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { iMessage, Message, TYPE_STATUS } from './message.js';
+import { iMessage, Message, TYPE_STATUS } from './message.ts';
 
 export type StatusMatrixRecord = { origin: string; height: number };
 
 export type StatusMessageStruct = {
-  seq: number;
   matrix: Array<StatusMatrixRecord>;
 };
 
@@ -31,9 +30,7 @@ interface iStatus extends iMessage {
 }
 
 export class StatusMessage extends Message implements iStatus {
-  private static seq: number = 1;
   constructor(struct: StatusMessageStruct, pkOrigin: string) {
-    struct.seq = StatusMessage.seq++;
     super(struct, TYPE_STATUS, pkOrigin);
   }
 

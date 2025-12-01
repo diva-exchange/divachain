@@ -1,0 +1,35 @@
+{
+  "name": "@diva/chain",
+  "version": "0.60.0",
+  "description": "diva - Distributed value exchange upholding security, reliability and privacy",
+  "author": "DIVA.EXCHANGE Association <contact@diva.exchange> (https://diva.exchange)",
+  "license": "AGPL-3.0-or-later",
+  "exports": "./src/main.ts",
+  "tasks": {
+    "dev-n0": "DIVA_ENV=dev PATH_CONFIG=test/data/dev/n0000000/config.json deno run --allow-all ./src/main.ts",
+    "lint": "deno lint",
+    "test": "DIVA_ENV=dev PATH_CONFIG=test/data/dev/n0000000/config.json deno test --clean --coverage ./test/coverage/ ./test/src/"
+  },
+  "imports": {
+    "@i2p/sam": "jsr:@i2p/sam@^6.0.0",
+    "@hono/hono": "jsr:@hono/hono@^4.10.7",
+    "@std/bytes": "jsr:@std/bytes@^1.0.6",
+    "@std/encoding": "jsr:@std/encoding@^1.0.10",
+    "@std/fs": "jsr:@std/fs@^1.0.20",
+    "ajv": "npm:ajv@^8.17.1",
+    "level": "npm:level@^10.0.0",
+    "nanoid": "npm:nanoid@^5.1.6",
+    "pino": "npm:pino@^10.1.0",
+    "socks-proxy-agent": "npm:socks-proxy-agent@^8.0.5",
+    "sodium-native": "npm:sodium-native@5.0.10",
+    "ws": "npm:ws@^8.18.3"
+  },
+  "lint": {
+    "include": ["src/"],
+    "rules": { "tags": ["recommended"] }
+  },
+  "fmt": {
+    "singleQuote": true,
+    "lineWidth": 80
+  }
+}

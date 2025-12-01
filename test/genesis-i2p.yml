@@ -17,7 +17,7 @@
 # Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
 #
 
-version: "3.7"
+version: '3.7'
 services:
   genesis-i2p-http:
     container_name: genesis-i2p-http

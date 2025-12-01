@@ -1,6 +1,0 @@
-{
-  "extensions": ["js"],
-  "spec": ["test/dist/**/*.spec.js"],
-  "exit": true,
-  "bail": false
-}

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,79 +17,63 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Config } from '../config.js';
-import { Logger } from '../logger.js';
-import createError from 'http-errors';
-import express, { Express, NextFunction, Request, Response } from 'express';
-import http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
-import compression from 'compression';
-import { Bootstrap } from './bootstrap.js';
-import { Chain } from '../chain/chain.js';
-import { Validation } from './validation.js';
-import { Wallet } from '../chain/wallet.js';
-import { Api } from './api.js';
-import { Command } from '../chain/tx.js';
-import { TxFactory } from './tx-factory.js';
-import { TxStruct } from '../chain/tx.js';
-import { Network } from './network.js';
+import { Config } from '../config.ts';
+import { Log } from '../logger.ts';
+import { setImmediate } from 'node:timers';
+import { WebSocket, WebSocketServer } from 'ws';
+import { Bootstrap } from './bootstrap.ts';
+import { Chain } from '../chain/chain.ts';
+import { Validation } from './validation.ts';
+import { Wallet } from '../chain/wallet.ts';
+import { Api } from './api.ts';
+import type { Command } from '../chain/tx.ts';
+import { TxFactory } from './tx-factory.ts';
+import type { TxStruct } from '../chain/tx.ts';
+import { Network } from './network.ts';
+import { SocksProxyAgent } from 'socks-proxy-agent';
 
 export class Server {
   public readonly config: Config;
-  public readonly app: Express;
 
-  private readonly httpServer: http.Server;
-  private readonly webSocketServerTxFeed: WebSocketServer;
-
+  private agent: SocksProxyAgent = {} as SocksProxyAgent;
+  private webSocketServerTxFeed: WebSocketServer = {} as WebSocketServer;
   private txFactory: TxFactory = {} as TxFactory;
-
   private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
   private network: Network = {} as Network;
   private chain: Chain = {} as Chain;
   private validation: Validation = {} as Validation;
+  private api: Api = {} as Api;
 
   constructor(config: Config) {
     this.config = config;
-    Logger.info(`divachain ${this.config.VERSION} instantiating...`);
-    this.config.is_testnet && Logger.warn('IMPORTANT: this is a test node (API is NOT protected)');
+    Log.info(`divachain ${this.config.VERSION} instantiating...`);
+    this.config.is_testnet &&
+      Log.warn('IMPORTANT: this is a test node (API is NOT protected)');
+    (async () => await this.start())();
+  }
 
-    // express application
-    this.app = express();
-    // hide express
-    this.app.set('x-powered-by', false);
+  private async start(): Promise<Server> {
+    Log.info(`HTTP endpoint ${this.config.http}`);
+    Log.info(`UDP endpoint ${this.config.udp}`);
 
-    // compression
-    this.app.use(compression());
+    this.agent = new SocksProxyAgent(
+      `socks://${this.config.i2p_socks}`,
+      {
+        timeout: this.config.network_timeout_ms,
+      },
+    );
+    Log.info(`Agent on socks://${this.config.i2p_socks}`);
 
-    // json
-    this.app.use(express.json());
+    this.wallet = Wallet.make(this.config);
+    this.chain = await Chain.make(this);
 
-    // catch unavailable favicon.ico
-    this.app.get('/favicon.ico', (req: Request, res: Response): void => {
-      res.sendStatus(204);
-    });
+    //this.validation = Validation.make();
+    //Log.info('Validation initialized');
 
-    // init API
-    Api.make(this);
-    Logger.info('Api initialized');
-
-    // catch 404 and forward to error handler
-    this.app.use((req: Request, res: Response, next: NextFunction): void => {
-      next(createError(404));
-    });
-
-    // error handler
-    this.app.use(Server.error);
-
-    // Web Server
-    this.httpServer = http.createServer(this.app);
-    this.httpServer.on('listening', (): void => {
-      Logger.info(`HttpServer listening on ${this.config.ip}:${this.config.port}`);
-    });
-    this.httpServer.on('close', (): void => {
-      Logger.info(`HttpServer closing on ${this.config.ip}:${this.config.port}`);
-    });
+    this.network = Network.make(this);
+    this.txFactory = TxFactory.make(this);
+    this.api = Api.make(this);
 
     // standalone Websocket Server to feed block updates
     this.webSocketServerTxFeed = new WebSocketServer({
@@ -98,38 +82,21 @@ export class Server {
       perMessageDeflate: false,
     });
     this.webSocketServerTxFeed.on('connection', (ws: WebSocket): void => {
-      ws.on('error', (error: any): void => {
-        Logger.warn('WebSocketServerTxFeed.error: ' + error.toString());
+      ws.on('error', (error: Error): void => {
+        Log.warn('WebSocketServerTxFeed.error: ' + error.toString());
         ws.terminate();
       });
     });
     this.webSocketServerTxFeed.on('close', (): void => {
-      Logger.info(`WebSocketServerTxFeed closing on ${this.config.ip}:${this.config.port_tx_feed}`);
+      Log.info(
+        `WebSocketServerTxFeed closing on ${this.config.ip}:${this.config.port_tx_feed}`,
+      );
     });
     this.webSocketServerTxFeed.on('listening', (): void => {
-      Logger.info(`WebSocketServerTxFeed listening on ${this.config.ip}:${this.config.port_tx_feed}`);
+      Log.info(
+        `WebSocketServerTxFeed listening on ${this.config.ip}:${this.config.port_tx_feed}`,
+      );
     });
-  }
-
-  async start(): Promise<Server> {
-    Logger.info(`HTTP endpoint ${this.config.http}`);
-    Logger.info(`UDP endpoint ${this.config.udp}`);
-
-    this.wallet = Wallet.make(this.config);
-    Logger.info('Wallet initialized');
-
-    this.chain = await Chain.make(this);
-    Logger.info('Chain initialized');
-
-    this.validation = Validation.make();
-    Logger.info('Validation initialized');
-
-    this.network = Network.make(this);
-
-    this.txFactory = TxFactory.make(this);
-    Logger.info('TxFactory initialized');
-
-    this.httpServer.listen(this.config.port, this.config.ip);
 
     return new Promise((resolve): void => {
       this.network.once('ready', async (): Promise<void> => {
@@ -146,69 +113,54 @@ export class Server {
     });
   }
 
-  async shutdown(): Promise<void> {
-    typeof this.txFactory.shutdown === 'function' && this.txFactory.shutdown();
+  public async shutdown(): Promise<void> {
+    typeof this.api.shutdown === 'function' && await this.api.shutdown();
     typeof this.network.shutdown === 'function' && this.network.shutdown();
-    typeof this.wallet.close === 'function' && this.wallet.close();
-    typeof this.chain.shutdown === 'function' && (await this.chain.shutdown());
 
-    if (typeof this.httpServer.close === 'function') {
-      return await new Promise((resolve) => {
-        this.httpServer.close(() => {
-          resolve();
-        });
-      });
-    } else {
-      return Promise.resolve();
-    }
+    typeof this.txFactory.shutdown === 'function' && this.txFactory.shutdown();
+    typeof this.chain.shutdown === 'function' && await this.chain.shutdown();
+    typeof this.wallet.close === 'function' && this.wallet.close();
+    typeof this.agent.destroy === 'function' && this.agent.destroy();
   }
 
-  getBootstrap(): Bootstrap {
+  public getAgent(): SocksProxyAgent {
+    return this.agent;
+  }
+
+  public getBootstrap(): Bootstrap {
     return this.bootstrap;
   }
 
-  getWallet(): Wallet {
+  public getWallet(): Wallet {
     return this.wallet;
   }
 
-  getChain(): Chain {
+  public getChain(): Chain {
     return this.chain;
   }
 
-  getValidation(): Validation {
+  public getValidation(): Validation {
     return this.validation;
   }
 
-  getNetwork(): Network {
+  public getNetwork(): Network {
     return this.network;
   }
 
-  getTxFactory(): TxFactory {
+  public getTxFactory(): TxFactory {
     return this.txFactory;
   }
 
-  stackTx(commands: Array<Command>): boolean {
+  public stackTx(commands: Array<Command>): boolean {
     return this.txFactory.stack(commands);
   }
 
-  queueWebSocketFeed(tx: TxStruct): void {
+  public queueWebSocketFeed(tx: TxStruct): void {
     setImmediate((tx: TxStruct): void => {
       this.webSocketServerTxFeed.clients.forEach(
-        (ws) => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(tx))
+        (ws: WebSocket) =>
+          ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(tx)),
       );
     }, tx);
-  }
-
-  private static error(err: any, req: Request, res: Response, next: NextFunction): void {
-    res.status(err.status || 500);
-
-    res.json({
-      path: req.path,
-      status: err.status || 500,
-      message: err.message,
-      error: process.env.NODE_ENV === 'development' ? err : {},
-    });
-
-    next();
   }
 }

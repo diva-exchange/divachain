@@ -17,18 +17,18 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Server } from './server.js';
-import { Wallet } from '../chain/wallet.js';
-import { Command, Tx, TxStruct, VoteStruct } from '../chain/tx.js';
-import { Chain } from '../chain/chain.js';
-import { Validation } from './validation.js';
-import { TxMessage } from './message/tx.js';
-import { VoteMessage, VoteMessageStruct } from './message/vote.js';
-import { StatusMessage } from './message/status.js';
-import { Logger } from '../logger.js';
-import { Config } from '../config.js';
-import { Network } from './network.js';
-import { Util } from '../chain/util.js';
+import { Server } from './server.ts';
+import { Wallet } from '../chain/wallet.ts';
+import { Command, Tx, TxStruct, VoteStruct } from '../chain/tx.ts';
+import { Chain } from '../chain/chain.ts';
+import { Validation } from './validation.ts';
+import { TxMessage } from './message/tx.ts';
+import { VoteMessage } from './message/vote.ts';
+import { StatusMessage } from './message/status.ts';
+import { Log } from '../logger.ts';
+import { Config } from '../config.ts';
+import { Network } from './network.ts';
+import { Util } from '../chain/util.ts';
 
 type recordStack = {
   commands: Array<Command>;
@@ -68,7 +68,7 @@ export class TxFactory {
 
   stack(commands: Array<Command>): boolean {
     //@FIXME logging
-    Logger.trace(`${this.config.port}: Stacking TX...`);
+    Log.trace(`${this.config.port}: Stacking TX...`);
 
     if (this.stackTransaction.push({ commands: commands })) {
       return this.createOwnTx();
@@ -97,8 +97,12 @@ export class TxFactory {
       const tx: TxStruct = new Tx(this.wallet, prevTx, r.commands).get();
       this.validation.validateTx(tx);
       this.ownTx = tx;
-    } catch (e: any) {
-      Logger.warn(`${this.config.port}: local TX validation failed ${e}`);
+    } catch (e: unknown) {
+      Log.warn(
+        `${this.config.port}: local TX validation failed ${
+          (e as Error).toString()
+        }`,
+      );
       return false;
     }
     this.mapTx.set(this.ownTx.hash, this.ownTx);
@@ -107,24 +111,33 @@ export class TxFactory {
     this.broadcastTx(this.ownTx);
 
     //@FIXME logging
-    Logger.trace(`${this.config.port}: TX created on ${me} #${this.chain.getListPeer().indexOf(me)}`);
+    Log.trace(
+      `${this.config.port}: TX created on ${me} #${
+        this.chain.getListPeer().indexOf(me)
+      }`,
+    );
 
     return true;
   }
 
   async processTx(tx: TxMessage): Promise<void> {
     const structTx: TxStruct = tx.tx();
-    const prevTx: TxStruct | undefined = this.chain.getLatestTx(structTx.origin);
+    const prevTx: TxStruct | undefined = this.chain.getLatestTx(
+      structTx.origin,
+    );
 
     // not interested
-    if (!prevTx || prevTx.height + 1 !== structTx.height || prevTx.hash !== structTx.prev) {
+    if (
+      !prevTx || prevTx.height + 1 !== structTx.height ||
+      prevTx.hash !== structTx.prev
+    ) {
       return;
     }
 
     // check hash
     if (structTx.hash !== Util.hash(structTx)) {
       //@FIXME serious breach
-      Logger.trace(`${this.config.port}: TX invalid hash`);
+      Log.trace(`${this.config.port}: TX invalid hash`);
       return;
     }
     // check existing vote from origin
@@ -134,7 +147,7 @@ export class TxFactory {
       })
     ) {
       //@FIXME serious breach
-      Logger.trace(`${this.config.port}: TX missing vote from origin`);
+      Log.trace(`${this.config.port}: TX missing vote from origin`);
       return;
     }
     // check all votes (signatures)
@@ -144,7 +157,7 @@ export class TxFactory {
       })
     ) {
       //@FIXME serious breach
-      Logger.trace(`${this.config.port}: TX invalid votes`);
+      Log.trace(`${this.config.port}: TX invalid votes`);
       return;
     }
 
@@ -155,7 +168,10 @@ export class TxFactory {
         return v.origin === me;
       })
     ) {
-      structTx.votes = structTx.votes.concat({ origin: me, sig: this.wallet.sign(structTx.hash) });
+      structTx.votes = structTx.votes.concat({
+        origin: me,
+        sig: this.wallet.sign(structTx.hash),
+      });
       this.mapTx.set(structTx.hash, structTx);
 
       await this.addTx(structTx);
@@ -171,13 +187,15 @@ export class TxFactory {
     }
 
     // new votes?
-    const aV: Array<VoteStruct> = vote.votes().filter((v: VoteStruct): boolean => {
-      return (
-        !structTx.votes.some((vO: VoteStruct): boolean => {
-          return vO.origin === v.origin;
-        }) && Util.verifySignature(v.origin, v.sig, structTx.hash)
-      );
-    });
+    const aV: Array<VoteStruct> = vote.votes().filter(
+      (v: VoteStruct): boolean => {
+        return (
+          !structTx.votes.some((vO: VoteStruct): boolean => {
+            return vO.origin === v.origin;
+          }) && Util.verifySignature(v.origin, v.sig, structTx.hash)
+        );
+      },
+    );
     if (!aV.length) {
       return;
     }
@@ -195,12 +213,16 @@ export class TxFactory {
       //@TODO hardcoded limit of 5 txs
       height = height > r.height + 5 ? r.height + 5 : height;
       for (let h = r.height + 1; h <= height; h++) {
-        const structTx: TxStruct | undefined = await this.chain.getTx(h, r.origin);
+        const structTx: TxStruct | undefined = await this.chain.getTx(
+          h,
+          r.origin,
+        );
         structTx && this.broadcastTx(structTx, status.getOrigin());
       }
 
       // resend ownTx
-      r.origin === me && r.height + 1 === this.ownTx.height && this.broadcastTx(this.ownTx, status.getOrigin());
+      r.origin === me && r.height + 1 === this.ownTx.height &&
+        this.broadcastTx(this.ownTx, status.getOrigin());
     }
     this.mapStatus.set(status.getOrigin(), status);
   }
@@ -212,17 +234,22 @@ export class TxFactory {
   private async addTx(structTx: TxStruct): Promise<void> {
     if (!this.chain.hasQuorum(structTx.votes.length)) {
       const me: string = this.wallet.getPublicKey();
-      this.network.broadcast(new VoteMessage({ hash: structTx.hash, votes: structTx.votes }, me).asString(this.wallet));
+      this.network.broadcast(
+        new VoteMessage({ hash: structTx.hash, votes: structTx.votes }, me)
+          .asString(this.wallet),
+      );
       return;
     }
 
     //@FIXME logging
-    Logger.trace(`${this.config.port}: NEW TX stored locally #${structTx.height} from ${structTx.origin}`);
+    Log.trace(
+      `${this.config.port}: NEW TX stored locally #${structTx.height} from ${structTx.origin}`,
+    );
 
     try {
       await this.chain.add(structTx);
     } catch (error) {
-      Logger.warn(`${this.config.port}: addTx failed, ${error}`);
+      Log.warn(`${this.config.port}: addTx failed, ${error}`);
       return;
     }
 

@@ -47,8 +47,8 @@
       "maxItems": 32,
       "uniqueItems": true
     },
-    "votes": {
-      "$ref": "votes.json"
+    "proofs": {
+      "$ref": "proofs.json"
     }
   },
   "required": [
@@ -58,7 +58,7 @@
     "hash",
     "prev",
     "commands",
-    "votes"
+    "proofs"
   ],
   "additionalProperties": false
 }

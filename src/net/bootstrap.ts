@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,13 +17,13 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Logger } from '../logger.js';
-import { Server } from './server.js';
-import { Util } from '../chain/util.js';
-import { CommandAddPeer } from '../chain/tx.js';
+import { Log } from '../logger.ts';
+import { Server } from './server.ts';
+import { Util } from '../chain/util.ts';
+import { COMMAND_ADD_PEER, CommandAddPeer } from '../chain/tx.ts';
 import { nanoid } from 'nanoid';
-import { toB32 } from '@diva.exchange/i2p-sam';
-import { Chain } from '../chain/chain.js';
+import { toB32 } from '@i2p/sam';
+import { clearTimeout, setImmediate, setTimeout } from 'node:timers';
 
 const LENGTH_TOKEN: number = 32;
 const WAIT_JOIN_MS: number = 30000;
@@ -35,7 +35,7 @@ export class Bootstrap {
   private timeoutChallenge: NodeJS.Timeout = {} as NodeJS.Timeout;
   private isJoiningNetwork: boolean = false;
 
-  static make(server: Server): Bootstrap {
+  public static make(server: Server): Bootstrap {
     return new Bootstrap(server);
   }
 
@@ -44,8 +44,8 @@ export class Bootstrap {
     this.mapToken = new Map();
   }
 
-  async syncWithNetwork(): Promise<void> {
-    Logger.trace('Bootstrap: syncWithNetwork()');
+  public async syncWithNetwork(): Promise<void> {
+    await Log.trace('Bootstrap: syncWithNetwork()');
     //@TODO
     /*
     const genesis: TxStruct | undefined = await this.server.getNetwork().fetchFromApi('genesis');
@@ -62,28 +62,38 @@ export class Bootstrap {
         h = this.server.getChain().getLatestTx().height;
       }
     }
-*/
+    */
 
-    Logger.trace('Bootstrap: syncWithNetwork() done');
+    Log.trace('Bootstrap: syncWithNetwork() done');
   }
 
   // executed by a new node only
-  async joinNetwork(publicKey: string): Promise<void> {
+  public async joinNetwork(publicKey: string): Promise<void> {
     this.isJoiningNetwork = true;
-    await this.server
-      .getNetwork()
-      .fetchFromApi('join/' + [this.server.config.http, this.server.config.udp, publicKey].join('/'));
+    /*
+    await this.fetchFromApi(
+      'join/' +
+        [this.server.config.http, this.server.config.udp, publicKey].join(
+          '/',
+        ),
+    );
+    */
   }
 
   // executed by a new node only
-  challenge(token: string): string {
+  public challenge(token: string): string {
     const v: boolean = this.isJoiningNetwork && token.length === LENGTH_TOKEN;
     this.isJoiningNetwork = false;
     return v ? this.server.getWallet().sign(token) : '';
   }
 
   // executed by an existing node, processing an incoming new node
-  join(http: string, udp: string, publicKey: string, r: number = 0): boolean {
+  public join(
+    http: string,
+    udp: string,
+    publicKey: string,
+    r: number = 0,
+  ): boolean {
     clearTimeout(this.timeoutChallenge);
 
     if (
@@ -100,14 +110,21 @@ export class Bootstrap {
     const token = nanoid(LENGTH_TOKEN);
     this.mapToken.set(publicKey, token);
 
-    this.timeoutChallenge = setTimeout(async () => {
+    this.timeoutChallenge = setTimeout(() => {
       try {
-        const res: { token: string } | undefined = await this.server
-          .getNetwork()
+        //@FIXME
+        const res: { token: string } = { token: 'dummy' };
+        /*
+        const res: { token: string } = await this
           .fetchFromApi(`http://${toB32(http)}.b32.i2p/challenge/${token}`);
+        */
         res && this.confirm(http, udp, publicKey, res.token);
-      } catch (error: any) {
-        Logger.warn(`Bootstrap.join(): challenging error - ${error.toString()}`);
+      } catch (error: unknown) {
+        Log.warn(
+          `Bootstrap.join(): challenging error - ${
+            (error as Error).toString()
+          }`,
+        );
 
         // retry
         if (r < MAX_RETRY_JOIN) {
@@ -116,7 +133,9 @@ export class Bootstrap {
             this.join(http, udp, publicKey, r++);
           });
         } else {
-          Logger.info(`Bootstrap.join(): max retries to get challenge confirmation reached (${MAX_RETRY_JOIN})`);
+          Log.info(
+            `Bootstrap.join(): max retries to get challenge confirmation reached (${MAX_RETRY_JOIN})`,
+          );
         }
       }
     }, WAIT_JOIN_MS);
@@ -125,7 +144,12 @@ export class Bootstrap {
   }
 
   // executed by an existing node, processing an incoming new node
-  private confirm(http: string, udp: string, publicKey: string, signedToken: string): void {
+  private confirm(
+    http: string,
+    udp: string,
+    publicKey: string,
+    signedToken: string,
+  ): void {
     const token: string = this.mapToken.get(publicKey) || '';
 
     if (!token || !Util.verifySignature(publicKey, signedToken, token)) {
@@ -135,7 +159,7 @@ export class Bootstrap {
     if (
       !this.server.stackTx([
         {
-          command: Chain.COMMAND_ADD_PEER,
+          command: COMMAND_ADD_PEER,
           http: http,
           udp: udp,
           publicKey: publicKey,

@@ -17,8 +17,8 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { iMessage, Message, TYPE_TX } from './message.js';
-import { TxStruct } from '../../chain/tx.js';
+import { iMessage, Message, TYPE_TX } from './message.ts';
+import { TxStruct } from '../../chain/tx.ts';
 
 export type TxMessageStruct = TxStruct;
 

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2024 diva.exchange
+ * Copyright (C) 2024-2025 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,37 +17,45 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { Wallet } from './wallet.js';
-import { TX_VERSION } from '../config.js';
-import { Util } from './util.js';
+import { Wallet } from './wallet.ts';
+import { TX_VERSION } from '../config.ts';
+import { Util } from './util.ts';
 
-interface Cmd {
+export const COMMAND_ADD_PEER: string = 'addPeer';
+export type CommandAddPeer = {
   command: string;
-}
-
-export interface CommandAddPeer extends Cmd {
   http: string;
   tcp: string;
   udp: string;
   publicKey: string;
-}
+};
 
-export interface CommandRemovePeer extends Cmd {
+export const COMMAND_REMOVE_PEER: string = 'removePeer';
+export type CommandRemovePeer = {
+  command: string;
   publicKey: string;
-}
+};
 
-export interface CommandModifyStake extends Cmd {
+export const COMMAND_MODIFY_STAKE: string = 'modifyStake';
+export type CommandModifyStake = {
+  command: string;
   publicKey: string;
   ident: string;
   stake: number;
-}
+};
 
-export interface CommandData extends Cmd {
+export const COMMAND_DATA: string = 'data';
+export type CommandData = {
+  command: string;
   ns: string;
   d: string;
-}
+};
 
-export type Command = CommandAddPeer | CommandRemovePeer | CommandModifyStake | CommandData;
+export type Command =
+  | CommandAddPeer
+  | CommandRemovePeer
+  | CommandModifyStake
+  | CommandData;
 
 export type VoteStruct = {
   origin: string;

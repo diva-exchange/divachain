@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021-2025 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,28 +17,43 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { base64url } from 'rfc4648';
+import { decodeBase64Url, encodeBase64Url } from '@std/encoding';
 import sodium from 'sodium-native';
-import { TxStruct } from './tx.js';
+import { TxStruct } from './tx.ts';
 
 export class Util {
-  static hash(tx: TxStruct): string {
-    const bufferOutput: Buffer = Buffer.alloc(sodium.crypto_hash_sha256_BYTES);
+  /**
+   * Hash of a transaction (TxStruct)
+   * @param tx TxStruct
+   * @returns hash of a TxStruct
+   */
+  public static hash(tx: TxStruct): string {
+    const bufferOutput: Uint8Array = new Uint8Array(
+      sodium.crypto_hash_sha256_BYTES,
+    );
     sodium.crypto_hash_sha256(
       bufferOutput,
-      Buffer.from([tx.v, tx.height, tx.prev, tx.origin, JSON.stringify(tx.commands)].join(','))
+      new TextEncoder().encode(
+        [tx.v, tx.height, tx.prev, tx.origin, JSON.stringify(tx.commands)].join(
+          ',',
+        ),
+      ),
     );
-    return base64url.stringify(bufferOutput, { pad: false });
+    return encodeBase64Url(bufferOutput);
   }
 
-  static verifySignature(publicKey: string, sig: string, data: string): boolean {
+  public static verifySignature(
+    publicKey: string,
+    sig: string,
+    data: string,
+  ): boolean {
     try {
       return sodium.crypto_sign_verify_detached(
-        base64url.parse(sig, { loose: true }) as Buffer,
-        Buffer.from(data),
-        base64url.parse(publicKey, { loose: true }) as Buffer
+        decodeBase64Url(sig),
+        new TextEncoder().encode(data),
+        decodeBase64Url(publicKey),
       );
-    } catch (error: any) {
+    } catch (_error) {
       return false;
     }
   }
@@ -46,12 +61,13 @@ export class Util {
   /**
    * Shuffle an array, using Durstenfeld shuffle
    * https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
-   *
-   * @param {Array<any>} array
-   * @return {Array<any>} A copy of the array
+   * @param {Array<string | number | Uint8Array>} array
+   * @return {Array<string | number | Uint8Array>} A copy of the array
    */
-  static shuffleArray(array: Array<any>): Array<any> {
-    const a: Array<any> = array.slice();
+  public static shuffleArray(
+    array: Array<string | number | Uint8Array>,
+  ): Array<string | number | Uint8Array> {
+    const a: Array<string | number | Uint8Array> = array.slice();
     for (let i: number = array.length - 1; i > 0; i--) {
       const j: number = Math.floor(Math.random() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];
@@ -64,7 +80,7 @@ export class Util {
    * Calculate quartile coefficient of dispersion of an array of numbers
    * https://en.wikipedia.org/wiki/Quartile_coefficient_of_dispersion
    */
-  static QuartileCoeff(array: Array<number>): number {
+  public static QuartileCoeff(array: Array<number>): number {
     if (array.length < 4) {
       throw new Error('Invalid Argument');
     }
@@ -75,7 +91,7 @@ export class Util {
     return (qi3 - qi1) / (qi3 + qi1);
   }
 
-  static stringDiff(a: string, b: string): number {
+  public static stringDiff(a: string, b: string): number {
     if (!a.length || a.length !== b.length) {
       throw new Error('Invalid string input');
     }

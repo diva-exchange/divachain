@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2021-2023 diva.exchange
+# Copyright (C) 2021-2025 diva.exchange
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -17,7 +17,6 @@
 # Author/Maintainer: DIVA.EXCHANGE Association <contact@diva.exchange>
 #
 
-version: "3.7"
 services:
   i2p.http.join.testnet.diva.i2p:
     container_name: i2p.http.join.testnet.diva.i2p

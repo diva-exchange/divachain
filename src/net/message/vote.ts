@@ -17,8 +17,8 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { iMessage, Message, TYPE_VOTE } from './message.js';
-import { VoteStruct } from '../../chain/tx.js';
+import { iMessage, Message, TYPE_VOTE } from './message.ts';
+import { VoteStruct } from '../../chain/tx.ts';
 
 export type VoteMessageStruct = {
   hash: string;

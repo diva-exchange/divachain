@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2022-2024 diva.exchange
+ * Copyright (C) 2022-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,13 +17,22 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import fs from 'fs';
+import fs from 'node:fs';
 import { Level } from 'level';
-import path from 'path';
-import { CommandAddPeer, CommandRemovePeer, CommandData, TxStruct } from './tx.js';
-import { Server } from '../net/server.js';
-import { Logger } from '../logger.js';
-import { Util } from './util.js';
+import path from 'node:path';
+import {
+  COMMAND_ADD_PEER,
+  COMMAND_DATA,
+  COMMAND_MODIFY_STAKE,
+  COMMAND_REMOVE_PEER,
+  CommandAddPeer,
+  CommandData,
+  CommandRemovePeer,
+  TxStruct,
+} from './tx.ts';
+import { Server } from '../net/server.ts';
+import { Util } from './util.ts';
+import { Log } from '../logger.ts';
 
 export type Peer = {
   publicKey: string;
@@ -34,16 +43,11 @@ export type Peer = {
 };
 
 export class Chain {
-  public static readonly COMMAND_ADD_PEER: string = 'addPeer';
-  public static readonly COMMAND_REMOVE_PEER: string = 'removePeer';
-  public static readonly COMMAND_MODIFY_STAKE: string = 'modifyStake';
-  public static readonly COMMAND_DATA: string = 'data';
-
   private readonly server: Server;
   private readonly publicKey: string;
-  private readonly mapDbChain: Map<string, Level<string, any>>;
-  private readonly dbState: Level<string, any>;
-  private readonly dbPeer: Level<string, any>;
+  private readonly mapDbChain: Map<string, Level<string, TxStruct>>;
+  private readonly dbState: Level<string, string>;
+  private readonly dbPeer: Level<string, CommandAddPeer>;
 
   private mapHeight: Map<string, number>; // origin -> height
   private mapTxs: Map<string, Map<number, TxStruct>>; // origin -> height
@@ -75,11 +79,25 @@ export class Chain {
 
     this.mapDbChain = new Map();
 
-    const pathDbState: string = path.join(this.server.config.path_state, this.publicKey);
-    this.dbState = new Level(pathDbState, { valueEncoding: 'utf8', createIfMissing: true, errorIfExists: false });
+    const pathDbState: string = path.join(
+      this.server.config.path_state,
+      this.publicKey,
+    );
+    this.dbState = new Level(pathDbState, {
+      valueEncoding: 'utf8',
+      createIfMissing: true,
+      errorIfExists: false,
+    });
 
-    const pathDbPeer: string = path.join(this.server.config.path_state, this.publicKey + '-peer');
-    this.dbPeer = new Level(pathDbPeer, { valueEncoding: 'json', createIfMissing: true, errorIfExists: false });
+    const pathDbPeer: string = path.join(
+      this.server.config.path_state,
+      this.publicKey + '-peer',
+    );
+    this.dbPeer = new Level(pathDbPeer, {
+      valueEncoding: 'json',
+      createIfMissing: true,
+      errorIfExists: false,
+    });
 
     this.mapHeight = new Map();
     this.mapTxs = new Map();
@@ -105,8 +123,10 @@ export class Chain {
     for (const commandAddPeer of aPeer) {
       try {
         await this.addPeer(commandAddPeer);
-      } catch (error) {
-        Logger.warn(`${this.server.config.port}: init/addPeer failed - ${commandAddPeer}`);
+      } catch (_error) {
+        Log.warn(
+          `${this.server.config.port}: init/addPeer failed - ${commandAddPeer}`,
+        );
       }
     }
 
@@ -127,8 +147,12 @@ export class Chain {
       this.mapDbChain.delete(origin);
     }
 
-    const pathDb: string = path.join(this.server.config.path_chain, this.publicKey, this.publicKey);
-    const dbChain: Level<string, any> = new Level(pathDb, {
+    const pathDb: string = path.join(
+      this.server.config.path_chain,
+      this.publicKey,
+      this.publicKey,
+    );
+    const dbChain: Level<string, TxStruct> = new Level(pathDb, {
       valueEncoding: 'json',
       createIfMissing: true,
       errorIfExists: false,
@@ -180,7 +204,9 @@ export class Chain {
       throw new Error(`Locked Chain: ${tx.origin} #${tx.height}`);
     }
     this.mapLock.set(tx.origin, tx.height);
-    const dbChain: Level<string, any> | undefined = this.mapDbChain.get(tx.origin);
+    const dbChain: Level<string, TxStruct> | undefined = this.mapDbChain.get(
+      tx.origin,
+    );
     if (dbChain) {
       await dbChain.put(String(tx.height).padStart(16, '0'), tx);
       this.updateCache(tx);
@@ -202,10 +228,14 @@ export class Chain {
     this.mapTxs.set(tx.origin, mT);
   }
 
-  async getRange(gte: number, lte: number, origin: string): Promise<Array<TxStruct> | undefined> {
+  async getRange(
+    gte: number,
+    lte: number,
+    origin: string,
+  ): Promise<Array<TxStruct> | undefined> {
     const height: number | undefined = this.mapHeight.get(origin);
     const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(origin);
-    const db: Level<string, any> | undefined = this.mapDbChain.get(origin);
+    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
     if (!height || !mT || !db) {
       return;
     }
@@ -217,7 +247,9 @@ export class Chain {
     lte = lte < 0 ? gte : Math.floor(lte < 1 ? height : lte);
     lte = lte <= height ? lte : height;
     gte = lte - gte > 0 ? gte : lte;
-    gte = lte - gte >= this.server.config.api_max_query_size ? lte - this.server.config.api_max_query_size + 1 : gte;
+    gte = lte - gte >= this.server.config.api_max_query_size
+      ? lte - this.server.config.api_max_query_size + 1
+      : gte;
 
     // cache available?
     if (mT.has(gte) && mT.has(lte)) {
@@ -227,26 +259,31 @@ export class Chain {
     }
 
     const a: Array<TxStruct> = [];
-    for await (const value of db.values({
-      gte: String(gte).padStart(16, '0'),
-      lte: String(lte).padStart(16, '0'),
-    })) {
+    for await (
+      const value of db.values({
+        gte: String(gte).padStart(16, '0'),
+        lte: String(lte).padStart(16, '0'),
+      })
+    ) {
       a.push(value);
     }
     return a;
   }
 
-  async getPage(page: number, size: number, origin: string): Promise<Array<TxStruct> | undefined> {
+  async getPage(
+    page: number,
+    size: number,
+    origin: string,
+  ): Promise<Array<TxStruct> | undefined> {
     const height: number | undefined = this.mapHeight.get(origin);
     if (!height) {
       return;
     }
 
     page = page < 1 ? 1 : Math.floor(page);
-    size =
-      size < 1 || size > this.server.config.api_max_query_size
-        ? this.server.config.api_max_query_size
-        : Math.floor(size);
+    size = size < 1 || size > this.server.config.api_max_query_size
+      ? this.server.config.api_max_query_size
+      : Math.floor(size);
 
     let gte: number = height - page * size + 1;
     if (gte + size - 1 < 1) {
@@ -254,25 +291,30 @@ export class Chain {
     }
     gte = gte < 1 ? 1 : gte;
 
-    return this.getRange(gte, gte + size - 1, origin);
+    return await this.getRange(gte, gte + size - 1, origin);
   }
 
-  async search(q: string, origin: string): Promise<Array<TxStruct> | undefined> {
+  async search(
+    q: string,
+    origin: string,
+  ): Promise<Array<TxStruct> | undefined> {
     // support only search strings with more than 2 characters
-    const db: Level<string, any> | undefined = this.mapDbChain.get(origin);
+    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
     if (q.length < 3 || !db) {
       return;
     }
 
     const a: Array<TxStruct> = [];
-    for await (const value of db.values({
-      reverse: true,
-      limit: this.server.config.api_max_query_size,
-    })) {
+    for await (
+      const value of db.values({
+        reverse: true,
+        limit: this.server.config.api_max_query_size,
+      })
+    ) {
       try {
         JSON.stringify(value).indexOf(q) > -1 && a.push(value);
       } catch (e) {
-        Logger.warn(`${this.server.config.port}: ${e}`);
+        Log.warn(`${this.server.config.port}: ${e}`);
       }
     }
     return a.reverse();
@@ -280,34 +322,39 @@ export class Chain {
 
   async getTx(height: number, origin: string): Promise<TxStruct | undefined> {
     const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(origin);
-    const db: Level<string, any> | undefined = this.mapDbChain.get(origin);
+    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
     if (!mT || !db) {
       return;
     }
 
     try {
       // cache or db
-      return mT.get(height) || ((await db.get(String(height).padStart(16, '0'))) as TxStruct);
-    } catch (error) {
+      return mT.get(height) ||
+        ((await db.get(String(height).padStart(16, '0'))) as TxStruct);
+    } catch (_error) {
       return;
     }
   }
 
   async getState(key: string): Promise<{ key: string; value: string } | false> {
-    return new Promise((resolve): void => {
-      this.dbState.get(key, (error: Error | null | undefined, value: Buffer): void => {
-        error ? resolve(false) : resolve({ key: key, value: value.toString() });
-      });
-    });
+    const v = await this.dbState.get(key);
+    return v === undefined
+      ? Promise.resolve(false)
+      : Promise.resolve({ key: key, value: v.toString() });
   }
 
-  async searchState(search: string = ''): Promise<Array<{ key: string; value: any }>> {
-    const a: Array<{ key: string; value: any }> = [];
-    for await (const [key, value] of this.dbState.iterator({
-      reverse: true,
-      limit: this.server.config.api_max_query_size,
-    })) {
-      (!search.length || (key + value).indexOf(search) > -1) && a.push({ key: key, value: value });
+  async searchState(
+    search: string = '',
+  ): Promise<Array<{ key: string; value: string }>> {
+    const a: Array<{ key: string; value: string }> = [];
+    for await (
+      const [key, value] of this.dbState.iterator({
+        reverse: true,
+        limit: this.server.config.api_max_query_size,
+      })
+    ) {
+      (!search.length || (key + value).indexOf(search) > -1) &&
+        a.push({ key: key, value: value });
     }
     return a;
   }
@@ -348,8 +395,10 @@ export class Chain {
   async getPerformance(height: number): Promise<{ timestamp: number }> {
     let ts: number;
     try {
-      ts = Number((await this.dbState.get('debug-performance-' + height)).toString());
-    } catch (error) {
+      ts = Number(
+        (await this.dbState.get('debug-performance-' + height)).toString(),
+      );
+    } catch (_error) {
       ts = 0;
     }
     return { timestamp: ts };
@@ -366,23 +415,32 @@ export class Chain {
 
   private async processState(tx: TxStruct): Promise<void> {
     if (this.server.config.debug_performance) {
-      await this.updateStateData(`debug-performance-${tx.origin}-${tx.height}`, new Date().getTime().toString());
+      await this.updateStateData(
+        `debug-performance-${tx.origin}-${tx.height}`,
+        new Date().getTime().toString(),
+      );
     }
 
+    //@FIXME
     for (const c of tx.commands) {
       switch (c.command) {
-        case Chain.COMMAND_ADD_PEER:
+        case COMMAND_ADD_PEER:
           await this.addPeer(c as CommandAddPeer);
           break;
-        case Chain.COMMAND_REMOVE_PEER:
+        case COMMAND_REMOVE_PEER:
           await this.removePeer(c as CommandRemovePeer);
           break;
-        case Chain.COMMAND_MODIFY_STAKE:
-          //TODO
+        case COMMAND_MODIFY_STAKE:
+          //@TODO
           break;
-        case Chain.COMMAND_DATA:
-          await this.updateStateData([(c as CommandData).ns, tx.origin].join(':'), (c as CommandData).d);
+        case COMMAND_DATA:
+          await this.updateStateData(
+            [(c as CommandData).ns, tx.origin].join(':'),
+            (c as CommandData).d,
+          );
           break;
+        default:
+          //@TODO
       }
     }
   }
@@ -409,8 +467,12 @@ export class Chain {
     this.mapUdp.set(peer.udp, command.publicKey);
     await this.dbPeer.put(command.publicKey, command);
 
-    const pathDb: string = path.join(this.server.config.path_chain, this.publicKey, command.publicKey);
-    const dbChain: Level<string, any> = new Level(pathDb, {
+    const pathDb: string = path.join(
+      this.server.config.path_chain,
+      this.publicKey,
+      command.publicKey,
+    );
+    const dbChain: Level<string, TxStruct> = new Level(pathDb, {
       valueEncoding: 'json',
       createIfMissing: true,
       errorIfExists: false,

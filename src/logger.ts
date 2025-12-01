@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,10 +17,30 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { pino } from 'pino';
+import { join as joinPath } from 'node:path';
+import { stdout } from 'node:process';
+import pino from 'pino';
 
-export const Logger = pino(
-  process.env.NODE_ENV === 'development'
-    ? { level: process.env.LOG_LEVEL || 'trace' }
-    : { level: process.env.LOG_LEVEL || 'warn' }
-);
+let _LoggerLog: pino.Logger = {} as pino.Logger;
+
+export class Logger {
+  public static make(pathLog: string, level: string = 'trace') {
+    if (pathLog !== 'stdout') {
+      pathLog = joinPath(Deno.cwd(), pathLog);
+      if (!pathLog.endsWith('.log')) {
+        pathLog = joinPath(pathLog, 'diva.log');
+      }
+    }
+    _LoggerLog = pino(
+      {
+        level: level,
+        timestamp: pino.stdTimeFunctions.isoTime,
+      },
+      pino.destination(pathLog === 'stdout' ? stdout : pathLog),
+    );
+    _LoggerLog.info(`Application root: ${Deno.cwd()}`);
+    _LoggerLog.info(`Application log (${level}): ${pathLog}`);
+  }
+}
+
+export { _LoggerLog as 'Log' };

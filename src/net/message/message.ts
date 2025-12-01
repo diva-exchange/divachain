@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,12 +17,11 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { base64url } from 'rfc4648';
-
-import { TxMessageStruct } from './tx.js';
-import { VoteMessageStruct } from './vote.js';
-import { StatusMessageStruct } from './status.js';
-import { Wallet } from '../../chain/wallet.js';
+import { encodeBase64Url } from '@std/encoding';
+import { TxMessageStruct } from './tx.ts';
+import { VoteMessageStruct } from './vote.ts';
+import { StatusMessageStruct } from './status.ts';
+import { Wallet } from '../../chain/wallet.ts';
 
 export const TYPE_TX = 1;
 export const TYPE_VOTE = 2;
@@ -36,9 +35,16 @@ export interface iMessage {
 export class Message {
   protected readonly type: number;
   protected readonly origin: string;
-  protected readonly message: TxMessageStruct | VoteMessageStruct | StatusMessageStruct;
+  protected readonly message:
+    | TxMessageStruct
+    | VoteMessageStruct
+    | StatusMessageStruct;
 
-  constructor(struct: TxMessageStruct | VoteMessageStruct | StatusMessageStruct, type: number, origin: string) {
+  constructor(
+    struct: TxMessageStruct | VoteMessageStruct | StatusMessageStruct,
+    type: number,
+    origin: string,
+  ) {
     this.type = type;
     this.origin = origin;
     this.message = struct;
@@ -49,7 +55,7 @@ export class Message {
   }
 
   asString(wallet: Wallet): string {
-    const b64: string = base64url.stringify(Buffer.from(JSON.stringify(this.message)), { pad: false });
+    const b64: string = encodeBase64Url(JSON.stringify(this.message));
     const pl: string = [this.type, b64].join(''); // payload
     return wallet.getPublicKey() + wallet.sign(pl) + pl + ';';
   }

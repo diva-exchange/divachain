@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2021-2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,65 +17,141 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import path from 'path';
-import { CommandAddPeer, CommandModifyStake, TxStruct } from './chain/tx.js';
+import { exists } from '@std/fs';
+import fs from 'node:fs';
+import { join as joinPath } from 'node:path';
+import type { CommandAddPeer, TxStruct } from './chain/tx.ts';
 import {
   Config,
-  DEFAULT_IP,
-  DEFAULT_PORT,
-  DEFAULT_TX_FEED_PORT,
-  DEFAULT_I2P_SOCKS_PORT,
-  DEFAULT_I2P_SAM_TCP_PORT,
+  DEFAULT_I2P_SAM_FORWARD_HTTP_PORT,
+  DEFAULT_I2P_SAM_FORWARD_UDP_PORT,
+  DEFAULT_I2P_SAM_HTTP_PORT,
+  DEFAULT_I2P_SAM_LISTEN_UDP_PORT,
   DEFAULT_I2P_SAM_UDP_PORT,
+  DEFAULT_I2P_SOCKS_PORT,
+  DEFAULT_IP,
   DEFAULT_NAME_GENESIS,
-  MAX_NETWORK_SIZE,
-} from './config.js';
-import { Wallet } from './chain/wallet.js';
-import { Util } from './chain/util.js';
-import { Chain } from './chain/chain.js';
+  DEFAULT_PORT,
+  DEFAULT_PORT_TX_FEED,
+} from './config.ts';
+import { Wallet } from './chain/wallet.ts';
+import { Util } from './chain/util.ts';
+import { Chain } from './chain/chain.ts';
+import { Log } from './logger.ts';
+
+const DEFAULT_SIZE_TESTNETWORK: number = 7;
+
+enum typeNet {
+  dev = 1,
+  test,
+}
 
 export class Genesis {
-  static async create(pathApplication: string = ''): Promise<{ genesis: TxStruct; config: Array<any> }> {
-    process.env.GENESIS = '0';
+  static async create(type: typeNet = typeNet.dev) {
+    const isTestnet: boolean = (Deno.env.get('IS_TESTNET') || 0) == '1';
 
-    const SIZE_NETWORK: number = Number(process.env.SIZE_NETWORK || 9);
-    if (SIZE_NETWORK > MAX_NETWORK_SIZE) {
-      throw new Error(`Fatal: maximum network size of ${MAX_NETWORK_SIZE} nodes exceeded.`);
+    let pathDataReal: string = '';
+    let pathDataRelative: string = isTestnet ? 'test' : '';
+    switch (type) {
+      case typeNet.test: {
+        pathDataRelative = joinPath(pathDataRelative, 'data', 'test');
+        break;
+      }
+      default: {
+        pathDataRelative = joinPath(pathDataRelative, 'data', 'dev');
+      }
     }
 
-    const IP: string = process.env.IP || DEFAULT_IP;
-    const BASE_PORT: number = Number(process.env.BASE_PORT || DEFAULT_PORT);
-    const BASE_PORT_FEED: number = Number(process.env.BASE_PORT_FEED || DEFAULT_TX_FEED_PORT);
+    const pathApp: string = joinPath(Deno.cwd(), '/');
+    pathDataReal = joinPath(pathApp, pathDataRelative);
+    await exists(pathDataReal) &&
+      fs.rmSync(pathDataReal, { recursive: true, force: true });
+    !(await exists(pathDataReal)) && fs.mkdirSync(pathDataReal);
 
-    const I2P_SOCKS: string = process.env.I2P_SOCKS || IP + ':' + DEFAULT_I2P_SOCKS_PORT;
-    const I2P_SAM_HTTP: string = process.env.I2P_SAM_HTTP || IP + ':' + DEFAULT_I2P_SAM_TCP_PORT;
-    const I2P_SAM_UDP: string = process.env.I2P_SAM_UDP_HOST || IP + ':' + DEFAULT_I2P_SAM_UDP_PORT;
+    const pathSeedGenesis: string = joinPath(
+      pathApp,
+      'seed-genesis',
+      DEFAULT_NAME_GENESIS + '.json',
+    );
+    let genesis: TxStruct = Chain.genesis(pathSeedGenesis);
 
-    const ___dirname: string = path.dirname(import.meta.url.replace(/^file:\/\//, ''));
-    const pathApp: string = pathApplication || path.join(___dirname, '/../');
+    const SIZE_NETWORK: number = isTestnet ? DEFAULT_SIZE_TESTNETWORK : 1;
+    const IP: string = Deno.env.get('IP') || DEFAULT_IP;
+    const PORT: number = Number(Deno.env.get('PORT') || DEFAULT_PORT);
+    const PORT_TX_FEED: number = Number(
+      Deno.env.get('PORT_TX_FEED') || DEFAULT_PORT_TX_FEED,
+    );
 
-    const pathGenesis: string = path.join(___dirname, '/../genesis', DEFAULT_NAME_GENESIS + '.json');
-    let genesis: TxStruct = Chain.genesis(pathGenesis);
+    const I2P_SOCKS: string = Deno.env.get('I2P_SOCKS') ||
+      IP + ':' + DEFAULT_I2P_SOCKS_PORT;
+    const I2P_SAM_HTTP: string = Deno.env.get('I2P_SAM_HTTP') ||
+      IP + ':' + DEFAULT_I2P_SAM_HTTP_PORT;
 
-    const arrayConfig: Array<Config> = [];
-    const cmds: Array<CommandAddPeer | CommandModifyStake> = [];
+    let _a: Array<string> = (Deno.env.get('I2P_SAM_FORWARD_HTTP') ||
+      IP + ':' + DEFAULT_I2P_SAM_FORWARD_HTTP_PORT).split(
+        ':',
+      );
+    const I2P_SAM_FORWARD_HTTP: string = _a[0];
+    const I2P_SAM_FORWARD_HTTP_PORT: number = Number(_a[1]);
+
+    const I2P_SAM_UDP: string = Deno.env.get('I2P_SAM_UDP') ||
+      IP + ':' + DEFAULT_I2P_SAM_UDP_PORT;
+
+    _a = (Deno.env.get('I2P_SAM_LISTEN_UDP') ||
+      IP + ':' + DEFAULT_I2P_SAM_LISTEN_UDP_PORT).split(':');
+    const I2P_SAM_LISTEN_UDP: string = _a[0];
+    const I2P_SAM_LISTEN_UDP_PORT: number = Number(_a[1]);
+
+    _a = (Deno.env.get('I2P_SAM_FORWARD_UDP') ||
+      IP + ':' + DEFAULT_I2P_SAM_FORWARD_UDP_PORT).split(':');
+    const I2P_SAM_FORWARD_UDP: string = _a[0];
+    const I2P_SAM_FORWARD_UDP_PORT: number = Number(_a[1]);
+
+    const cmds: Array<CommandAddPeer> = [];
     let config: Config = {} as Config;
-    for (let i = 1; i <= SIZE_NETWORK; i++) {
-      const iPort: number = i * MAX_NETWORK_SIZE;
+    let pathDB: string = '';
+    let pathKeys: string = '';
+    let pathGenesis: string = '';
+    let pathLog: string = '';
+    for (let i = 0; i < SIZE_NETWORK; i++) {
+      const nameNode: string = 'n' + i.toString().padStart(7, '0');
+      pathDB = joinPath(pathDataRelative, nameNode, 'db');
+      fs.mkdirSync(joinPath(pathApp, pathDB, 'chain'), { recursive: true });
+      fs.mkdirSync(joinPath(pathApp, pathDB, 'state'));
+
+      pathGenesis = joinPath(pathDB, 'genesis.json');
+      fs.writeFileSync(joinPath(pathApp, pathGenesis), JSON.stringify({}));
+
+      pathKeys = joinPath(pathDataRelative, nameNode, 'keys');
+      fs.mkdirSync(joinPath(pathApp, pathKeys));
+
+      pathLog = joinPath(pathDataRelative, nameNode, 'log');
+      fs.mkdirSync(joinPath(pathApp, pathLog));
+
+      const iPort: number = i * 10;
       config = await Config.make({
-        no_bootstrapping: 1,
+        no_bootstrapping: true,
+        debug_performance: true,
         ip: IP,
-        port: BASE_PORT + iPort,
-        port_tx_feed: BASE_PORT_FEED + iPort,
-        path_app: pathApp,
+        port: PORT + iPort,
+        port_tx_feed: PORT_TX_FEED + iPort,
         path_genesis: pathGenesis,
+        path_chain: joinPath(pathDB, 'chain'),
+        path_state: joinPath(pathDB, 'state'),
+        path_keys: pathKeys,
+        path_log: pathLog,
         i2p_socks: I2P_SOCKS,
         i2p_sam_http: I2P_SAM_HTTP,
+        i2p_sam_forward_http: I2P_SAM_FORWARD_HTTP + ':' +
+          (I2P_SAM_FORWARD_HTTP_PORT + iPort),
         i2p_sam_udp: I2P_SAM_UDP,
-      });
+        i2p_sam_listen_udp: I2P_SAM_LISTEN_UDP + ':' +
+          (I2P_SAM_LISTEN_UDP_PORT + iPort),
+        i2p_sam_forward_udp: I2P_SAM_FORWARD_UDP + ':' +
+          (I2P_SAM_FORWARD_UDP_PORT + iPort),
+      } as Config);
 
       const publicKey: string = Wallet.make(config).getPublicKey();
-      arrayConfig.push(config);
 
       cmds.push({
         command: 'addPeer',
@@ -83,6 +159,10 @@ export class Genesis {
         udp: config.udp,
         publicKey: publicKey,
       } as CommandAddPeer);
+
+      const _p: string = joinPath(pathDataReal, nameNode, 'config.json');
+      fs.writeFileSync(_p, JSON.stringify(config), { mode: 0o440 });
+      Log.trace(`Genesis: created config ${_p}`);
     }
 
     genesis = {
@@ -96,6 +176,12 @@ export class Genesis {
     };
     genesis.hash = Util.hash(genesis);
 
-    return Promise.resolve({ genesis: genesis, config: arrayConfig });
+    for (let i = 0; i < SIZE_NETWORK; i++) {
+      const nameNode: string = 'n' + i.toString().padStart(7, '0');
+      fs.writeFileSync(
+        joinPath(pathDataReal, nameNode, 'db', 'genesis.json'),
+        JSON.stringify(genesis),
+      );
+    }
   }
 }
