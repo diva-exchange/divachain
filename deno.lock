@@ -3,12 +3,17 @@
   "specifiers": {
     "jsr:@hono/hono@^4.10.7": "4.10.7",
     "jsr:@i2p/sam@6": "6.0.0",
+    "jsr:@std/bytes@*": "1.0.6",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
+    "jsr:@std/crypto@*": "1.0.5",
+    "jsr:@std/crypto@^1.0.5": "1.0.5",
+    "jsr:@std/encoding@*": "1.0.10",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
     "jsr:@std/fs@^1.0.20": "1.0.20",
     "jsr:@std/internal@^1.0.12": "1.0.12",
     "jsr:@std/path@^1.1.3": "1.1.3",
     "npm:@types/node@*": "24.2.0",
+    "npm:@types/sodium-native@^2.3.9": "2.3.9",
     "npm:ajv@^8.17.1": "8.17.1",
     "npm:level@10": "10.0.0",
     "npm:nanoid@5.1.6": "5.1.6",
@@ -26,13 +31,16 @@
     "@i2p/sam@6.0.0": {
       "integrity": "4247b2c6a6623be748485b4f4ede798db59a4a521e321c7109eab73a1107e80e",
       "dependencies": [
-        "jsr:@std/bytes",
+        "jsr:@std/bytes@^1.0.6",
         "npm:nanoid@5.1.6",
         "npm:rfc4648"
       ]
     },
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
+    },
+    "@std/crypto@1.0.5": {
+      "integrity": "0dcfbb319fe0bba1bd3af904ceb4f948cde1b92979ec1614528380ed308a3b40"
     },
     "@std/encoding@1.0.10": {
       "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
@@ -62,6 +70,12 @@
       "integrity": "sha512-3xyG3pMCq3oYCNg7/ZP+E1ooTaGB4cG8JWRsqqOYQdbWNY4zbaV0Ennrd7stjiJEFZCaybcIgpTjJWHRfBSIDw==",
       "dependencies": [
         "undici-types"
+      ]
+    },
+    "@types/sodium-native@2.3.9": {
+      "integrity": "sha512-jZIg5ltGH1okmnH3FrLQsgwjcjOVozMSHwSiEm1/LpMekhOMHbQqp21P4H24mizh1BjwI6Q8qmphmD/HJuAqWg==",
+      "dependencies": [
+        "@types/node"
       ]
     },
     "abstract-level@3.1.1": {
@@ -302,8 +316,10 @@
       "jsr:@hono/hono@^4.10.7",
       "jsr:@i2p/sam@6",
       "jsr:@std/bytes@^1.0.6",
+      "jsr:@std/crypto@^1.0.5",
       "jsr:@std/encoding@^1.0.10",
       "jsr:@std/fs@^1.0.20",
+      "npm:@types/sodium-native@^2.3.9",
       "npm:ajv@^8.17.1",
       "npm:level@10",
       "npm:nanoid@^5.1.6",
