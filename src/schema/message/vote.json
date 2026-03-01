@@ -9,7 +9,7 @@
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
     "votes": {
-      "$ref": "../tx/v1/votes.json"
+      "$ref": "../tx/v1/proofs.json"
     }
   },
   "required": [
