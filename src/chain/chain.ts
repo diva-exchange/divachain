@@ -17,29 +17,17 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import fs from 'node:fs';
 import { Level } from 'level';
 import path from 'node:path';
-import {
-  COMMAND_ADD_PEER,
-  COMMAND_DATA,
-  COMMAND_MODIFY_STAKE,
-  COMMAND_REMOVE_PEER,
-  CommandAddPeer,
-  CommandData,
-  CommandRemovePeer,
-  TxStruct,
-} from './tx.ts';
+import { COMMAND_DATA, CommandData, TxStruct } from './tx.ts';
 import { Server } from '../net/server.ts';
-import { Util } from './util.ts';
 import { Log } from '../logger.ts';
+import { Util } from './util.ts';
 
 export type Peer = {
   publicKey: string;
   http: string;
-  tcp: string;
   udp: string;
-  stake: number;
 };
 
 export class Chain {
@@ -47,7 +35,7 @@ export class Chain {
   private readonly publicKey: string;
   private readonly mapDbChain: Map<string, Level<string, TxStruct>>;
   private readonly dbState: Level<string, string>;
-  private readonly dbPeer: Level<string, CommandAddPeer>;
+  private readonly dbPeer: Level<string, Peer>;
 
   private mapHeight: Map<string, number>; // origin -> height
   private mapTxs: Map<string, Map<number, TxStruct>>; // origin -> height
@@ -57,19 +45,14 @@ export class Chain {
 
   private mapPeer: Map<string, Peer>;
   private mapHttp: Map<string, string>;
-  private mapTcp: Map<string, string>;
   private mapUdp: Map<string, string>;
 
   private countNodes: number;
-  private stakeNodes: number;
 
-  static async make(server: Server): Promise<Chain> {
+  public static async make(server: Server): Promise<Chain> {
     const c: Chain = new Chain(server);
-    if (server.config.bootstrap) {
-      await c.clear();
-    } else {
-      await c.init();
-    }
+    await c.init();
+    Log.trace('Chain created');
     return c;
   }
 
@@ -105,78 +88,91 @@ export class Chain {
 
     this.mapPeer = new Map();
     this.mapHttp = new Map();
-    this.mapTcp = new Map();
     this.mapUdp = new Map();
 
     this.countNodes = 0;
-    this.stakeNodes = 0;
   }
 
   private async init(): Promise<void> {
-    const aPeer: Array<CommandAddPeer> = await this.dbPeer.values().all();
-    //@FIXME if the Peer database is corrupted (or deleted, or whatever)... the local data gets dumped!
+    const aPeer: Array<Peer> = await this.dbPeer.values().all();
+    // FIXME if the Peer database is not available (corrupted, deleted...)
+    // all the local data gets dumped!
     if (!aPeer.length) {
-      await this.reset();
-    }
-
-    // load peers
-    for (const commandAddPeer of aPeer) {
-      try {
-        await this.addPeer(commandAddPeer);
-      } catch (_error) {
-        Log.warn(
-          `${this.server.config.port}: init/addPeer failed - ${commandAddPeer}`,
-        );
+      await this.loadSeed();
+    } else {
+      for (const peer of aPeer) {
+        try {
+          await this.addPeer(peer);
+        } catch (error) {
+          Log.warn(
+            `init/addPeer failed: ${JSON.stringify(error)} / ${
+              JSON.stringify(peer)
+            }`,
+          );
+        }
       }
     }
 
     await this.dbState.clear();
-    for (const db of this.mapDbChain.values()) {
-      for await (const value of db.values()) {
-        const tx: TxStruct = value as TxStruct;
+    Log.trace(`Running ${this.mapDbChain.size} databases...`);
+    for (const [origin, db] of this.mapDbChain.entries()) {
+      Log.trace(`Updating cache for database ${origin}`);
+      for await (const tx of db.values()) {
         this.updateCache(tx);
         await this.processState(tx);
       }
     }
+
+    this.getListPeer().filter((pk) => !this.getLatestTx(pk)).forEach(
+      async (pk) => {
+        // initialize a known peer
+        Log.trace(`Creating genesis for peer ${pk}...`);
+        // genesis TX are reproducable for any given public key
+        // load genesis TX
+        const genesis: TxStruct = await Chain.genesis(
+          this.server.config.path_genesis,
+        );
+        // modify the genesis TX...
+        genesis.o = pk;
+        genesis.ha = Util.hash(genesis);
+        await this.add(genesis);
+      },
+    );
   }
 
-  private async reset(): Promise<void> {
-    for (const [origin, db] of this.mapDbChain.entries()) {
-      await db.clear();
-      await db.close();
-      this.mapDbChain.delete(origin);
+  private async loadSeed(): Promise<void> {
+    let aPeer: Array<Peer> = [];
+    // load seed peers from file
+    try {
+      Log.trace(`Loading peers from ${this.server.config.path_peer_seed}`);
+      aPeer = JSON.parse(
+        await Deno.readTextFile(this.server.config.path_peer_seed),
+      );
+    } catch (error: unknown) {
+      throw error as Error;
     }
 
-    const pathDb: string = path.join(
-      this.server.config.path_chain,
-      this.publicKey,
-      this.publicKey,
-    );
-    const dbChain: Level<string, TxStruct> = new Level(pathDb, {
-      valueEncoding: 'json',
-      createIfMissing: true,
-      errorIfExists: false,
+    // add myself
+    aPeer.unshift({
+      publicKey: this.publicKey,
+      http: this.server.config.http,
+      udp: this.server.config.udp,
     });
-
-    const genesis: TxStruct = Chain.genesis(this.server.config.path_genesis);
-    genesis.origin = this.publicKey;
-    await dbChain.put(String(genesis.height).padStart(16, '0'), genesis);
-    await dbChain.close();
-
-    this.updateCache(genesis);
-    await this.processState(genesis);
+    aPeer.forEach(async (p: Peer) => {
+      await this.addPeer(p);
+    });
   }
 
-  async shutdown(): Promise<void> {
+  public async shutdown(): Promise<void> {
     try {
       for (const db of this.mapDbChain.values()) {
         await db.close();
       }
       await this.dbState.close();
       await this.dbPeer.close();
-    } catch (error) {
-      //@FIXME error handling
-      console.debug(error);
+    } catch (error: unknown) {
+      // FIXME error handling
+      Log.error((error as Error).toString());
       return;
     }
   }
@@ -194,41 +190,45 @@ export class Chain {
     this.mapPeer = new Map();
   }
 
-  async add(tx: TxStruct): Promise<void> {
-    //@TODO validation here?
-    if (!this.mapPeer.has(tx.origin)) {
-      throw new Error(`Unknown peer: ${tx.origin}`);
+  /**
+   * Add a new transaction to a chain
+   * @param tx TxStruct
+   */
+  public async add(tx: TxStruct): Promise<void> {
+    // TODO validation here?
+    if (!this.mapPeer.has(tx.o)) {
+      throw new Error(`Unknown peer: ${tx.o}`);
     }
 
-    if (this.mapLock.has(tx.origin)) {
-      throw new Error(`Locked Chain: ${tx.origin} #${tx.height}`);
+    if (this.mapLock.has(tx.o)) {
+      throw new Error(`Locked Chain: ${tx.o} #${tx.h}`);
     }
-    this.mapLock.set(tx.origin, tx.height);
+    this.mapLock.set(tx.o, tx.h);
     const dbChain: Level<string, TxStruct> | undefined = this.mapDbChain.get(
-      tx.origin,
+      tx.o,
     );
     if (dbChain) {
-      await dbChain.put(String(tx.height).padStart(16, '0'), tx);
+      await dbChain.put(String(tx.h).padStart(16, '0'), tx);
       this.updateCache(tx);
       await this.processState(tx);
     }
-    this.mapLock.delete(tx.origin);
+    this.mapLock.delete(tx.o);
   }
 
   private updateCache(tx: TxStruct): void {
-    this.mapHeight.set(tx.origin, tx.height);
-    this.mapLatestTx.set(tx.origin, tx);
+    this.mapHeight.set(tx.o, tx.h);
+    this.mapLatestTx.set(tx.o, tx);
 
     // cache
-    const mT: Map<number, TxStruct> = this.mapTxs.get(tx.origin) || new Map();
-    mT.set(tx.height, tx);
+    const mT: Map<number, TxStruct> = this.mapTxs.get(tx.o) || new Map();
+    mT.set(tx.h, tx);
     if (mT.size > this.server.config.chain_max_txs_in_memory) {
-      mT.delete(tx.height - this.server.config.chain_max_txs_in_memory);
+      mT.delete(tx.h - this.server.config.chain_max_txs_in_memory);
     }
-    this.mapTxs.set(tx.origin, mT);
+    this.mapTxs.set(tx.o, mT);
   }
 
-  async getRange(
+  public async getRange(
     gte: number,
     lte: number,
     origin: string,
@@ -270,7 +270,7 @@ export class Chain {
     return a;
   }
 
-  async getPage(
+  public async getPage(
     page: number,
     size: number,
     origin: string,
@@ -294,7 +294,7 @@ export class Chain {
     return await this.getRange(gte, gte + size - 1, origin);
   }
 
-  async search(
+  public async search(
     q: string,
     origin: string,
   ): Promise<Array<TxStruct> | undefined> {
@@ -320,7 +320,10 @@ export class Chain {
     return a.reverse();
   }
 
-  async getTx(height: number, origin: string): Promise<TxStruct | undefined> {
+  public async getTx(
+    height: number,
+    origin: string,
+  ): Promise<TxStruct | undefined> {
     const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(origin);
     const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
     if (!mT || !db) {
@@ -336,14 +339,16 @@ export class Chain {
     }
   }
 
-  async getState(key: string): Promise<{ key: string; value: string } | false> {
+  public async getState(
+    key: string,
+  ): Promise<{ key: string; value: string } | false> {
     const v = await this.dbState.get(key);
     return v === undefined
       ? Promise.resolve(false)
       : Promise.resolve({ key: key, value: v.toString() });
   }
 
-  async searchState(
+  public async searchState(
     search: string = '',
   ): Promise<Array<{ key: string; value: string }>> {
     const a: Array<{ key: string; value: string }> = [];
@@ -360,39 +365,40 @@ export class Chain {
   }
 
   // get latest local tx
-  getLatestTx(origin: string): TxStruct | undefined {
+  public getLatestTx(origin: string): TxStruct | undefined {
     return this.mapLatestTx.get(origin);
   }
 
-  getHeight(origin: string): number | undefined {
-    return this.mapHeight.get(origin);
+  public getHeight(origin: string): number {
+    return this.mapHeight.get(origin) || 0;
   }
 
-  hasQuorum(size: number): boolean {
-    return size > this.countNodes * (2 / 3);
-  }
-
-  getMapPeer(): Map<string, Peer> {
+  public getMapPeer(): Map<string, Peer> {
     return this.mapPeer;
   }
 
-  getListPeer(): Array<string> {
+  public getListPeer(): Array<string> {
     return [...this.mapPeer.keys()].sort();
   }
 
-  hasPeer(publicKey: string): boolean {
+  public hasPeer(publicKey: string): boolean {
     return this.mapPeer.has(publicKey);
   }
 
-  getPeer(publicKey: string): Peer {
-    return this.mapPeer.get(publicKey) as Peer;
+  // FIXME Peer might be an empty object
+  /**
+   * @param publicKey
+   * @returns Peer
+   */
+  public getPeer(publicKey: string): Peer {
+    return this.mapPeer.get(publicKey) || {} as Peer;
   }
 
-  hasNetworkHttp(http: string): boolean {
+  public hasNetworkHttp(http: string): boolean {
     return this.mapHttp.has(http);
   }
 
-  async getPerformance(height: number): Promise<{ timestamp: number }> {
+  public async getPerformance(height: number): Promise<{ timestamp: number }> {
     let ts: number;
     try {
       ts = Number(
@@ -404,108 +410,80 @@ export class Chain {
     return { timestamp: ts };
   }
 
-  static genesis(p: string): TxStruct {
-    if (!fs.existsSync(p)) {
-      throw new Error('Genesis Tx not found at: ' + p);
+  public static async genesis(p: string): Promise<TxStruct> {
+    try {
+      return JSON.parse(await Deno.readTextFile(p));
+    } catch (error: unknown) {
+      throw error as Error;
     }
-    const tx: TxStruct = JSON.parse(fs.readFileSync(p).toString());
-    tx.hash = Util.hash(tx);
-    return tx;
   }
 
   private async processState(tx: TxStruct): Promise<void> {
     if (this.server.config.debug_performance) {
       await this.updateStateData(
-        `debug-performance-${tx.origin}-${tx.height}`,
+        `debug-performance-${tx.o}-${tx.h}`,
         new Date().getTime().toString(),
       );
     }
 
-    //@FIXME
-    for (const c of tx.commands) {
-      switch (c.command) {
-        case COMMAND_ADD_PEER:
-          await this.addPeer(c as CommandAddPeer);
-          break;
-        case COMMAND_REMOVE_PEER:
-          await this.removePeer(c as CommandRemovePeer);
-          break;
-        case COMMAND_MODIFY_STAKE:
-          //@TODO
-          break;
+    for (const c of tx.cs) {
+      switch (c.c) {
         case COMMAND_DATA:
           await this.updateStateData(
-            [(c as CommandData).ns, tx.origin].join(':'),
+            [(c as CommandData).ns, tx.o].join(':'),
             (c as CommandData).d,
           );
           break;
         default:
-          //@TODO
+          // TODO
       }
     }
   }
 
-  //@FIXME trust the public key from the command?
-  private async addPeer(command: CommandAddPeer): Promise<void> {
-    if (this.mapPeer.has(command.publicKey)) {
+  private async addPeer(peer: Peer): Promise<void> {
+    if (this.mapPeer.has(peer.publicKey)) {
       return;
     }
 
-    const peer: Peer = {
-      publicKey: command.publicKey,
-      http: command.http,
-      tcp: command.tcp,
-      udp: command.udp,
-      stake: 1,
-    };
     this.countNodes++;
-    this.stakeNodes = this.stakeNodes + peer.stake;
 
-    this.mapPeer.set(command.publicKey, peer);
-    this.mapHttp.set(peer.http, command.publicKey);
-    this.mapTcp.set(peer.tcp, command.publicKey);
-    this.mapUdp.set(peer.udp, command.publicKey);
-    await this.dbPeer.put(command.publicKey, command);
+    this.mapPeer.set(peer.publicKey, peer);
+    this.mapHttp.set(peer.http, peer.publicKey);
+    this.mapUdp.set(peer.udp, peer.publicKey);
+    await this.dbPeer.put(peer.publicKey, peer);
 
     const pathDb: string = path.join(
       this.server.config.path_chain,
-      this.publicKey,
-      command.publicKey,
+      peer.publicKey,
     );
     const dbChain: Level<string, TxStruct> = new Level(pathDb, {
       valueEncoding: 'json',
       createIfMissing: true,
       errorIfExists: false,
     });
-
-    // load genesis
-    const genesis: TxStruct = Chain.genesis(this.server.config.path_genesis);
-    genesis.origin = command.publicKey;
-    await dbChain.put(String(genesis.height).padStart(16, '0'), genesis);
-
-    this.mapDbChain.set(command.publicKey, dbChain);
+    this.mapDbChain.set(peer.publicKey, dbChain);
+    Log.trace(`Added new peer ${peer.publicKey}`);
+    Log.trace(`Knowing now ${this.countNodes} peers`);
   }
 
-  //@FIXME trust the public key from the command?
-  private async removePeer(command: CommandRemovePeer): Promise<void> {
+  // FIXME trust the public key from the command?
+  private async removePeer(pk: string): Promise<void> {
     // can't remove yourself
-    if (command.publicKey === this.publicKey) {
+    if (pk === this.publicKey) {
       return;
     }
 
-    if (!this.mapPeer.has(command.publicKey)) {
+    if (!this.mapPeer.has(pk)) {
       return;
     }
-    const peer: Peer = this.mapPeer.get(command.publicKey) as Peer;
+    const peer: Peer = this.mapPeer.get(pk) as Peer;
     this.countNodes--;
-    this.stakeNodes = this.stakeNodes - peer.stake;
 
-    this.mapPeer.delete(command.publicKey);
+    this.mapPeer.delete(pk);
     this.mapHttp.delete(peer.http);
-    this.mapTcp.delete(peer.tcp);
-    await this.dbPeer.del(command.publicKey);
+    await this.dbPeer.del(pk);
 
-    this.mapDbChain.delete(command.publicKey);
+    this.mapDbChain.delete(pk);
   }
 
   private async updateStateData(key: string, value: string): Promise<void> {

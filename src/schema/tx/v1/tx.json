@@ -9,35 +9,26 @@
       "minimum": 1,
       "maximum": 1
     },
-    "height": {
+    "h": {
       "type": "integer",
       "minimum": 1
     },
-    "origin": {
+    "o": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "hash": {
+    "ha": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "prev": {
+    "p": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_-]{43}$"
     },
-    "commands": {
+    "cs": {
       "type": "array",
       "items": {
         "anyOf": [
-          {
-            "$ref": "add-peer.json"
-          },
-          {
-            "$ref": "remove-peer.json"
-          },
-          {
-            "$ref": "modify-stake.json"
-          },
           {
             "$ref": "data.json"
           }
@@ -46,19 +37,15 @@
       "minItems": 1,
       "maxItems": 32,
       "uniqueItems": true
-    },
-    "proofs": {
-      "$ref": "proofs.json"
     }
   },
   "required": [
     "v",
-    "height",
-    "origin",
-    "hash",
-    "prev",
-    "commands",
-    "proofs"
+    "h",
+    "o",
+    "ha",
+    "p",
+    "cs"
   ],
   "additionalProperties": false
 }

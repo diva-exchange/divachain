@@ -19,12 +19,13 @@
 
 import { encodeBase64Url } from '@std/encoding';
 import { existsSync } from '@std/fs';
-import sodium from 'sodium-native';
+import sodium, { SecureBuffer } from 'sodium-native';
 import path from 'node:path';
 import { Config } from '../config.ts';
 import { toB32 } from '@i2p/sam';
 import { nanoid } from 'nanoid';
 import { randomInt } from 'node:crypto';
+import { Log } from '../logger.ts';
 
 export const NAME_HEADER_TOKEN_API = 'diva-token-api';
 const DEFAULT_LENGTH_TOKEN_API = 32;
@@ -32,17 +33,19 @@ const DEFAULT_LENGTH_TOKEN_API = 32;
 export class Wallet {
   private config: Config;
   private ident: string = '';
-  private publicKey: Uint8Array;
-  private secretKey: Uint8Array;
+  private publicKey: SecureBuffer;
+  private secretKey: SecureBuffer;
   private tokenAPI: string = '';
 
   static make(config: Config): Wallet {
-    return new Wallet(config);
+    const w: Wallet = new Wallet(config);
+    Log.trace('Wallet created');
+    return w;
   }
 
   private constructor(config: Config) {
     this.config = config;
-    this.publicKey = new Uint8Array(sodium.crypto_sign_PUBLICKEYBYTES);
+    this.publicKey = sodium.sodium_malloc(sodium.crypto_sign_PUBLICKEYBYTES);
     this.secretKey = sodium.sodium_malloc(sodium.crypto_sign_SECRETKEYBYTES);
     this.createTokenAPI();
   }
@@ -85,13 +88,13 @@ export class Wallet {
       this.ident + '.private',
     );
     if (existsSync(pathPublic) && existsSync(pathSecret)) {
-      this.publicKey = Deno.readFileSync(pathPublic);
-      this.secretKey = Deno.readFileSync(pathSecret);
+      this.publicKey = Deno.readFileSync(pathPublic) as SecureBuffer;
+      this.secretKey = Deno.readFileSync(pathSecret) as SecureBuffer;
     } else {
       sodium.crypto_sign_keypair(this.publicKey, this.secretKey);
 
-      Deno.writeFileSync(pathPublic, this.publicKey, { mode: 0o644 });
-      Deno.writeFileSync(pathSecret, this.secretKey, { mode: 0o600 });
+      Deno.writeFileSync(pathPublic, this.publicKey, { mode: 0o444 });
+      Deno.writeFileSync(pathSecret, this.secretKey, { mode: 0o400 });
     }
 
     return this;
@@ -99,19 +102,24 @@ export class Wallet {
 
   public close(): void {
     sodium.sodium_munlock(this.secretKey);
+    sodium.sodium_memzero(this.publicKey);
   }
 
+  /**
+   * Sign data
+   * @returns string 86 bytes, base64url encoded signature
+   */
   public sign(data: string): string {
     if (!this.ident) {
       this.open();
     }
 
-    const bufferSignature: Uint8Array = new Uint8Array(
+    const bufferSignature: SecureBuffer = sodium.sodium_malloc(
       sodium.crypto_sign_BYTES,
     );
     sodium.crypto_sign_detached(
       bufferSignature,
-      new TextEncoder().encode(data),
+      new TextEncoder().encode(data) as SecureBuffer,
       this.secretKey,
     );
 
@@ -120,7 +128,7 @@ export class Wallet {
 
   /**
    * Get the public key of the wallet
-   * @returns string base64url encoded public key
+   * @returns string 43 bytes, base64url encoded public key
    */
   public getPublicKey(): string {
     if (!this.ident) {

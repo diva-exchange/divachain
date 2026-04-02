@@ -19,14 +19,15 @@
 
 import { iMessage, Message, TYPE_STATUS } from './message.ts';
 
-export type StatusMatrixRecord = { origin: string; height: number };
-
 export type StatusMessageStruct = {
-  matrix: Array<StatusMatrixRecord>;
+  t: number;
+  h: number;
 };
 
 interface iStatus extends iMessage {
-  matrix(): Array<{ origin: string; height: number }>;
+  t(): number;
+  height(): number;
+  h(): number;
 }
 
 export class StatusMessage extends Message implements iStatus {
@@ -34,7 +35,23 @@ export class StatusMessage extends Message implements iStatus {
     super(struct, TYPE_STATUS, pkOrigin);
   }
 
-  matrix(): Array<StatusMatrixRecord> {
-    return (this.message as StatusMessageStruct).matrix;
+  public setT(t: number) {
+    (this.message as StatusMessageStruct).t = t > 0 ? t : Date.now();
+  }
+
+  public t(): number {
+    return (this.message as StatusMessageStruct).t;
+  }
+
+  /**
+   * Alias for h()
+   * @returns number height
+   */
+  public height(): number {
+    return (this.message as StatusMessageStruct).h;
+  }
+
+  public h(): number {
+    return (this.message as StatusMessageStruct).h;
   }
 }

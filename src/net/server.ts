@@ -21,12 +21,10 @@ import { Config } from '../config.ts';
 import { Log } from '../logger.ts';
 import { setImmediate } from 'node:timers';
 import { WebSocket, WebSocketServer } from 'ws';
-import { Bootstrap } from './bootstrap.ts';
 import { Chain } from '../chain/chain.ts';
 import { Validation } from './validation.ts';
 import { Wallet } from '../chain/wallet.ts';
 import { Api } from './api.ts';
-import type { Command } from '../chain/tx.ts';
 import { TxFactory } from './tx-factory.ts';
 import type { TxStruct } from '../chain/tx.ts';
 import { Network } from './network.ts';
@@ -38,7 +36,6 @@ export class Server {
   private agent: SocksProxyAgent = {} as SocksProxyAgent;
   private webSocketServerTxFeed: WebSocketServer = {} as WebSocketServer;
   private txFactory: TxFactory = {} as TxFactory;
-  private bootstrap: Bootstrap = {} as Bootstrap;
   private wallet: Wallet = {} as Wallet;
   private network: Network = {} as Network;
   private chain: Chain = {} as Chain;
@@ -53,7 +50,7 @@ export class Server {
     (async () => await this.start())();
   }
 
-  private async start(): Promise<Server> {
+  private async start(): Promise<void> {
     Log.info(`HTTP endpoint ${this.config.http}`);
     Log.info(`UDP endpoint ${this.config.udp}`);
 
@@ -67,10 +64,7 @@ export class Server {
 
     this.wallet = Wallet.make(this.config);
     this.chain = await Chain.make(this);
-
-    //this.validation = Validation.make();
-    //Log.info('Validation initialized');
-
+    this.validation = Validation.make();
     this.network = Network.make(this);
     this.txFactory = TxFactory.make(this);
     this.api = Api.make(this);
@@ -97,20 +91,6 @@ export class Server {
         `WebSocketServerTxFeed listening on ${this.config.ip}:${this.config.port_tx_feed}`,
       );
     });
-
-    return new Promise((resolve): void => {
-      this.network.once('ready', async (): Promise<void> => {
-        this.bootstrap = Bootstrap.make(this);
-        if (this.config.bootstrap) {
-          // bootstrapping (entering the network)
-          await this.bootstrap.syncWithNetwork();
-          if (!this.chain.hasNetworkHttp(this.config.http)) {
-            await this.bootstrap.joinNetwork(this.wallet.getPublicKey());
-          }
-        }
-        resolve(this);
-      });
-    });
   }
 
   public async shutdown(): Promise<void> {
@@ -125,10 +105,6 @@ export class Server {
 
   public getAgent(): SocksProxyAgent {
     return this.agent;
-  }
-
-  public getBootstrap(): Bootstrap {
-    return this.bootstrap;
   }
 
   public getWallet(): Wallet {
@@ -149,10 +125,6 @@ export class Server {
 
   public getTxFactory(): TxFactory {
     return this.txFactory;
-  }
-
-  public stackTx(commands: Array<Command>): boolean {
-    return this.txFactory.stack(commands);
   }
 
   public queueWebSocketFeed(tx: TxStruct): void {

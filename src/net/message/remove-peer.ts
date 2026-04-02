@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2024 diva.exchange
+ * Copyright (C) 2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,28 +17,22 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { iMessage, Message, TYPE_VOTE } from './message.ts';
-import { VoteStruct } from '../../chain/tx.ts';
+import { iMessage, Message, TYPE_REMOVE_PEER } from './message.ts';
 
-export type VoteMessageStruct = {
-  hash: string;
-  votes: Array<VoteStruct>;
+export type RemovePeerMessageStruct = {
+  pk: string;
 };
 
-interface iVoteMessage extends iMessage {
-  hash(): string;
-  votes(): Array<VoteStruct>;
+interface iRemovePeer extends iMessage {
+  pk(): string;
 }
 
-export class VoteMessage extends Message implements iVoteMessage {
-  constructor(struct: VoteMessageStruct, pkOrigin: string) {
-    super(struct, TYPE_VOTE, pkOrigin);
+export class RemovePeerMessage extends Message implements iRemovePeer {
+  constructor(struct: RemovePeerMessageStruct, pkOrigin: string) {
+    super(struct, TYPE_REMOVE_PEER, pkOrigin);
   }
 
-  hash(): string {
-    return (this.message as VoteMessageStruct).hash;
-  }
-  votes(): Array<VoteStruct> {
-    return (this.message as VoteMessageStruct).votes;
+  public pk(): string {
+    return (this.message as RemovePeerMessageStruct).pk;
   }
 }
