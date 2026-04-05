@@ -148,9 +148,9 @@ export class TxFactory {
     );
 
     try {
-      await this.chain.add(structTx);
+      await this.chain.addTx(structTx);
     } catch (error: unknown) {
-      Log.warn(`addTx failed, ${error as Error}`);
+      Log.warn(`chain.addTx failed, ${error as Error}`);
       return;
     }
 

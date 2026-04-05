@@ -35,7 +35,6 @@ import {
 } from '../config.ts';
 import { Log } from '../logger.ts';
 import { Server } from './server.ts';
-import { Bootstrap } from './bootstrap.ts';
 import { Wallet } from '../chain/wallet.ts';
 import { Chain } from '../chain/chain.ts';
 import { Peer } from '../chain/chain.ts';
@@ -46,11 +45,8 @@ import {
   TYPE_TX,
 } from './message/message.ts';
 import { StatusMessage, StatusMessageStruct } from './message/status.ts';
-import { AddPeerMessage, AddPeerMessageStruct } from './message/add-peer.ts';
-import {
-  RemovePeerMessage,
-  RemovePeerMessageStruct,
-} from './message/remove-peer.ts';
+import { AddPeerMessageStruct } from './message/add-peer.ts';
+import { RemovePeerMessageStruct } from './message/remove-peer.ts';
 import { TxMessage, TxMessageStruct } from './message/tx.ts';
 import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
 import { decodeBase64Url, encodeBase64Url } from '@std/encoding';
@@ -62,7 +58,6 @@ export class Network {
   private static readonly P2P_POW_DIFFICULTY: number = 2;
 
   private readonly server: Server;
-  private bootstrap: Bootstrap = {} as Bootstrap;
   private readonly wallet: Wallet;
   private readonly chain: Chain;
   private readonly publicKey: string;
@@ -89,7 +84,6 @@ export class Network {
 
   private constructor(server: Server) {
     this.server = server;
-    this.bootstrap = Bootstrap.make(server);
     this.wallet = this.server.getWallet();
     this.chain = this.server.getChain();
     this.publicKey = this.wallet.getPublicKey();
@@ -126,8 +120,11 @@ export class Network {
       );
 
       if (this.server.config.bootstrap) {
-        // bootstrapping (entering the network)
-        await this.bootstrap.joinNetwork(this.wallet.getPublicKey());
+        // @TODO minimum network size...? Smarter approach needed...
+        if (this.arrayNetwork.length < 3) {
+          // bootstrapping (entering the network)
+          await this.chain.bootstrap();
+        }
       }
 
       const pathStatus: string = joinPath(
@@ -405,7 +402,7 @@ export class Network {
     );
   }
 
-  // update network
+  // update local p2p information
   private updateP2PNetwork() {
     const aNetwork: Array<Peer> = [
       ...this.chain.getMapPeer().values(),
@@ -531,6 +528,7 @@ export class Network {
     return re;
   }
 
+  // BLAKE3 based PoW
   private async createPoW(pl: string): Promise<string> {
     const _pl: Uint8Array = new TextEncoder().encode(pl);
     let hash: Uint8Array;

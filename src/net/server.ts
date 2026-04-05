@@ -28,12 +28,10 @@ import { Api } from './api.ts';
 import { TxFactory } from './tx-factory.ts';
 import type { TxStruct } from '../chain/tx.ts';
 import { Network } from './network.ts';
-import { SocksProxyAgent } from 'socks-proxy-agent';
 
 export class Server {
   public readonly config: Config;
 
-  private agent: SocksProxyAgent = {} as SocksProxyAgent;
   private webSocketServerTxFeed: WebSocketServer = {} as WebSocketServer;
   private txFactory: TxFactory = {} as TxFactory;
   private wallet: Wallet = {} as Wallet;
@@ -41,6 +39,7 @@ export class Server {
   private chain: Chain = {} as Chain;
   private validation: Validation = {} as Validation;
   private api: Api = {} as Api;
+  private clientProxy: Deno.HttpClient = {} as Deno.HttpClient;
 
   constructor(config: Config) {
     this.config = config;
@@ -53,14 +52,6 @@ export class Server {
   private async start(): Promise<void> {
     Log.info(`HTTP endpoint ${this.config.http}`);
     Log.info(`UDP endpoint ${this.config.udp}`);
-
-    this.agent = new SocksProxyAgent(
-      `socks://${this.config.i2p_socks}`,
-      {
-        timeout: this.config.network_timeout_ms,
-      },
-    );
-    Log.info(`Agent on socks://${this.config.i2p_socks}`);
 
     this.wallet = Wallet.make(this.config);
     this.chain = await Chain.make(this);
@@ -91,6 +82,13 @@ export class Server {
         `WebSocketServerTxFeed listening on ${this.config.ip}:${this.config.port_tx_feed}`,
       );
     });
+
+    this.clientProxy = Deno.createHttpClient({
+      proxy: {
+        url: 'socks5://' + this.config.i2p_socks,
+      },
+    });
+    Log.info(`Using socks5://${this.config.i2p_socks} as proxy`);
   }
 
   public async shutdown(): Promise<void> {
@@ -100,11 +98,6 @@ export class Server {
     typeof this.txFactory.shutdown === 'function' && this.txFactory.shutdown();
     typeof this.chain.shutdown === 'function' && await this.chain.shutdown();
     typeof this.wallet.close === 'function' && this.wallet.close();
-    typeof this.agent.destroy === 'function' && this.agent.destroy();
-  }
-
-  public getAgent(): SocksProxyAgent {
-    return this.agent;
   }
 
   public getWallet(): Wallet {
@@ -134,5 +127,24 @@ export class Server {
           ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify(tx)),
       );
     }, tx);
+  }
+
+  //@TODO url might be anything, not only an API url...
+  //@TODO implementation: return value is unknown.
+  public async fetchFromApi(url: string, retry: number = 3): Promise<unknown> {
+    let r: Response;
+    try {
+      r = await fetch(url, {
+        client: this.clientProxy,
+        signal: AbortSignal.timeout(this.config.network_timeout_ms),
+      });
+      Log.trace(`Server.fetchFromApi(${url}) - Status: ${r.status}`);
+      return r.json();
+    } catch (error) {
+      Log.warn(
+        `Error (retry #: ${retry}) Server.fetchFromApi(${url}): ${error}`,
+      );
+      return retry > 0 ? this.fetchFromApi(url, retry - 1) : false;
+    }
   }
 }

@@ -23,6 +23,7 @@ import { COMMAND_DATA, CommandData, TxStruct } from './tx.ts';
 import { Server } from '../net/server.ts';
 import { Log } from '../logger.ts';
 import { Util } from './util.ts';
+import { toB32 } from '@i2p/sam';
 
 export type Peer = {
   publicKey: string;
@@ -122,22 +123,6 @@ export class Chain {
         await this.processState(tx);
       }
     }
-
-    this.getListPeer().filter((pk) => !this.getLatestTx(pk)).forEach(
-      async (pk) => {
-        // initialize a known peer
-        Log.trace(`Creating genesis for peer ${pk}...`);
-        // genesis TX are reproducable for any given public key
-        // load genesis TX
-        const genesis: TxStruct = await Chain.genesis(
-          this.server.config.path_genesis,
-        );
-        // modify the genesis TX...
-        genesis.o = pk;
-        genesis.ha = Util.hash(genesis);
-        await this.add(genesis);
-      },
-    );
   }
 
   private async loadSeed(): Promise<void> {
@@ -177,6 +162,32 @@ export class Chain {
     }
   }
 
+  public async bootstrap(): Promise<void> {
+    const aBootstrap: Array<string> = this.server.config.bootstrap.split(',')
+      .map((s) => s.trim());
+    for await (const p of aBootstrap) {
+      if (!p.endsWith('.i2p')) {
+        return;
+      }
+      // get network info, see api.ts
+      const aPeer: Array<Peer> | unknown = await this.server.fetchFromApi(
+        `http://${p}/network/`,
+      );
+      if (Array.isArray(aPeer)) {
+        for await (const peer of aPeer) {
+          if (await this.addPeer(peer)) {
+            // send a join request to this peer
+            await this.server.fetchFromApi(
+              `http://${
+                toB32(peer.http)
+              }.b32.i2p/join/${this.publicKey}/${this.server.config.http}`,
+            );
+          }
+        }
+      }
+    }
+  }
+
   private async clear(): Promise<void> {
     for (const db of this.mapDbChain.values()) {
       await db.clear();
@@ -194,7 +205,7 @@ export class Chain {
    * Add a new transaction to a chain
    * @param tx TxStruct
    */
-  public async add(tx: TxStruct): Promise<void> {
+  public async addTx(tx: TxStruct): Promise<void> {
     // TODO validation here?
     if (!this.mapPeer.has(tx.o)) {
       throw new Error(`Unknown peer: ${tx.o}`);
@@ -440,18 +451,13 @@ export class Chain {
     }
   }
 
-  private async addPeer(peer: Peer): Promise<void> {
+  public async addPeer(peer: Peer): Promise<boolean> {
     if (this.mapPeer.has(peer.publicKey)) {
-      return;
+      return false;
     }
-
-    this.countNodes++;
-
     this.mapPeer.set(peer.publicKey, peer);
-    this.mapHttp.set(peer.http, peer.publicKey);
-    this.mapUdp.set(peer.udp, peer.publicKey);
-    await this.dbPeer.put(peer.publicKey, peer);
 
+    await this.dbPeer.put(peer.publicKey, peer);
     const pathDb: string = path.join(
       this.server.config.path_chain,
       peer.publicKey,
@@ -462,8 +468,26 @@ export class Chain {
       errorIfExists: false,
     });
     this.mapDbChain.set(peer.publicKey, dbChain);
+    this.mapHttp.set(peer.http, peer.publicKey);
+    this.mapUdp.set(peer.udp, peer.publicKey);
+
+    // initialize a peer
+    Log.trace(`Creating genesis for peer ${peer.publicKey}...`);
+    // genesis TX are reproducable for any given public key
+    // load genesis TX
+    const genesis: TxStruct = await Chain.genesis(
+      this.server.config.path_genesis,
+    );
+    // modify the genesis TX...
+    genesis.o = peer.publicKey;
+    genesis.ha = Util.hash(genesis);
+    await this.addTx(genesis);
+
+    this.countNodes++;
+
     Log.trace(`Added new peer ${peer.publicKey}`);
     Log.trace(`Knowing now ${this.countNodes} peers`);
+    return true;
   }
 
   // FIXME trust the public key from the command?

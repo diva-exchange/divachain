@@ -19,14 +19,14 @@
 
 import denoJSON from '../../deno.json' with { type: 'json' };
 import { Server } from './server.ts';
-import { toB32 } from '@i2p/sam';
 import { TxStruct } from '../chain/tx.ts';
 import { NAME_HEADER_TOKEN_API } from '../chain/wallet.ts';
 import { Log } from '../logger.ts';
 import { Hono } from '@hono/hono/tiny';
 import { Context } from '@hono/hono';
 import { HTTPException } from '@hono/hono/http-exception';
-import { Chain } from '../chain/chain.ts';
+import { Chain, Peer } from '../chain/chain.ts';
+import { toB32 } from '@i2p/sam';
 
 export class Api {
   private server: Server;
@@ -48,7 +48,7 @@ export class Api {
     // generic error handling
     this.app.onError((error: unknown, c: Context) => {
       const _err: HTTPException = error as HTTPException;
-      Log.error(`API Error: ${_err.message}`);
+      Log.error(`API Error: ${_err.message || _err.status}`);
       return c.text(`${_err.status}`, _err.status);
     });
     this.app.notFound((c: Context) => {
@@ -86,11 +86,11 @@ export class Api {
     // GET - about
     this.app.get('/about', (c: Context) => this.about(c));
 
-    // // GET - join
-    // this.app.get('/join/:http/:udp/:publicKey', (c: Context) => this.join(c));
+    // GET - join
+    this.app.get('/join/:origin/:http', (c: Context) => this.join(c));
 
-    // // GET - challenge
-    // this.app.get('/challenge/:token', (c: Context) => this.challenge(c));
+    // GET - leave
+    this.app.get('/leave/:publicKey', (c: Context) => this.leave(c));
 
     // GET - synchronization
     this.app.get(
@@ -156,15 +156,6 @@ export class Api {
       }
       throw new HTTPException(401, { message: 'Token invalid' });
     });
-    this.app.put('/leave', (c: Context) => {
-      if (
-        c.req.header(NAME_HEADER_TOKEN_API) ===
-          this.server.getWallet().getTokenAPI()
-      ) {
-        return this.leave(c);
-      }
-      throw new HTTPException(401);
-    });
 
     /*
     // GET - debug
@@ -181,34 +172,33 @@ export class Api {
     });
   }
 
-  // private join(c: Context) {
-  //   const h: string = c.req.param('http') || '';
-  //   const u: string = c.req.param('udp') || '';
-  //   const p: string = c.req.param('publicKey') || '';
-  //   const b: boolean = this.server.getBootstrap().join(h, u, p);
-  //   if (b) {
-  //     return c.json({
-  //       http: toB32(h),
-  //       udp: toB32(u),
-  //       publicKey: p,
-  //     });
-  //   }
-  //   throw new HTTPException(403);
-  // }
+  private async join(c: Context) {
+    const o: string = c.req.param('origin') || '';
+    const h: string = c.req.param('http') || '';
+    if (!this.isStringPublicKey(o) || this.server.getChain().hasPeer(o)) {
+      throw new HTTPException(403);
+    }
 
-  // private challenge(c: Context) {
-  //   const signedToken: string = this.server.getBootstrap().challenge(
-  //     c.req.param('token') || '',
-  //   );
-  //   if (signedToken) {
-  //     return c.json({ token: signedToken });
-  //   }
-  //   throw new HTTPException(403);
-  // }
+    //@TODO implement properly
+    Log.trace(`New peer joining: ${o}`);
+    const aPeer: Array<Peer> | unknown = await this.server.fetchFromApi(
+      `http://${toB32(h)}.b32.i2p/network/`,
+    );
+    if (Array.isArray(aPeer)) {
+      aPeer.forEach(async (peer: Peer) => {
+        if (peer.publicKey === o && peer.http === h) {
+          await this.server.getChain().addPeer(peer);
+        }
+      });
+    }
+
+    // accepted
+    return c.json('', 202);
+  }
 
   // TODO
   private leave(c: Context) {
-    return c.body(null, 204);
+    return c.json('', 202);
   }
 
   private async sync(c: Context) {
