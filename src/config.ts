@@ -51,11 +51,16 @@ const DEFAULT_I2P_SAM_TUNNEL_VAR_MIN: number = 0;
 const DEFAULT_I2P_SAM_TUNNEL_VAR_MAX: number = 2;
 
 /**
- * Default broadcast interval for status messages: 10 mins
+ * Default broadcast interval for status messages: 3 mins
  */
-export const DEFAULT_NETWORK_STATUS_BROADCAST_MS: number = 1000 * 60 * 10;
+export const DEFAULT_NETWORK_STATUS_BROADCAST_MS: number = 1000 * 60 * 3;
+/**
+ * Default time span to measure reputation: 24h
+ */
+export const DEFAULT_NETWORK_STATUS_REPUTATION_SPAN_MS: number =
+  DEFAULT_NETWORK_STATUS_BROADCAST_MS * 480; // 24h
 
-const DEFAULT_NETWORK_TIMEOUT_MS: number = 10000;
+const DEFAULT_NETWORK_TIMEOUT_MS: number = 30000;
 const MIN_NETWORK_TIMEOUT_MS: number = 1000;
 const MAX_NETWORK_TIMEOUT_MS: number = 60000;
 const MIN_NETWORK_P2P_INTERVAL_MS: number = 10000;
@@ -75,7 +80,6 @@ const MAX_API_MAX_QUERY_SIZE: number = 100;
 export class Config {
   public is_testnet: boolean = true;
   public debug_performance: boolean = false;
-  public no_bootstrapping: boolean = true;
   public bootstrap: string = '';
   public VERSION: string = '';
 
@@ -84,6 +88,7 @@ export class Config {
   public port_tx_feed: number = 0;
 
   public path_genesis: string = '';
+  public path_peer_seed: string = '';
   public path_chain: string = '';
   public path_state: string = '';
   public path_keys: string = '';
@@ -143,15 +148,13 @@ export class Config {
 
     // Paths
     self.path_genesis = c.path_genesis;
+    self.path_peer_seed = c.path_peer_seed;
     self.path_chain = c.path_chain;
     self.path_state = c.path_state;
     self.path_keys = c.path_keys;
     self.path_log = c.path_log;
 
-    self.bootstrap = Config.tf(Deno.env.get('NO_BOOTSTRAPPING')) ||
-        Config.tf(c.no_bootstrapping)
-      ? ''
-      : c.bootstrap || Deno.env.get('BOOTSTRAP') || '';
+    self.bootstrap = c.bootstrap || Deno.env.get('BOOTSTRAP') || '';
 
     self.VERSION = c.VERSION || denoJSON.version;
 
@@ -213,7 +216,7 @@ export class Config {
     }
     self.udp = self.i2p_public_key_udp;
 
-    //@TODO max is hardcoded (3)
+    // TODO max is hardcoded (3)
     // i2p tunnel length variance
     self.i2p_sam_tunnel_var_min = Config.b(
       c.i2p_sam_tunnel_var_min || Deno.env.get('I2P_SAM_TUNNEL_VAR_MIN') ||
@@ -284,10 +287,10 @@ export class Config {
       throw new Error(`Address already exists: ${pathDestination}`);
     }
     await Deno.writeTextFile(pathDestination + '.public', sam.public, {
-      mode: 0o644,
+      mode: 0o444,
     });
     await Deno.writeTextFile(pathDestination + '.private', sam.private, {
-      mode: 0o600,
+      mode: 0o400,
     });
 
     return sam;

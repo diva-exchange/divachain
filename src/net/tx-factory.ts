@@ -19,20 +19,15 @@
 
 import { Server } from './server.ts';
 import { Wallet } from '../chain/wallet.ts';
-import { Command, Tx, TxStruct, VoteStruct } from '../chain/tx.ts';
+import { Command, Tx, TxStruct } from '../chain/tx.ts';
 import { Chain } from '../chain/chain.ts';
 import { Validation } from './validation.ts';
-import { TxMessage } from './message/tx.ts';
-import { VoteMessage } from './message/vote.ts';
-import { StatusMessage } from './message/status.ts';
+import { TxMessage, TxMessageStruct } from './message/tx.ts';
 import { Log } from '../logger.ts';
 import { Config } from '../config.ts';
 import { Network } from './network.ts';
 import { Util } from '../chain/util.ts';
-
-type recordStack = {
-  commands: Array<Command>;
-};
+import { toB32 } from '@i2p/sam';
 
 export class TxFactory {
   private readonly server: Server;
@@ -42,15 +37,12 @@ export class TxFactory {
   private readonly validation: Validation;
   private readonly wallet: Wallet;
 
-  private stackTransaction: Array<recordStack> = [];
-
-  private mapStatus: Map<string, StatusMessage> = new Map();
-
   private ownTx: TxStruct = {} as TxStruct;
-  private mapTx: Map<string, TxStruct> = new Map(); // hash -> TxStruct
 
-  static make(server: Server): TxFactory {
-    return new TxFactory(server);
+  public static make(server: Server): TxFactory {
+    const t: TxFactory = new TxFactory(server);
+    Log.info('TxFactory ready');
+    return t;
   }
 
   private constructor(server: Server) {
@@ -62,215 +54,165 @@ export class TxFactory {
     this.wallet = server.getWallet();
   }
 
-  shutdown(): void {
-    //@TODO cleanup
+  public shutdown() {
+    // TODO cleanup
   }
 
-  stack(commands: Array<Command>): boolean {
-    //@FIXME logging
-    Log.trace(`${this.config.port}: Stacking TX...`);
-
-    if (this.stackTransaction.push({ commands: commands })) {
-      return this.createOwnTx();
-    }
-    return false;
-  }
-
-  getStack(): Array<recordStack> {
-    return this.stackTransaction;
-  }
-
-  private createOwnTx(): boolean {
-    if (this.ownTx.height) {
+  /**
+   * Add a transaction locally
+   * @param commands Array<Command>
+   * @returns boolean
+   */
+  public createOwnTx(commands: Array<Command>): boolean {
+    if (this.ownTx.h) {
       return true;
     }
 
     const me: string = this.wallet.getPublicKey();
     const prevTx: TxStruct | undefined = this.chain.getLatestTx(me);
 
-    if (!this.stackTransaction.length || !prevTx) {
+    if (!prevTx) {
       return false;
     }
 
-    const r: recordStack = this.stackTransaction.shift() as recordStack;
+    const tx: TxStruct = new Tx(this.wallet, prevTx, commands).get();
     try {
-      const tx: TxStruct = new Tx(this.wallet, prevTx, r.commands).get();
-      this.validation.validateTx(tx);
+      this.validation.validateTx(tx as TxMessageStruct);
       this.ownTx = tx;
     } catch (e: unknown) {
-      Log.warn(
-        `${this.config.port}: local TX validation failed ${
-          (e as Error).toString()
-        }`,
-      );
+      Log.warn(`local TX validation failed ${(e as Error).toString()}`);
       return false;
     }
-    this.mapTx.set(this.ownTx.hash, this.ownTx);
 
     // broadcast ownTx
-    this.broadcastTx(this.ownTx);
+    (async () => {
+      await this.broadcastTx(tx);
+    })();
 
-    //@FIXME logging
-    Log.trace(
-      `${this.config.port}: TX created on ${me} #${
-        this.chain.getListPeer().indexOf(me)
-      }`,
-    );
+    // add own tx
+    (async () => {
+      await this.addTx(tx);
+      // FIXME logging
+      Log.trace(`TX created on ${me}`);
+    })();
 
     return true;
   }
 
-  async processTx(tx: TxMessage): Promise<void> {
+  public async processTx(tx: TxMessage): Promise<void> {
     const structTx: TxStruct = tx.tx();
     const prevTx: TxStruct | undefined = this.chain.getLatestTx(
-      structTx.origin,
+      structTx.o,
     );
 
-    // not interested
-    if (
-      !prevTx || prevTx.height + 1 !== structTx.height ||
-      prevTx.hash !== structTx.prev
-    ) {
+    // TODO peel coin from TxMessage
+
+    // chain locally not available, not interested
+    if (!prevTx) {
+      Log.trace(`processTx, chain locally not available: ${structTx.o}`);
+      return;
+    }
+
+    // already processed
+    if (prevTx.h >= structTx.h) {
+      return;
+    }
+
+    // not in sync
+    if (prevTx.h + 1 < structTx.h) {
+      Log.trace(
+        `Not in sync for TX: ${structTx.h} from ${structTx.o}`,
+      );
+      setTimeout(async () => {
+        await this.sync(structTx.o);
+      }, 0);
       return;
     }
 
     // check hash
-    if (structTx.hash !== Util.hash(structTx)) {
-      //@FIXME serious breach
-      Log.trace(`${this.config.port}: TX invalid hash`);
-      return;
-    }
-    // check existing vote from origin
     if (
-      !structTx.votes.some((v: VoteStruct): boolean => {
-        return v.origin === structTx.origin;
-      })
+      prevTx.ha !== structTx.p || structTx.ha !== Util.hash(structTx)
     ) {
-      //@FIXME serious breach
-      Log.trace(`${this.config.port}: TX missing vote from origin`);
+      // FIXME serious breach
+      Log.warn(`${structTx.ha}: TX invalid hash`);
       return;
     }
-    // check all votes (signatures)
-    if (
-      !structTx.votes.every((v: VoteStruct): boolean => {
-        return Util.verifySignature(v.origin, v.sig, structTx.hash);
-      })
-    ) {
-      //@FIXME serious breach
-      Log.trace(`${this.config.port}: TX invalid votes`);
-      return;
-    }
-
-    //@TODO stateful? Reason to add own vote?
-    const me: string = this.wallet.getPublicKey();
-    if (
-      !structTx.votes.some((v: VoteStruct): boolean => {
-        return v.origin === me;
-      })
-    ) {
-      structTx.votes = structTx.votes.concat({
-        origin: me,
-        sig: this.wallet.sign(structTx.hash),
-      });
-      this.mapTx.set(structTx.hash, structTx);
-
-      await this.addTx(structTx);
-    }
-  }
-
-  async processVote(vote: VoteMessage): Promise<void> {
-    const structTx: TxStruct | undefined = this.mapTx.get(vote.hash());
-
-    // not interested
-    if (!structTx) {
-      return;
-    }
-
-    // new votes?
-    const aV: Array<VoteStruct> = vote.votes().filter(
-      (v: VoteStruct): boolean => {
-        return (
-          !structTx.votes.some((vO: VoteStruct): boolean => {
-            return vO.origin === v.origin;
-          }) && Util.verifySignature(v.origin, v.sig, structTx.hash)
-        );
-      },
-    );
-    if (!aV.length) {
-      return;
-    }
-
-    structTx.votes = structTx.votes.concat(aV);
-    this.mapTx.set(vote.hash(), structTx);
 
     await this.addTx(structTx);
   }
 
-  async processStatus(status: StatusMessage): Promise<void> {
-    const me: string = this.wallet.getPublicKey();
-    for await (const r of status.matrix()) {
-      let height: number = this.chain.getHeight(r.origin) || 0;
-      //@TODO hardcoded limit of 5 txs
-      height = height > r.height + 5 ? r.height + 5 : height;
-      for (let h = r.height + 1; h <= height; h++) {
-        const structTx: TxStruct | undefined = await this.chain.getTx(
-          h,
-          r.origin,
-        );
-        structTx && this.broadcastTx(structTx, status.getOrigin());
-      }
-
-      // resend ownTx
-      r.origin === me && r.height + 1 === this.ownTx.height &&
-        this.broadcastTx(this.ownTx, status.getOrigin());
-    }
-    this.mapStatus.set(status.getOrigin(), status);
-  }
-
-  getStatus(): Array<StatusMessage> {
-    return [...this.mapStatus.values()];
-  }
-
   private async addTx(structTx: TxStruct): Promise<void> {
-    if (!this.chain.hasQuorum(structTx.votes.length)) {
-      const me: string = this.wallet.getPublicKey();
-      this.network.broadcast(
-        new VoteMessage({ hash: structTx.hash, votes: structTx.votes }, me)
-          .asString(this.wallet),
-      );
-      return;
-    }
-
-    //@FIXME logging
+    // FIXME logging
     Log.trace(
-      `${this.config.port}: NEW TX stored locally #${structTx.height} from ${structTx.origin}`,
+      `NEW TX stored locally #${structTx.h} from ${structTx.o}`,
     );
 
     try {
-      await this.chain.add(structTx);
-    } catch (error) {
-      Log.warn(`${this.config.port}: addTx failed, ${error}`);
+      await this.chain.addTx(structTx);
+    } catch (error: unknown) {
+      Log.warn(`chain.addTx failed, ${error as Error}`);
       return;
     }
 
-    if (this.ownTx.hash === structTx.hash) {
+    if (this.ownTx.ha === structTx.ha) {
       this.ownTx = {} as TxStruct;
     }
-    this.mapTx.delete(structTx.hash);
 
     // push the tx to the queue of the feed (websocket)
     this.server.queueWebSocketFeed(structTx);
-
-    // broadcast complete Tx
-    this.broadcastTx(structTx);
-
-    // create a new TxMessage
-    this.createOwnTx();
   }
 
-  private broadcastTx(structTx: TxStruct, to?: string): void {
+  private async broadcastTx(structTx: TxStruct, to?: string) {
     const me: string = this.wallet.getPublicKey();
     const txMsg: string = new TxMessage(structTx, me).asString(this.wallet);
-    this.network.broadcast(txMsg, to);
+    await this.network.broadcast(txMsg, to);
+  }
+
+  private async sync(pk: string, retry: number = 0) {
+    let dest: string = this.chain.getPeer(pk).http;
+    if (!dest) {
+      return;
+    }
+    dest = toB32(dest) + '.b32.i2p';
+    const height: number = (this.chain.getLatestTx(pk)?.h || 0) + 1;
+    Log.trace(`Syncing ${pk} @ ${dest} starting at #${height}...`);
+
+    // Request specs: see api.ts
+    const url: string = `http://${dest}/txs/${height}`;
+    try {
+      // proxy, socks5
+      const response = await fetch(url, {
+        client: Deno.createHttpClient({
+          proxy: {
+            url: 'socks5://' + this.config.i2p_socks,
+          },
+        }),
+        signal: AbortSignal.timeout(this.config.network_timeout_ms),
+      });
+
+      let j: Array<TxStruct> = [];
+      switch (response.status) {
+        case 200:
+          j = await response.json();
+          for await (const tx of j) {
+            await this.processTx(new TxMessage(tx, pk));
+          }
+          break;
+        case 204:
+          Log.trace(`Empty sync (204) from ${url}`);
+          break;
+        default:
+          throw new Error(
+            `Sync not successful (${response.status}) from ${url}`,
+          );
+      }
+    } catch (error: unknown) {
+      Log.trace(`Sync error, ${url}: ${error as Error}`);
+      if (retry < 120) {
+        setTimeout(async () => {
+          await this.sync(pk, ++retry);
+        }, 500);
+      }
+    }
   }
 }

@@ -2,23 +2,146 @@
 
 WARNING: **ALPHA software - HIGHLY EXPERIMENTAL**
 
+WARNING: **Documentation not complete**
+
 This is a fully anonymous ("Privacy-By-Design", using I2P as a network layer),
 very lightweight, fast, low-energy and permissionless transaction chain.
 
 ## Application Programming Interface (API) Overview
 
-Divachain supports two Application Programming Interfaces (API): a) an HTTP REST
-API running by default on port 17468 b) a broadcasting websocket running by
-default on port 17468
+Divachain supports a REST Application Programming Interface (API) and a data
+broadcasting websocket:
+
+- HTTP REST API running by default on port 17468
+- broadcasting websocket running by default on port 17469
 
 In a nutshell: use the REST API to write transactions to the chain or use the
-REST API to read status information from the chain. Use the websocket to get
+REST API to read status information from the chain. Use the websocket to receive
 live updates.
 
-## Create Your Local Environment
+## Quickstart for Developers
 
-Make sure you have deno available. To set up a divachain developer environment,
-run `./bin/create-devnet.sh`.
+System requirements:
+
+- deno
+- docker
+- docker compose
+
+Bash scripts are found in `./bin/`.
+
+Overview on how it works:
+
+1. Start I2P containers (2 nodes)
+2. Start divachain development network (7 nodes)
+3. Start an additional single development and debugging node and use this node
+   within your development environment.
+
+### I2P
+
+Start two local I2P routers: the two routers will connect to the public I2P
+network.
+
+`docker compose -f ./test/local-i2p-testnet.yml up -d`
+
+Check whether the containers are running by using `docker ps`.
+
+### divachain development network
+
+#### Create the Network
+
+If the divachain network has not been created yet, do so by:
+
+`./bin/create-devnet.sh`
+
+The bash script will create seven nodes as folders within `./test/data/dev/`.
+The configuration files are found, as an example for node 0, within
+`./test/data/dev/n0000000/config.json`.
+
+#### Start the Network
+
+Start it using `./bin/start-devnet.sh`.
+
+Check whether the deno instances are running by using `ps aux | grep divachain`.
+
+A few important tips:
+
+- Take a look at the logs, here: `./test/data/dev/n0000000/log/diva.log`. Within
+  the logs (as also within the config) the I2P b32 address of the HTTP endpoint
+  will be found.
+- Access node 0, locally, via the HTTP REST API:
+  `curl http://localhost:17468/about`.
+- To understand the network, use: `curl http://localhost:17468/network`. Note:
+  after a fresh start it needs a minute or so to build the network, so there
+  will be no data instantly after the network has been started.
+- Study the configuration files, like `./test/data/dev/n0000006/config.json`, to
+  learn about the API addresses of the other nodes.
+- Use the public I2P network, via your local proxy, to access an endpoint.
+  Example (non functional - use your configs or logs to identify an I2P b32
+  address of a local http endpoint): `http://[some-b32-string].b32.i2p/about`
+
+### Development and Debugging: use a Dedicated Node
+
+Edit the bash script `./bin/create-single-devnode.sh`.
+
+Within the script, edit the value of the `BOOTSTRAP` environment variable and
+set it to one of your I2P b32 HTTP endpoint addresses.
+
+Save the edited bash script.
+
+Run `./bin/create-single-devnode.sh` to create the configuration of your
+debugging node. After executing the script, the configuration will be available
+here: `./test/data/dev/dev0000000/config.json`.
+
+Use your IDE/debugger to configure a launcher, as an example a configuration for
+VSCodium (set the attribute "runtimeExecutable" correctly):
+
+```
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "request": "launch",
+      "name": "Launch divachain Debug node",
+      "type": "node",
+      "program": "${workspaceFolder}/src/main.ts",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "DIVA_ENV": "dev",
+        "PATH_LOG": "stdout",
+        "PATH_CONFIG": "test/data/dev/dev0000000/config.json"
+      },
+      "outputCapture": "std",
+      "runtimeExecutable": "/home/user/.deno/bin/deno",
+      "runtimeArgs": [
+        "run",
+        "--inspect-wait",
+        "--allow-all"
+      ],
+      "attachSimplePort": 9229
+    }
+  ]
+}
+```
+
+Now you are ready to start your debugger. The debugger node will connect to the
+divachain development network (see above).
+
+While the debugger node is running, check the API using
+`curl http://localhost:19468/network`. The port 19468 is the default port for
+the debugger node used by the configuration script
+`./bin/create-single-devnode.sh`.
+
+---
+
+---
+
+---
+## WARNING: DOCUMENTATION BELOW USABLE BUT UNSTABLE (PARTLY INCOMPLETE OR OUTDATED)
+---
+
+---
+
+---
 
 ## Configuration
 
@@ -299,31 +422,7 @@ Example of such a transaction proposal, containing two commands:
 
 ### Joining and Leaving the Network
 
-#### GET /join/{http}/{udp}/{publicKey}
-
-_Internal_: part of an automated process.
-
-Request to join the network.
-
-Send this GET request to any remote peer in the network which is online. This
-remote peer will later - in some seconds or even minutes - send back an
-independent GET request to the local /challenge/ endpoint.
-
-#### GET /challenge/{token}
-
-_Internal_: part of an automated process.
-
-Response will contain the signed token. Verify the response with the public key
-of the remote peer.
-
-#### PUT /leave
-
-Request to leave the network.
-
-The request must set the currently valid API token (a string) as the header
-"diva-token-api". This is a protected request and to gather its credentials,
-access to the local filesystem of a node is required. The local wallet also
-holds the currently valid API token.
+@TODO
 
 ### Network Synchronization
 

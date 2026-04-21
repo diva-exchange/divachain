@@ -18,7 +18,7 @@
  */
 
 import { decodeBase64Url, encodeBase64Url } from '@std/encoding';
-import sodium from 'sodium-native';
+import sodium, { SecureBuffer } from 'sodium-native';
 import { TxStruct } from './tx.ts';
 
 export class Util {
@@ -28,16 +28,16 @@ export class Util {
    * @returns hash of a TxStruct
    */
   public static hash(tx: TxStruct): string {
-    const bufferOutput: Uint8Array = new Uint8Array(
+    const bufferOutput: SecureBuffer = sodium.sodium_malloc(
       sodium.crypto_hash_sha256_BYTES,
     );
     sodium.crypto_hash_sha256(
       bufferOutput,
       new TextEncoder().encode(
-        [tx.v, tx.height, tx.prev, tx.origin, JSON.stringify(tx.commands)].join(
+        [tx.v, tx.h, tx.p, tx.o, JSON.stringify(tx.cs)].join(
           ',',
         ),
-      ),
+      ) as SecureBuffer,
     );
     return encodeBase64Url(bufferOutput);
   }
@@ -49,9 +49,9 @@ export class Util {
   ): boolean {
     try {
       return sodium.crypto_sign_verify_detached(
-        decodeBase64Url(sig),
-        new TextEncoder().encode(data),
-        decodeBase64Url(publicKey),
+        decodeBase64Url(sig) as SecureBuffer,
+        new TextEncoder().encode(data) as SecureBuffer,
+        decodeBase64Url(publicKey) as SecureBuffer,
       );
     } catch (_error) {
       return false;
@@ -64,10 +64,10 @@ export class Util {
    * @param {Array<string | number | Uint8Array>} array
    * @return {Array<string | number | Uint8Array>} A copy of the array
    */
-  public static shuffleArray(
-    array: Array<string | number | Uint8Array>,
-  ): Array<string | number | Uint8Array> {
-    const a: Array<string | number | Uint8Array> = array.slice();
+  public static shuffleArray<T extends string | number | Uint8Array>(
+    array: Array<T>,
+  ): Array<T> {
+    const a: Array<T> = array.slice();
     for (let i: number = array.length - 1; i > 0; i--) {
       const j: number = Math.floor(Math.random() * (i + 1));
       [a[i], a[j]] = [a[j], a[i]];

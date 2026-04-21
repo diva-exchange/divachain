@@ -12,19 +12,19 @@
   },
   "imports": {
     "@i2p/sam": "jsr:@i2p/sam@^6.0.0",
-    "@hono/hono": "jsr:@hono/hono@^4.10.7",
+    "@hono/hono": "jsr:@hono/hono@^4.12.10",
     "@std/bytes": "jsr:@std/bytes@^1.0.6",
     "@std/crypto": "jsr:@std/crypto@^1.0.5",
     "@std/encoding": "jsr:@std/encoding@^1.0.10",
-    "@std/fs": "jsr:@std/fs@^1.0.20",
+    "@std/fs": "jsr:@std/fs@^1.0.23",
     "@types/sodium-native": "npm:@types/sodium-native@^2.3.9",
-    "ajv": "npm:ajv@^8.17.1",
+    "ajv": "npm:ajv@^8.18.0",
     "level": "npm:level@^10.0.0",
-    "nanoid": "npm:nanoid@^5.1.6",
-    "pino": "npm:pino@^10.1.0",
-    "socks-proxy-agent": "npm:socks-proxy-agent@^8.0.5",
-    "sodium-native": "npm:sodium-native@5.0.10",
-    "ws": "npm:ws@^8.18.3"
+    "nanoid": "npm:nanoid@^5.1.7",
+    "pino": "npm:pino@^10.3.1",
+    "socks-proxy-agent": "npm:socks-proxy-agent@^10.0.0",
+    "sodium-native": "npm:sodium-native@5.1.0",
+    "ws": "npm:ws@^8.20.0"
   },
   "lint": {
     "include": ["src/"],

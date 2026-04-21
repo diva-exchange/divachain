@@ -20,7 +20,7 @@
 import { exists } from '@std/fs';
 import fs from 'node:fs';
 import { join as joinPath } from 'node:path';
-import type { CommandAddPeer, TxStruct } from './chain/tx.ts';
+import type { TxStruct } from './chain/tx.ts';
 import {
   Config,
   DEFAULT_I2P_SAM_FORWARD_HTTP_PORT,
@@ -36,10 +36,8 @@ import {
 } from './config.ts';
 import { Wallet } from './chain/wallet.ts';
 import { Util } from './chain/util.ts';
-import { Chain } from './chain/chain.ts';
+import { Chain, Peer } from './chain/chain.ts';
 import { Log } from './logger.ts';
-
-const DEFAULT_SIZE_TESTNETWORK: number = 7;
 
 enum typeNet {
   dev = 1,
@@ -47,8 +45,37 @@ enum typeNet {
 }
 
 export class Genesis {
-  static async create(type: typeNet = typeNet.dev) {
+  private static readonly DEFAULT_SIZE_TESTNETWORK: number = 7;
+  private static readonly MAX_NETWORK_SIZE: number = 128;
+  private static readonly DEFAULT_NAME_NODE: string = 'n';
+  private static readonly NAME_FILE_GENESIS: string = 'genesis.json';
+  private static readonly NAME_FILE_PEER_SEED: string = 'peer-seed.json';
+
+  public static async create(type: typeNet = typeNet.dev) {
+    Log.info(`Genesis creation initiated, network type: ${type}`);
+
     const isTestnet: boolean = (Deno.env.get('IS_TESTNET') || 0) == '1';
+
+    let SIZE_NETWORK: number = Number(Deno.env.get('SIZE_NETWORK') || 0);
+    const bootstrap: string = Deno.env.get('BOOTSTRAP') || '';
+    if (bootstrap) {
+      if (!bootstrap.endsWith('.i2p')) {
+        Log.fatal(`Fatal, invalid BOOTSTRAP`);
+        Deno.exit(1);
+      }
+      SIZE_NETWORK = 1;
+    } else {
+      SIZE_NETWORK = SIZE_NETWORK > 0
+        ? SIZE_NETWORK
+        : (isTestnet ? Genesis.DEFAULT_SIZE_TESTNETWORK : 1);
+      if (SIZE_NETWORK > Genesis.MAX_NETWORK_SIZE) {
+        Log.fatal(`Fatal, SIZE_NETWORK must be <=${Genesis.MAX_NETWORK_SIZE}`);
+        Deno.exit(1);
+      }
+    }
+
+    const hasDebugPerformance: boolean =
+      (Deno.env.get('DEBUG_PERFORMANCE') || 0) == '1';
 
     let pathDataReal: string = '';
     let pathDataRelative: string = isTestnet ? 'test' : '';
@@ -64,18 +91,24 @@ export class Genesis {
 
     const pathApp: string = joinPath(Deno.cwd(), '/');
     pathDataReal = joinPath(pathApp, pathDataRelative);
-    await exists(pathDataReal) &&
-      fs.rmSync(pathDataReal, { recursive: true, force: true });
     !(await exists(pathDataReal)) && fs.mkdirSync(pathDataReal);
+    // check
+    for (let i = 0; i < SIZE_NETWORK; i++) {
+      const nameNode: string = Genesis.getNameNode(i);
+      const pTest = joinPath(pathApp, pathDataRelative, nameNode);
+      if (await exists(pTest)) {
+        Log.fatal(`Fatal, path exists: ${pTest}`);
+        Deno.exit(1);
+      }
+    }
 
     const pathSeedGenesis: string = joinPath(
       pathApp,
       'seed-genesis',
       DEFAULT_NAME_GENESIS + '.json',
     );
-    let genesis: TxStruct = Chain.genesis(pathSeedGenesis);
+    let genesis: TxStruct = await Chain.genesis(pathSeedGenesis);
 
-    const SIZE_NETWORK: number = isTestnet ? DEFAULT_SIZE_TESTNETWORK : 1;
     const IP: string = Deno.env.get('IP') || DEFAULT_IP;
     const PORT: number = Number(Deno.env.get('PORT') || DEFAULT_PORT);
     const PORT_TX_FEED: number = Number(
@@ -107,20 +140,31 @@ export class Genesis {
     const I2P_SAM_FORWARD_UDP: string = _a[0];
     const I2P_SAM_FORWARD_UDP_PORT: number = Number(_a[1]);
 
-    const cmds: Array<CommandAddPeer> = [];
+    const aPeerSeed: Array<Peer> = [];
     let config: Config = {} as Config;
     let pathDB: string = '';
     let pathKeys: string = '';
     let pathGenesis: string = '';
+    let pathPeerSeed: string = '';
     let pathLog: string = '';
+
     for (let i = 0; i < SIZE_NETWORK; i++) {
-      const nameNode: string = 'n' + i.toString().padStart(7, '0');
+      const nameNode: string = Genesis.getNameNode(i);
       pathDB = joinPath(pathDataRelative, nameNode, 'db');
       fs.mkdirSync(joinPath(pathApp, pathDB, 'chain'), { recursive: true });
       fs.mkdirSync(joinPath(pathApp, pathDB, 'state'));
 
-      pathGenesis = joinPath(pathDB, 'genesis.json');
-      fs.writeFileSync(joinPath(pathApp, pathGenesis), JSON.stringify({}));
+      pathGenesis = joinPath(pathDB, Genesis.NAME_FILE_GENESIS);
+      await Deno.writeTextFile(
+        joinPath(pathApp, pathGenesis),
+        JSON.stringify({}),
+      );
+
+      pathPeerSeed = joinPath(pathDB, Genesis.NAME_FILE_PEER_SEED);
+      await Deno.writeTextFile(
+        joinPath(pathApp, pathPeerSeed),
+        JSON.stringify([]),
+      );
 
       pathKeys = joinPath(pathDataRelative, nameNode, 'keys');
       fs.mkdirSync(joinPath(pathApp, pathKeys));
@@ -130,12 +174,14 @@ export class Genesis {
 
       const iPort: number = i * 10;
       config = await Config.make({
-        no_bootstrapping: true,
-        debug_performance: true,
+        is_testnet: isTestnet,
+        debug_performance: hasDebugPerformance,
+        bootstrap: bootstrap,
         ip: IP,
         port: PORT + iPort,
         port_tx_feed: PORT_TX_FEED + iPort,
         path_genesis: pathGenesis,
+        path_peer_seed: pathPeerSeed,
         path_chain: joinPath(pathDB, 'chain'),
         path_state: joinPath(pathDB, 'state'),
         path_keys: pathKeys,
@@ -150,38 +196,49 @@ export class Genesis {
         i2p_sam_forward_udp: I2P_SAM_FORWARD_UDP + ':' +
           (I2P_SAM_FORWARD_UDP_PORT + iPort),
       } as Config);
+      const _pC: string = joinPath(pathDataReal, nameNode, 'config.json');
+      await Deno.writeTextFile(_pC, JSON.stringify(config), { mode: 0o400 });
 
       const publicKey: string = Wallet.make(config).getPublicKey();
-
-      cmds.push({
-        command: 'addPeer',
+      aPeerSeed.push({
+        publicKey: publicKey,
         http: config.http,
         udp: config.udp,
-        publicKey: publicKey,
-      } as CommandAddPeer);
+      });
 
-      const _p: string = joinPath(pathDataReal, nameNode, 'config.json');
-      fs.writeFileSync(_p, JSON.stringify(config), { mode: 0o440 });
-      Log.trace(`Genesis: created config ${_p}`);
+      genesis = {
+        v: genesis.v,
+        h: genesis.h,
+        o: publicKey,
+        ha: genesis.ha,
+        p: genesis.p,
+        cs: genesis.cs,
+      };
+      genesis.ha = Util.hash(genesis);
+      const _pG: string = joinPath(
+        pathDataReal,
+        nameNode,
+        'db',
+        Genesis.NAME_FILE_GENESIS,
+      );
+      await Deno.writeTextFile(_pG, JSON.stringify(genesis), { mode: 0o440 });
+      Log.info(`Created ${_pG}`);
     }
-
-    genesis = {
-      v: genesis.v,
-      height: 1,
-      prev: '0000000000000000000000000000000000000000000',
-      hash: '0000000000000000000000000000000000000000000',
-      origin: '0000000000000000000000000000000000000000000',
-      commands: cmds,
-      votes: genesis.votes,
-    };
-    genesis.hash = Util.hash(genesis);
 
     for (let i = 0; i < SIZE_NETWORK; i++) {
-      const nameNode: string = 'n' + i.toString().padStart(7, '0');
-      fs.writeFileSync(
-        joinPath(pathDataReal, nameNode, 'db', 'genesis.json'),
-        JSON.stringify(genesis),
+      const nameNode: string = Genesis.getNameNode(i);
+      await Deno.writeTextFile(
+        joinPath(pathDataReal, nameNode, 'db', Genesis.NAME_FILE_PEER_SEED),
+        JSON.stringify(aPeerSeed),
+        { mode: 0o440 },
       );
     }
+
+    Log.flush();
+  }
+
+  private static getNameNode(i: number): string {
+    const n: string = Deno.env.get('NAME_NODE') || Genesis.DEFAULT_NAME_NODE;
+    return n + i.toString().padStart(7, '0');
   }
 }

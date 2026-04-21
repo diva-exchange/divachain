@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2021-2026 diva.exchange
+ * Copyright (C) 2026 diva.exchange
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,21 +17,34 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { iMessage, Message, TYPE_TX } from './message.ts';
-import { TxStruct } from '../../chain/tx.ts';
+import { iMessage, Message, TYPE_ADD_PEER } from './message.ts';
 
-export type TxMessageStruct = TxStruct;
+export type AddPeerMessageStruct = {
+  http: string;
+  udp: string;
+  pk: string;
+};
 
-interface iTxMessage extends iMessage {
-  tx(): TxStruct;
+interface iAddPeer extends iMessage {
+  http(): string;
+  udp(): string;
+  pk(): string;
 }
 
-export class TxMessage extends Message implements iTxMessage {
-  constructor(struct: TxMessageStruct, pkOrigin: string) {
-    super(struct, TYPE_TX, pkOrigin);
+export class AddPeerMessage extends Message implements iAddPeer {
+  constructor(struct: AddPeerMessageStruct, pkOrigin: string) {
+    super(struct, TYPE_ADD_PEER, pkOrigin);
   }
 
-  tx(): TxStruct {
-    return this.message as TxStruct;
+  public http(): string {
+    return (this.message as AddPeerMessageStruct).http;
+  }
+
+  public udp(): string {
+    return (this.message as AddPeerMessageStruct).udp;
+  }
+
+  public pk(): string {
+    return (this.message as AddPeerMessageStruct).pk;
   }
 }

@@ -17,15 +17,16 @@
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { encodeBase64Url } from '@std/encoding';
 import { TxMessageStruct } from './tx.ts';
-import { VoteMessageStruct } from './vote.ts';
 import { StatusMessageStruct } from './status.ts';
+import { AddPeerMessageStruct } from './add-peer.ts';
+import { RemovePeerMessageStruct } from './remove-peer.ts';
 import { Wallet } from '../../chain/wallet.ts';
 
 export const TYPE_TX = 1;
-export const TYPE_VOTE = 2;
-export const TYPE_STATUS = 3;
+export const TYPE_ADD_PEER = 5;
+export const TYPE_REMOVE_PEER = 6;
+export const TYPE_STATUS = 9;
 
 export interface iMessage {
   getOrigin(): string;
@@ -37,11 +38,16 @@ export class Message {
   protected readonly origin: string;
   protected readonly message:
     | TxMessageStruct
-    | VoteMessageStruct
+    | AddPeerMessageStruct
+    | RemovePeerMessageStruct
     | StatusMessageStruct;
 
   constructor(
-    struct: TxMessageStruct | VoteMessageStruct | StatusMessageStruct,
+    struct:
+      | TxMessageStruct
+      | AddPeerMessageStruct
+      | RemovePeerMessageStruct
+      | StatusMessageStruct,
     type: number,
     origin: string,
   ) {
@@ -50,13 +56,21 @@ export class Message {
     this.message = struct;
   }
 
-  getOrigin(): string {
+  public getMessage():
+    | TxMessageStruct
+    | AddPeerMessageStruct
+    | RemovePeerMessageStruct
+    | StatusMessageStruct {
+    return this.message;
+  }
+
+  public getOrigin(): string {
     return this.origin;
   }
 
-  asString(wallet: Wallet): string {
-    const b64: string = encodeBase64Url(JSON.stringify(this.message));
-    const pl: string = [this.type, b64].join(''); // payload
-    return wallet.getPublicKey() + wallet.sign(pl) + pl + ';';
+  public asString(wallet: Wallet): string {
+    const data: string = JSON.stringify(this.message);
+    const pl: string = this.type + data; // payload
+    return wallet.getPublicKey() + wallet.sign(pl) + pl;
   }
 }

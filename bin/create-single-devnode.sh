@@ -24,27 +24,32 @@ PROJECT_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd "${PROJECT_PATH}"
 PROJECT_PATH=$(pwd)
 
-# sudo docker compose -f "${PROJECT_PATH}"/test/local-i2p-testnet.yml down
-# sudo docker compose -f "${PROJECT_PATH}"/test/local-i2p-testnet.yml up -d
-
 echo
-echo "Creating development nodes in ${PROJECT_PATH}/test/data/dev/ ..."
+echo "Creating single development node in ${PROJECT_PATH}/test/data/dev/dev0000000/"
+echo
+echo "IMPORTANT: set the BOOTSTRAP env variable within this file correctly!"
+echo "Example, a b32 address of one of your local nodes, like:"
+echo "  naylobaesowecuyzcaayunsh4acr4aibdmtlfmowq6hue57uemtq.b32.i2p"
+echo
+echo "b32 addresses are found within your log files of your development network."
+echo "SEE README!"
 
-rm -rf ${PROJECT_PATH}/test/data/dev/n*
+rm -rf ${PROJECT_PATH}/test/data/dev/dev0000000
 
 GENESIS=1 \
   IS_TESTNET=1 \
-  DEBUG_PERFORMANCE=1 \
+  BOOTSTRAP=YOUR_LOCAL_I2P_NODE_HERE.b32.i2p \
+  NAME_NODE=dev \
   IP=0.0.0.0 \
-  PORT=17468 \
-  PORT_TX_FEED=17469 \
+  PORT=19468 \
+  PORT_TX_FEED=19469 \
   I2P_SOCKS=172.19.75.11:4445 \
   I2P_SAM_HTTP=172.19.75.11:7656 \
-  I2P_SAM_FORWARD_HTTP=172.19.75.1:17468 \
+  I2P_SAM_FORWARD_HTTP=172.19.75.1:19468 \
   I2P_SAM_UDP=172.19.75.12:7656 \
-  I2P_SAM_LISTEN_UDP=172.19.75.1:17470 \
-  I2P_SAM_FORWARD_UDP=172.19.75.1:17470 \
+  I2P_SAM_LISTEN_UDP=172.19.75.1:19470 \
+  I2P_SAM_FORWARD_UDP=172.19.75.1:19470 \
   deno run --allow-all ./src/main.ts
 
-echo "Done."
+echo "Done. API: http://localhost:19468"
 echo

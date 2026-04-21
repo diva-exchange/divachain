@@ -25,14 +25,15 @@ cd "${PROJECT_PATH}"
 PROJECT_PATH=$(pwd)
 
 echo
-echo "Starting six development nodes, n1 to n6, in"
+echo "Starting seven development nodes, n0 to n6, in"
 echo "${PROJECT_PATH}/test/data/dev/"
 echo
-echo "Start node n0 manually to develop: deno task dev-n0"
-echo
-echo "Logs are found, as for node n1, in test/data/dev/n0000001/log/diva.log"
+echo "Logs are found, in test/data/dev/n[...]/log/diva.log"
+echo "Example, for node 0: test/data/dev/n0000000/log/diva.log"
+echo "Example, for node 1: test/data/dev/n0000001/log/diva.log"
 echo
 
+PATH_CONFIG=test/data/dev/n0000000/config.json deno run --allow-all ${PROJECT_PATH}/src/main.ts &>/dev/null & disown;
 PATH_CONFIG=test/data/dev/n0000001/config.json deno run --allow-all ${PROJECT_PATH}/src/main.ts &>/dev/null & disown;
 PATH_CONFIG=test/data/dev/n0000002/config.json deno run --allow-all ${PROJECT_PATH}/src/main.ts &>/dev/null & disown;
 PATH_CONFIG=test/data/dev/n0000003/config.json deno run --allow-all ${PROJECT_PATH}/src/main.ts &>/dev/null & disown;
@@ -40,4 +41,4 @@ PATH_CONFIG=test/data/dev/n0000004/config.json deno run --allow-all ${PROJECT_PA
 PATH_CONFIG=test/data/dev/n0000005/config.json deno run --allow-all ${PROJECT_PATH}/src/main.ts &>/dev/null & disown;
 PATH_CONFIG=test/data/dev/n0000006/config.json deno run --allow-all ${PROJECT_PATH}/src/main.ts &>/dev/null & disown;
 
-echo "OK, DevNet started"
+echo "OK, test/data/dev/n0000000...n0000006 started"
