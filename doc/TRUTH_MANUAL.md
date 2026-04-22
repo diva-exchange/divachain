@@ -1,25 +1,9 @@
-# 🌐 DivaChain — The Comprehensive Truth Manual
-*Version 0.60.0 — Official Technical & Philosophical Reference*
+# DivaChain — Technical Reference
+*Version 0.60.0*
 
 ---
 
-## 🧒 1. The "5th Grader" Explanation
-**What is DivaChain?**
-
-Imagine you and your friends have a secret club where you trade trading cards. You don't want a "Boss" or a "Teacher" watching you or taking a piece of your lunch money as a fee.
-
-**DivaChain is the technology that makes the club work:**
-
-1.  **Your Own Notebook:** Instead of one big blackboard that only a teacher can write on, everyone has their own notebook. You only write your own trades in your notebook.
-2.  **Secret Tunnels (I2P):** When you want to tell a friend about a trade, you send the message through a secret tunnel so no one in the hallway knows who is talking.
-3.  **The Rule of the Signature:** You sign every trade with a special magic stamp (**Cryptography**). This proves it was really you and not an impostor.
-4.  **The Club Vote (PBFT):** Before a trade is "Official," the club members look at the trade and say "Looks good!" If 2 out of 3 members agree, the trade is locked into history. This is called "Consensus"—building the chain by talking instead of doing hard math.
-
-**Result:** You are your own bank. You are free.
-
----
-
-## 🏗️ 2. System Architecture: Distributed Multi-Chain
+## 1. System Architecture: Distributed Multi-Chain
 
 DivaChain v0.60.0 is a decentralized state machine built on the **Deno** runtime. It uses a **Distributed Multi-Chain** model optimized for privacy and low-energy usage.
 
@@ -30,7 +14,7 @@ DivaChain v0.60.0 is a decentralized state machine built on the **Deno** runtime
 
 ---
 
-## 📡 3. Networking & Transport (I2P Sovereignty)
+## 2. Networking & Transport (I2P)
 
 DivaChain is "Invisible-By-Design." It utilizes the **I2P (Invisible Internet Project)** as its exclusive transport layer to ensure identity is separated from transaction data.
 
@@ -41,7 +25,7 @@ DivaChain is "Invisible-By-Design." It utilizes the **I2P (Invisible Internet Pr
 
 ---
 
-## 📂 4. Transaction & Command Logic
+## 3. Transaction & Command Logic
 
 The system utilizes a structured JSON schema (v1) for all chain operations.
 
@@ -59,7 +43,7 @@ The system utilizes a structured JSON schema (v1) for all chain operations.
 
 ---
 
-## 🛠️ 5. API Reference (Localhost)
+## 4. API Reference (Localhost)
 
 The node exposes a REST API on port **17468** and a WebSocket stream on port **17469**.
 
@@ -74,7 +58,7 @@ The node exposes a REST API on port **17468** and a WebSocket stream on port **1
 
 ---
 
-## 🛡️ 6. Gotchas & Implementation Notes
+## 5. Gotchas & Implementation Notes
 
 *   **Alpine/musl Compatibility:** You must manually link the `sodium-native` C++ binary to the `linux-x64-musl` path for the crypto engine to load.
 *   **Deno Permissions:** Your `deno.json` must include `"allowScripts": ["npm:sodium-native@5.1.0", "npm:classic-level@3.0.0"]`.
