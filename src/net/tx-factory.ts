@@ -41,7 +41,6 @@ export class TxFactory {
 
   public static make(server: Server): TxFactory {
     const t: TxFactory = new TxFactory(server);
-    Log.info('TxFactory ready');
     return t;
   }
 
@@ -63,38 +62,31 @@ export class TxFactory {
    * @param commands Array<Command>
    * @returns boolean
    */
-  public createOwnTx(commands: Array<Command>): boolean {
+  public async createOwnTx(commands: Array<Command>): Promise<boolean> {
     if (this.ownTx.h) {
       return true;
     }
 
-    const me: string = this.wallet.getPublicKey();
-    const prevTx: TxStruct | undefined = this.chain.getLatestTx(me);
+    const prevTx: TxStruct | undefined = this.chain.getLatestTx();
 
     if (!prevTx) {
       return false;
     }
 
-    const tx: TxStruct = new Tx(this.wallet, prevTx, commands).get();
+    const structTx: TxStruct = new Tx(this.wallet, prevTx, commands).get();
     try {
-      this.validation.validateTx(tx as TxMessageStruct);
-      this.ownTx = tx;
+      this.validation.validateTx(structTx as TxMessageStruct);
+      this.ownTx = structTx;
     } catch (e: unknown) {
-      Log.warn(`local TX validation failed ${(e as Error).toString()}`);
+      Log.warn(`TX validation failed: ${JSON.stringify(e)}`);
       return false;
     }
 
     // broadcast ownTx
-    (async () => {
-      await this.broadcastTx(tx);
-    })();
+    await this.broadcastTx(structTx);
 
     // add own tx
-    (async () => {
-      await this.addTx(tx);
-      // FIXME logging
-      Log.trace(`TX created on ${me}`);
-    })();
+    await this.addTx(structTx);
 
     return true;
   }
@@ -120,9 +112,7 @@ export class TxFactory {
 
     // not in sync
     if (prevTx.h + 1 < structTx.h) {
-      Log.trace(
-        `Not in sync for TX: ${structTx.h} from ${structTx.o}`,
-      );
+      Log.trace(`Not in sync: ${structTx.h} from ${structTx.o}`);
       setTimeout(async () => {
         await this.sync(structTx.o);
       }, 0);
@@ -142,11 +132,6 @@ export class TxFactory {
   }
 
   private async addTx(structTx: TxStruct): Promise<void> {
-    // FIXME logging
-    Log.trace(
-      `NEW TX stored locally #${structTx.h} from ${structTx.o}`,
-    );
-
     try {
       await this.chain.addTx(structTx);
     } catch (error: unknown) {
@@ -168,7 +153,7 @@ export class TxFactory {
     await this.network.broadcast(txMsg, to);
   }
 
-  private async sync(pk: string, retry: number = 0) {
+  private async sync(pk: string) {
     let dest: string = this.chain.getPeer(pk).http;
     if (!dest) {
       return;
@@ -179,40 +164,16 @@ export class TxFactory {
 
     // Request specs: see api.ts
     const url: string = `http://${dest}/txs/${height}`;
-    try {
-      // proxy, socks5
-      const response = await fetch(url, {
-        client: Deno.createHttpClient({
-          proxy: {
-            url: 'socks5://' + this.config.i2p_socks,
-          },
-        }),
-        signal: AbortSignal.timeout(this.config.network_timeout_ms),
-      });
-
-      let j: Array<TxStruct> = [];
-      switch (response.status) {
-        case 200:
-          j = await response.json();
-          for await (const tx of j) {
-            await this.processTx(new TxMessage(tx, pk));
-          }
-          break;
-        case 204:
-          Log.trace(`Empty sync (204) from ${url}`);
-          break;
-        default:
-          throw new Error(
-            `Sync not successful (${response.status}) from ${url}`,
-          );
-      }
-    } catch (error: unknown) {
-      Log.trace(`Sync error, ${url}: ${error as Error}`);
-      if (retry < 120) {
-        setTimeout(async () => {
-          await this.sync(pk, ++retry);
-        }, 500);
-      }
+    const r: Response | false = await this.server.fetchFromApi(url);
+    if (!r || r.status !== 200) {
+      Log.info(
+        `Sync failed${r ? ' (status ' + r.status + ')' : ''}, target: ${url}`,
+      );
+      return;
+    }
+    const arrayTx: Array<TxMessageStruct> = await r.json();
+    for await (const tx of arrayTx) {
+      await this.processTx(new TxMessage(tx, pk));
     }
   }
 }

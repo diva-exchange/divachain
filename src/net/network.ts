@@ -31,7 +31,7 @@ import { Util } from '../chain/util.ts';
 import {
   Config,
   DEFAULT_NETWORK_STATUS_BROADCAST_MS,
-  DEFAULT_NETWORK_STATUS_REPUTATION_SPAN_MS,
+  DEFAULT_NETWORK_STATUS_RELIABILITY_SPAN_MS,
 } from '../config.ts';
 import { Log } from '../logger.ts';
 import { Server } from './server.ts';
@@ -51,6 +51,14 @@ import { TxMessage, TxMessageStruct } from './message/tx.ts';
 import { brotliCompressSync, brotliDecompressSync } from 'node:zlib';
 import { decodeBase64Url, encodeBase64Url } from '@std/encoding';
 import { join as joinPath } from 'node:path';
+
+type ArrayStatusStruct = {
+  [origin: string]: Array<StatusMessageStruct>;
+};
+
+type ArrayReputationStruct = {
+  [origin: string]: number;
+};
 
 export class Network {
   private static readonly P2P_MAX_RETRY_COUNT: number = 120;
@@ -74,11 +82,10 @@ export class Network {
   private intervalStatus: number = 0;
 
   private mapStatus: Map<string, Array<StatusMessageStruct>> = new Map();
-  private mapReputation: Map<string, number> = new Map();
+  private mapReliability: Map<string, number> = new Map();
 
   static make(server: Server): Network {
     const n: Network = new Network(server);
-    Log.trace('Network created');
     return n;
   }
 
@@ -119,8 +126,9 @@ export class Network {
         `P2P ready on ${toB32(this.server.config.udp)}.b32.i2p`,
       );
 
+      // bootstrap into the network
       if (this.server.config.bootstrap) {
-        // @TODO minimum network size...? Smarter approach needed...
+        // TODO minimum network size...? Smarter approach needed...
         if (this.arrayNetwork.length < 3) {
           // bootstrapping (entering the network)
           await this.chain.bootstrap();
@@ -138,15 +146,18 @@ export class Network {
           )
         ) {
           if (this.chain.hasPeer(pk)) {
-            this.mapStatus.set(pk, a as Array<StatusMessageStruct>);
+            this.setStatus(pk, a as Array<StatusMessageStruct>);
           }
         }
-        this.calculateReputation();
       } catch (error: unknown) {
-        Log.trace(`${error as Error}: ${pathStatus}`);
+        Log.trace(`${error as Error}`);
       }
 
-      await this.broadcastStatus();
+      // set up the status message broadcast
+      this.intervalStatus = setInterval(async () => {
+        await this.broadcastStatus();
+      }, DEFAULT_NETWORK_STATUS_BROADCAST_MS);
+
       return;
     }
 
@@ -162,9 +173,6 @@ export class Network {
       this.intervalP2P = setInterval(() => {
         this.updateP2PNetwork();
       }, this.server.config.network_p2p_interval_ms);
-      this.intervalStatus = setInterval(async () => {
-        await this.broadcastStatus();
-      }, DEFAULT_NETWORK_STATUS_BROADCAST_MS);
     }
   }
 
@@ -571,19 +579,41 @@ export class Network {
 
   private processStatus(status: StatusMessage) {
     const origin: string = status.getOrigin();
-    const aT: Array<StatusMessageStruct> = this.mapStatus.get(origin) ||
+    const aStatus: Array<StatusMessageStruct> = this.mapStatus.get(origin) ||
       [];
     const tNow: number = Date.now();
-    const tLast: number = aT.length > 0 ? aT[aT.length - 1].t : 0;
-    if ((tNow - tLast) < (DEFAULT_NETWORK_STATUS_BROADCAST_MS * 0.95)) {
+    const tLast: number = aStatus.length > 0
+      ? aStatus[aStatus.length - 1].t
+      : 0;
+    // TODO config value? max 3% derivation, based on 180secs: ~5secs [0.97]
+    if ((tNow - tLast) < (DEFAULT_NETWORK_STATUS_BROADCAST_MS * 0.97)) {
       // not interested
       Log.warn('processStatus: status message received too often');
       return;
     }
     status.setT(tNow);
-    aT.push(status.getMessage() as StatusMessageStruct);
-    this.mapStatus.set(origin, aT);
+    aStatus.push(status.getMessage() as StatusMessageStruct);
+
+    this.setStatus(origin, aStatus);
+  }
+
+  private setStatus(origin: string, aStatus: Array<StatusMessageStruct>) {
+    this.mapStatus.set(origin, aStatus);
     this.storeStatus();
+
+    // reliability = ability of remote nodes to send regular status messages
+    const tNow: number = Date.now();
+    while (
+      aStatus.length &&
+      aStatus[0].t < (tNow - DEFAULT_NETWORK_STATUS_RELIABILITY_SPAN_MS)
+    ) {
+      aStatus.shift();
+    }
+    const expectedNumberMessages: number =
+      DEFAULT_NETWORK_STATUS_RELIABILITY_SPAN_MS /
+      DEFAULT_NETWORK_STATUS_BROADCAST_MS;
+    const r = aStatus.length / expectedNumberMessages;
+    this.mapReliability.set(origin, r > 1 ? 1 : r);
   }
 
   private async storeStatus() {
@@ -596,29 +626,25 @@ export class Network {
       JSON.stringify(this.getStatus()),
       { mode: 0o644 },
     );
-
-    this.calculateReputation();
   }
 
-  private calculateReputation() {
-    // reputation
-    const tNow: number = Date.now();
-    const tSpan: number = DEFAULT_NETWORK_STATUS_REPUTATION_SPAN_MS;
-    const tDiff: number = tNow - tSpan;
-    this.mapStatus.forEach((aT, origin) => {
-      while (aT.length && aT[0].t < tDiff) {
-        aT.shift();
-      }
-      const r = aT.length / (tSpan / DEFAULT_NETWORK_STATUS_BROADCAST_MS);
-      this.mapReputation.set(origin, r);
-    });
+  public getStatus(origin: string = ''): ArrayStatusStruct {
+    let aStatus: ArrayStatusStruct = {};
+    if (origin.length) {
+      aStatus[origin] = this.mapStatus.get(origin) || [];
+    } else {
+      aStatus = Object.fromEntries(this.mapStatus.entries());
+    }
+    return aStatus;
   }
 
-  public getStatus(): { [k: string]: Array<StatusMessageStruct> } {
-    return Object.fromEntries(this.mapStatus.entries());
-  }
-
-  public getReputation(): { [k: string]: number } {
-    return Object.fromEntries(this.mapReputation.entries());
+  public getReputation(origin: string): ArrayReputationStruct {
+    let aReliability: ArrayReputationStruct = {};
+    if (origin.length) {
+      aReliability[origin] = this.mapReliability.get(origin) || 0;
+    } else {
+      aReliability = Object.fromEntries(this.mapReliability.entries());
+    }
+    return aReliability;
   }
 }

@@ -74,9 +74,6 @@ export class Genesis {
       }
     }
 
-    const hasDebugPerformance: boolean =
-      (Deno.env.get('DEBUG_PERFORMANCE') || 0) == '1';
-
     let pathDataReal: string = '';
     let pathDataRelative: string = isTestnet ? 'test' : '';
     switch (type) {
@@ -175,7 +172,6 @@ export class Genesis {
       const iPort: number = i * 10;
       config = await Config.make({
         is_testnet: isTestnet,
-        debug_performance: hasDebugPerformance,
         bootstrap: bootstrap,
         ip: IP,
         port: PORT + iPort,

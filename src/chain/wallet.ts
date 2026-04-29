@@ -25,7 +25,6 @@ import { Config } from '../config.ts';
 import { toB32 } from '@i2p/sam';
 import { nanoid } from 'nanoid';
 import { randomInt } from 'node:crypto';
-import { Log } from '../logger.ts';
 
 export const NAME_HEADER_TOKEN_API = 'diva-token-api';
 const DEFAULT_LENGTH_TOKEN_API = 32;
@@ -39,7 +38,6 @@ export class Wallet {
 
   static make(config: Config): Wallet {
     const w: Wallet = new Wallet(config);
-    Log.trace('Wallet created');
     return w;
   }
 

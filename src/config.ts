@@ -55,9 +55,9 @@ const DEFAULT_I2P_SAM_TUNNEL_VAR_MAX: number = 2;
  */
 export const DEFAULT_NETWORK_STATUS_BROADCAST_MS: number = 1000 * 60 * 3;
 /**
- * Default time span to measure reputation: 24h
+ * Default time span to measure reliability: 24h
  */
-export const DEFAULT_NETWORK_STATUS_REPUTATION_SPAN_MS: number =
+export const DEFAULT_NETWORK_STATUS_RELIABILITY_SPAN_MS: number =
   DEFAULT_NETWORK_STATUS_BROADCAST_MS * 480; // 24h
 
 const DEFAULT_NETWORK_TIMEOUT_MS: number = 30000;
@@ -79,7 +79,6 @@ const MAX_API_MAX_QUERY_SIZE: number = 100;
  */
 export class Config {
   public is_testnet: boolean = true;
-  public debug_performance: boolean = false;
   public bootstrap: string = '';
   public VERSION: string = '';
 
@@ -142,9 +141,6 @@ export class Config {
     // TESTNET mode
     self.is_testnet = Config.tf(Deno.env.get('IS_TESTNET')) ||
       Config.tf(c.is_testnet);
-
-    self.debug_performance = Config.tf(Deno.env.get('DEBUG_PERFORMANCE')) ||
-      Config.tf(c.debug_performance);
 
     // Paths
     self.path_genesis = c.path_genesis;

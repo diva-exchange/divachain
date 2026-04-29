@@ -53,11 +53,18 @@ export class Server {
     Log.info(`HTTP endpoint ${this.config.http}`);
     Log.info(`UDP endpoint ${this.config.udp}`);
 
+    // First: independent modules
     this.wallet = Wallet.make(this.config);
-    this.chain = await Chain.make(this);
     this.validation = Validation.make();
+
+    // Core: create chain and network modules
+    this.chain = await Chain.make(this);
     this.network = Network.make(this);
+
+    // Then: the Transaction Factory depends on the Chain and Network
     this.txFactory = TxFactory.make(this);
+
+    // Last: create API
     this.api = Api.make(this);
 
     // standalone Websocket Server to feed block updates
@@ -129,17 +136,18 @@ export class Server {
     }, tx);
   }
 
-  //@TODO url might be anything, not only an API url...
-  //@TODO implementation: return value is unknown.
-  public async fetchFromApi(url: string, retry: number = 3): Promise<unknown> {
-    let r: Response;
+  // TODO url might be anything, not only an API url...
+  public async fetchFromApi(
+    url: string,
+    retry: number = 3,
+  ): Promise<Response | false> {
     try {
-      r = await fetch(url, {
+      const r: Response = await fetch(url, {
         client: this.clientProxy,
         signal: AbortSignal.timeout(this.config.network_timeout_ms),
       });
       Log.trace(`Server.fetchFromApi(${url}) - Status: ${r.status}`);
-      return r.json();
+      return r;
     } catch (error) {
       Log.warn(
         `Error (retry #: ${retry}) Server.fetchFromApi(${url}): ${error}`,

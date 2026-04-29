@@ -53,7 +53,6 @@ export class Chain {
   public static async make(server: Server): Promise<Chain> {
     const c: Chain = new Chain(server);
     await c.init();
-    Log.trace('Chain created');
     return c;
   }
 
@@ -96,11 +95,7 @@ export class Chain {
 
   private async init(): Promise<void> {
     const aPeer: Array<Peer> = await this.dbPeer.values().all();
-    // FIXME if the Peer database is not available (corrupted, deleted...)
-    // all the local data gets dumped!
-    if (!aPeer.length) {
-      await this.loadSeed();
-    } else {
+    if (aPeer.length) {
       for (const peer of aPeer) {
         try {
           await this.addPeer(peer);
@@ -112,10 +107,15 @@ export class Chain {
           );
         }
       }
+    } else {
+      // FIXME if the Peer database is not available (corrupted, deleted...)
+      // all the local data gets dumped!
+      await this.loadSeed();
     }
 
     await this.dbState.clear();
     Log.trace(`Running ${this.mapDbChain.size} databases...`);
+    // TODO inefficency: all local chains are (re-)loaded from block 1
     for (const [origin, db] of this.mapDbChain.entries()) {
       Log.trace(`Updating cache for database ${origin}`);
       for await (const tx of db.values()) {
@@ -137,7 +137,7 @@ export class Chain {
       throw error as Error;
     }
 
-    // add myself
+    // add local node
     aPeer.unshift({
       publicKey: this.publicKey,
       http: this.server.config.http,
@@ -157,7 +157,7 @@ export class Chain {
       await this.dbPeer.close();
     } catch (error: unknown) {
       // FIXME error handling
-      Log.error((error as Error).toString());
+      Log.error(JSON.stringify(error));
       return;
     }
   }
@@ -169,20 +169,22 @@ export class Chain {
       if (!p.endsWith('.i2p')) {
         return;
       }
+
       // get network info, see api.ts
-      const aPeer: Array<Peer> | unknown = await this.server.fetchFromApi(
+      const r: Response | false = await this.server.fetchFromApi(
         `http://${p}/network/`,
       );
-      if (Array.isArray(aPeer)) {
-        for await (const peer of aPeer) {
-          if (await this.addPeer(peer)) {
-            // send a join request to this peer
-            await this.server.fetchFromApi(
-              `http://${
-                toB32(peer.http)
-              }.b32.i2p/join/${this.publicKey}/${this.server.config.http}`,
-            );
-          }
+
+      const aPeer: Array<Peer> = r ? await r.json() : [];
+      aPeer.length && Log.trace(`Bootstrapping, using: http://${p}/network/`);
+      for await (const peer of aPeer) {
+        if (await this.addPeer(peer)) {
+          // send a join request to a peer
+          await this.server.fetchFromApi(
+            `http://${
+              toB32(peer.http)
+            }.b32.i2p/join/${this.publicKey}/${this.server.config.http}`,
+          );
         }
       }
     }
@@ -201,12 +203,13 @@ export class Chain {
     this.mapPeer = new Map();
   }
 
+  // FIXME IMPORTANT: this MUST NOT be a public method!
+  // FIXME IMPORTANT: there is no validation...
   /**
    * Add a new transaction to a chain
    * @param tx TxStruct
    */
   public async addTx(tx: TxStruct): Promise<void> {
-    // TODO validation here?
     if (!this.mapPeer.has(tx.o)) {
       throw new Error(`Unknown peer: ${tx.o}`);
     }
@@ -224,6 +227,8 @@ export class Chain {
       await this.processState(tx);
     }
     this.mapLock.delete(tx.o);
+
+    Log.trace(`New tx #${tx.h} on chain ${tx.o}`);
   }
 
   private updateCache(tx: TxStruct): void {
@@ -316,6 +321,7 @@ export class Chain {
     }
 
     const a: Array<TxStruct> = [];
+    // FIXME this searches only the latest <api_max_query_size> records...
     for await (
       const value of db.values({
         reverse: true,
@@ -333,10 +339,14 @@ export class Chain {
 
   public async getTx(
     height: number,
-    origin: string,
+    origin?: string,
   ): Promise<TxStruct | undefined> {
-    const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(origin);
-    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
+    const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(
+      origin || this.publicKey,
+    );
+    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(
+      origin || this.publicKey,
+    );
     if (!mT || !db) {
       return;
     }
@@ -376,12 +386,12 @@ export class Chain {
   }
 
   // get latest local tx
-  public getLatestTx(origin: string): TxStruct | undefined {
-    return this.mapLatestTx.get(origin);
+  public getLatestTx(origin?: string): TxStruct | undefined {
+    return this.mapLatestTx.get(origin || this.publicKey);
   }
 
-  public getHeight(origin: string): number {
-    return this.mapHeight.get(origin) || 0;
+  public getHeight(origin?: string): number {
+    return this.mapHeight.get(origin || this.publicKey) || 0;
   }
 
   public getMapPeer(): Map<string, Peer> {
@@ -430,13 +440,6 @@ export class Chain {
   }
 
   private async processState(tx: TxStruct): Promise<void> {
-    if (this.server.config.debug_performance) {
-      await this.updateStateData(
-        `debug-performance-${tx.o}-${tx.h}`,
-        new Date().getTime().toString(),
-      );
-    }
-
     for (const c of tx.cs) {
       switch (c.c) {
         case COMMAND_DATA:

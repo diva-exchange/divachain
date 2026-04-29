@@ -36,6 +36,20 @@ class Main {
     // initialize environment and logging
     Main.env();
 
+    // TODO review global error handling
+    globalThis.addEventListener('error', (e) => {
+      console.error('UNHANDLED ERROR: ', e.message);
+      Log.fatal(`UNHANDLED ERROR: ${e.message}`);
+      e.preventDefault();
+      Deno.exit(9);
+    });
+    globalThis.addEventListener('unhandledrejection', (e) => {
+      console.error('UNHANDLED REJECTION: ', e.reason);
+      Log.fatal(`UNHANDLED REJECTION: ${e.reason}`);
+      e.preventDefault();
+      Deno.exit(9);
+    });
+
     // is it a genesis generation process?
     if (Deno.env.get('GENESIS')) {
       const mod = await import('./genesis.ts');
