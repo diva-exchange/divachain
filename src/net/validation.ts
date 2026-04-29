@@ -34,7 +34,6 @@ import { StatusMessageStruct } from './message/status.ts';
 import { AddPeerMessageStruct } from './message/add-peer.ts';
 import { RemovePeerMessageStruct } from './message/remove-peer.ts';
 import { Util } from '../chain/util.ts';
-import { Log } from '../logger.ts';
 
 export class Validation {
   private readonly Tx: ValidateFunction;
@@ -44,7 +43,6 @@ export class Validation {
 
   static make(): Validation {
     const v: Validation = new Validation();
-    Log.trace('Validation created');
     return v;
   }
 
