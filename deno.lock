@@ -1,12 +1,10 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@hono/hono@^4.12.10": "4.12.10",
-    "jsr:@i2p/sam@6": "6.0.0",
-    "jsr:@std/bytes@*": "1.0.6",
+    "jsr:@hono/hono@^4.12.15": "4.12.15",
+    "jsr:@i2p/sam@^6.1.0": "6.1.0",
     "jsr:@std/bytes@^1.0.6": "1.0.6",
-    "jsr:@std/crypto@*": "1.0.5",
-    "jsr:@std/crypto@^1.0.5": "1.0.5",
+    "jsr:@std/crypto@^1.1.0": "1.1.0",
     "jsr:@std/encoding@*": "1.0.10",
     "jsr:@std/encoding@^1.0.10": "1.0.10",
     "jsr:@std/fs@^1.0.23": "1.0.23",
@@ -14,10 +12,10 @@
     "jsr:@std/path@^1.1.4": "1.1.4",
     "npm:@types/node@*": "24.2.0",
     "npm:@types/sodium-native@^2.3.9": "2.3.9",
-    "npm:ajv@^8.18.0": "8.18.0",
+    "npm:ajv@^8.20.0": "8.20.0",
     "npm:level@10": "10.0.0",
     "npm:nanoid@5.1.6": "5.1.6",
-    "npm:nanoid@^5.1.7": "5.1.7",
+    "npm:nanoid@^5.1.9": "5.1.9",
     "npm:pino@^10.3.1": "10.3.1",
     "npm:rfc4648@1.5.4": "1.5.4",
     "npm:socks-proxy-agent@10": "10.0.0",
@@ -25,13 +23,13 @@
     "npm:ws@^8.20.0": "8.20.0"
   },
   "jsr": {
-    "@hono/hono@4.12.10": {
-      "integrity": "6e608e50bb13fd0933e86fda95d31c1ff57d1c8774ed585d6a8b8fc1bdd82c82"
+    "@hono/hono@4.12.15": {
+      "integrity": "06a0aef73d9072e73b8db570b81a5b56a94095d697578202a87fccdf04ce352d"
     },
-    "@i2p/sam@6.0.0": {
-      "integrity": "4247b2c6a6623be748485b4f4ede798db59a4a521e321c7109eab73a1107e80e",
+    "@i2p/sam@6.1.0": {
+      "integrity": "d730cb297d4db2c8ed477912dbcf516b44db66067f5bf3201d597db2daeda81c",
       "dependencies": [
-        "jsr:@std/bytes@^1.0.6",
+        "jsr:@std/bytes",
         "npm:nanoid@5.1.6",
         "npm:rfc4648"
       ]
@@ -39,8 +37,8 @@
     "@std/bytes@1.0.6": {
       "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
     },
-    "@std/crypto@1.0.5": {
-      "integrity": "0dcfbb319fe0bba1bd3af904ceb4f948cde1b92979ec1614528380ed308a3b40"
+    "@std/crypto@1.1.0": {
+      "integrity": "b8d6d0a6377a32b213af2661ed7bf1062d94feac0c57def5526a8e74a95c3ec8"
     },
     "@std/encoding@1.0.10": {
       "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
@@ -92,8 +90,8 @@
     "agent-base@9.0.0": {
       "integrity": "sha512-TQf59BsZnytt8GdJKLPfUZ54g/iaUL2OWDSFCCvMOhsHduDQxO8xC4PNeyIkVcA5KwL2phPSv0douC0fgWzmnA=="
     },
-    "ajv@8.18.0": {
-      "integrity": "sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A==",
+    "ajv@8.20.0": {
+      "integrity": "sha512-Thbli+OlOj+iMPYFBVBfJ3OmCAnaSyNn4M1vz9T6Gka5Jt9ba/HIR56joy65tY6kx/FCF5VXNB819Y7/GUrBGA==",
       "dependencies": [
         "fast-deep-equal",
         "fast-uri",
@@ -245,8 +243,8 @@
       "integrity": "sha512-c7+7RQ+dMB5dPwwCp4ee1/iV/q2P6aK1mTZcfr1BTuVlyW9hJYiMPybJCcnBlQtuSmTIWNeazm/zqNoZSSElBg==",
       "bin": true
     },
-    "nanoid@5.1.7": {
-      "integrity": "sha512-ua3NDgISf6jdwezAheMOk4mbE1LXjm1DfMUDMuJf4AqxLFK3ccGpgWizwa5YV7Yz9EpXwEaWoRXSb/BnV0t5dQ==",
+    "nanoid@5.1.9": {
+      "integrity": "sha512-ZUvP7KeBLe3OZ1ypw6dI/TzYJuvHP77IM4Ry73waSQTLn8/g8rpdjfyVAh7t1/+FjBtG4lCP42MEbDxOsRpBMw==",
       "bin": true
     },
     "napi-macros@2.2.2": {
@@ -382,16 +380,16 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@hono/hono@^4.12.10",
-      "jsr:@i2p/sam@6",
+      "jsr:@hono/hono@^4.12.15",
+      "jsr:@i2p/sam@^6.1.0",
       "jsr:@std/bytes@^1.0.6",
-      "jsr:@std/crypto@^1.0.5",
+      "jsr:@std/crypto@^1.1.0",
       "jsr:@std/encoding@^1.0.10",
       "jsr:@std/fs@^1.0.23",
       "npm:@types/sodium-native@^2.3.9",
-      "npm:ajv@^8.18.0",
+      "npm:ajv@^8.20.0",
       "npm:level@10",
-      "npm:nanoid@^5.1.7",
+      "npm:nanoid@^5.1.9",
       "npm:pino@^10.3.1",
       "npm:socks-proxy-agent@10",
       "npm:sodium-native@5.1.0",
