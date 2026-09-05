@@ -1,44 +1,41 @@
 /**
- * Copyright (C) 2021-2025 diva.exchange
+ * Copyright (C) 2021-2026 diva.exchange
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * See /LICENSE file for details.
  *
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { decodeBase64Url, encodeBase64Url } from '@std/encoding';
 import sodium, { SecureBuffer } from 'sodium-native';
-import { TxStruct } from './tx.ts';
+import { Buffer } from 'node:buffer';
+import { crypto } from '@std/crypto/crypto';
+import { ConsensusBlockStruct, SocBlockStruct } from './block.ts';
+import { Economics } from './economics.ts';
+import init, { grind_pow } from '../wasm/blake3_wasm.js';
 
 export class Util {
   /**
-   * Hash of a transaction (TxStruct)
-   * @param tx TxStruct
-   * @returns hash of a TxStruct
+   * Hash of a block (BlockStruct)
+   * The 'ha' (hash) field itself is intentionally ignored in the calculation.
+   * @param block BlockStruct
+   * @returns hash of a BlockStruct
    */
-  public static hash(tx: TxStruct): string {
-    const bufferOutput: SecureBuffer = sodium.sodium_malloc(
+  public static hash(
+    b: SocBlockStruct | ConsensusBlockStruct,
+  ): string {
+    // Use standard heap memory (Buffer) to avoid memory leaks
+    const bufferOutput: SecureBuffer = Buffer.alloc(
       sodium.crypto_hash_sha256_BYTES,
-    );
-    sodium.crypto_hash_sha256(
-      bufferOutput,
-      new TextEncoder().encode(
-        [tx.v, tx.h, tx.p, tx.o, JSON.stringify(tx.cs)].join(
-          ',',
-        ),
-      ) as SecureBuffer,
-    );
+    ) as SecureBuffer;
+
+    const dataStr: string = ('h' in b)
+      ? [b.e, b.h, b.p, JSON.stringify(b.cs)].join(',')
+      : [b.e, b.p, JSON.stringify(b.cs)].join(',');
+    const dataBuffer: SecureBuffer = Buffer.from(dataStr) as SecureBuffer;
+
+    sodium.crypto_hash_sha256(bufferOutput, dataBuffer);
+
     return encodeBase64Url(bufferOutput);
   }
 
@@ -48,12 +45,21 @@ export class Util {
     data: string,
   ): boolean {
     try {
+      // Use Buffer to correctly cast Uint8Array to sodium-native's expected SecureBuffer
+      const sigBuf: SecureBuffer = Buffer.from(
+        decodeBase64Url(sig),
+      ) as SecureBuffer;
+      const dataBuf: SecureBuffer = Buffer.from(data) as SecureBuffer;
+      const pubKeyBuf: SecureBuffer = Buffer.from(
+        decodeBase64Url(publicKey),
+      ) as SecureBuffer;
+
       return sodium.crypto_sign_verify_detached(
-        decodeBase64Url(sig) as SecureBuffer,
-        new TextEncoder().encode(data) as SecureBuffer,
-        decodeBase64Url(publicKey) as SecureBuffer,
+        sigBuf,
+        dataBuf,
+        pubKeyBuf,
       );
-    } catch (_error) {
+    } catch (_error: unknown) {
       return false;
     }
   }
@@ -85,9 +91,9 @@ export class Util {
       throw new Error('Invalid Argument');
     }
 
-    const as = array.sort((a, b) => a - b);
-    const qi1 = as[Math.floor(array.length * 0.25)] - as[0];
-    const qi3 = as[Math.floor(array.length * 0.75)] - as[0];
+    const as: Array<number> = array.sort((a, b) => a - b);
+    const qi1: number = as[Math.floor(array.length * 0.25)] - as[0];
+    const qi3: number = as[Math.floor(array.length * 0.75)] - as[0];
     return (qi3 - qi1) / (qi3 + qi1);
   }
 
@@ -100,5 +106,88 @@ export class Util {
       r += Math.abs(a.charCodeAt(i) - b.charCodeAt(i));
     }
     return r;
+  }
+
+  /**
+   * Calculates the XOR distance between two strings (e.g., Public Keys).
+   * Used for deterministic Kademlia-like neighborhood selection.
+   *
+   * @param a First public key
+   * @param b Second public key
+   * @returns BigInt representing the absolute mathematical distance
+   */
+  public static xorDistance(a: string, b: string): bigint {
+    const len = Math.max(a.length, b.length);
+    let distance = 0n;
+    for (let i = 0; i < len; i++) {
+      const byteA = i < a.length ? a.charCodeAt(i) : 0;
+      const byteB = i < b.length ? b.charCodeAt(i) : 0;
+      distance = (distance << 8n) + BigInt(byteA ^ byteB);
+    }
+    return distance;
+  }
+
+  /**
+   * Hashes a generic string using SHA-256 and returns a base64url encoded string.
+   * @param data The string to hash
+   * @returns A base64url encoded SHA-256 hash
+   */
+  public static hashString(data: string): string {
+    const bufferOutput: SecureBuffer = Buffer.alloc(
+      sodium.crypto_hash_sha256_BYTES,
+    ) as SecureBuffer;
+
+    const dataBuffer: SecureBuffer = Buffer.from(data) as SecureBuffer;
+    sodium.crypto_hash_sha256(bufferOutput, dataBuffer);
+
+    return encodeBase64Url(bufferOutput);
+  }
+
+  /**
+   * Validates if a given string is a strictly formatted I2P Base32 address.
+   */
+  public static isI2pBase32Address(address: string): boolean {
+    return /^[a-z2-7]{52}\.b32\.i2p$/.test(address);
+  }
+
+  /**
+   * Asynchronous PoW verification for the Storage Committee using Deno's native BLAKE3.
+   * Target: The first 2 bytes of the hash must be zero (Difficulty = 16 bits).
+   */
+  public static async verifyIdentityPoW(
+    pubKey: string,
+    nonce: string,
+  ): Promise<boolean> {
+    const data = new TextEncoder().encode(pubKey + nonce);
+    const hashBuffer = await crypto.subtle.digest('BLAKE3', data);
+    const hashArray = new Uint8Array(hashBuffer);
+
+    const difficulty = Util.getIdentityPoWDifficulty();
+    const bytesNeeded = Math.ceil(difficulty / 2);
+
+    let hexString = '';
+    for (let i = 0; i < bytesNeeded; i++) {
+      hexString += hashArray[i].toString(16).padStart(2, '0');
+    }
+
+    return hexString.startsWith('0'.repeat(difficulty));
+  }
+
+  /**
+   * CPU-Grinding for new SOC_KEY generation
+   */
+  public static async grindIdentityPoW(
+    pubKey: string,
+    difficulty: number = 2,
+  ): Promise<string> {
+    await init();
+    return grind_pow(pubKey, difficulty);
+  }
+
+  /**
+   * Returns the required number of leading zero hex characters.
+   */
+  public static getIdentityPoWDifficulty(): number {
+    return Economics.IS_TESTNET ? 1 : 4;
   }
 }

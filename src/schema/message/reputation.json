@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/message/reputation.json",
+  "type": "object",
+  "properties": {
+    "c": {
+      "description": "Command",
+      "type": "string",
+      "pattern": "^reputation$"
+    },
+    "ns": {
+      "description": "Namespace",
+      "type": "string",
+      "pattern": "^([A-Za-z0-9_-]{2,16}:){1,7}[A-Za-z0-9_-]{2,16}$"
+    },
+    "d": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 300,
+      "items": {
+        "type": "object",
+        "properties": {
+          "pk": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "sig": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{86}$"
+          },
+          "r": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "pk"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "c",
+    "ns",
+    "d"
+  ],
+  "additionalProperties": false
+}

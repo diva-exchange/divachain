@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "/schema/message/data.json",
+
+  "type": "object",
+  "properties": {
+    "c": {
+      "type": "string",
+      "pattern": "^data$"
+    },
+    "ns": {
+      "type": "string",
+      "pattern": "^([A-Za-z0-9_-]{2,16}:){1,7}[A-Za-z0-9_-]{2,16}$"
+    },
+    "d": {
+      "type": "string",
+      "maxLength": 8000
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "c",
+    "ns",
+    "d"
+  ]
+}

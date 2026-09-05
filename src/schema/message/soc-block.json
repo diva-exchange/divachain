@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "/schema/message/soc-block.json",
+
+  "type": "object",
+  "properties": {
+    "e": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "h": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ha": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "p": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "sig": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$"
+    },
+    "cs": {
+      "type": "array",
+      "items": {
+        "$ref": "data.json"
+      },
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "e",
+    "h",
+    "ha",
+    "p",
+    "sig",
+    "cs"
+  ],
+  "additionalProperties": false
+}

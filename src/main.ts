@@ -1,18 +1,7 @@
 /**
  * Copyright (C) 2025-2026 diva.exchange
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * See /LICENSE file for details.
  *
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
@@ -28,45 +17,41 @@ type functionCallback = () => void;
 class Main {
   private static pathConfig: string;
   private static config: Config = {} as Config;
+  private static server?: Server; // static for shutdown
 
   /**
    * Run main program
    */
   static async run() {
-    // initialize environment and logging
     Main.env();
 
-    // TODO review global error handling
-    globalThis.addEventListener('error', (e) => {
-      console.error('UNHANDLED ERROR: ', e.message);
-      Log.fatal(`UNHANDLED ERROR: ${e.message}`);
+    globalThis.addEventListener('unhandledrejection', async (e) => {
       e.preventDefault();
-      Deno.exit(9);
-    });
-    globalThis.addEventListener('unhandledrejection', (e) => {
-      console.error('UNHANDLED REJECTION: ', e.reason);
-      Log.fatal(`UNHANDLED REJECTION: ${e.reason}`);
-      e.preventDefault();
-      Deno.exit(9);
+      const stack = e.reason && e.reason.stack ? e.reason.stack : e.reason;
+      Log.fatal(`UNHANDLED REJECTION:\n${stack}`);
+      await Main.shutdown(9);
     });
 
-    // is it a genesis generation process?
+    globalThis.addEventListener('error', async (e) => {
+      e.preventDefault();
+      const stack = e.error && e.error.stack ? e.error.stack : e.message;
+      Log.fatal(`UNCAUGHT EXCEPTION:\n${stack}`);
+      await Main.shutdown(9);
+    });
+
     if (Deno.env.get('GENESIS')) {
       const mod = await import('./genesis.ts');
       await mod.Genesis.create();
       Deno.exit(0);
     }
 
-    // check configuration file
     Main.config = await Main.checkConfig();
 
-    // start main process
-    const server: Server = new Server(Main.config);
+    Main.server = new Server(Main.config);
+    await Main.server.init();
 
-    // termination handlers
     const signalShutdown: functionCallback = async () => {
-      await server.shutdown();
-      Deno.exit(0);
+      await Main.shutdown(0);
     };
     Deno.addSignalListener('SIGINT', signalShutdown);
     Deno.addSignalListener('SIGTERM', signalShutdown);
@@ -74,9 +59,18 @@ class Main {
       Deno.addSignalListener('SIGBREAK', signalShutdown);
   }
 
-  // set environment
-  //   development or production, defaults to development
-  // set log level
+  private static async shutdown(code: number) {
+    if (Main.server) {
+      try {
+        await Main.server.shutdown();
+      } catch (err) {
+        Log.error(`Shutdown error: ${(err as Error).message}`);
+      }
+    }
+    Log.flush();
+    Deno.exit(code);
+  }
+
   private static env() {
     switch (Deno.env.get('DIVA_ENV') || '') {
       case 'production':
@@ -98,7 +92,6 @@ class Main {
       return;
     }
 
-    // set a valid log level
     let level: string = Deno.env.get('LOG_LEVEL') || '';
     switch (level) {
       case 'trace':
@@ -125,30 +118,64 @@ class Main {
       } else {
         c = JSON.parse(await Deno.readTextFile(Main.pathConfig));
 
-        // initialize application log
         const _p: string = Deno.env.get('PATH_LOG') || c.path_log || 'stdout';
         Logger.make(_p, Deno.env.get('LOG_LEVEL'));
 
-        Main.checkConfigPath(c, 'path_keys');
-        Main.checkConfigPath(c, 'path_chain');
-        Main.checkConfigPath(c, 'path_state');
-        if (
-          !c.path_genesis || !(await exists(c.path_genesis)) ||
-          !/\.json$/.test(c.path_genesis)
-        ) {
+        if (!c.path_keystore || !/\.enc$/.test(c.path_keystore)) {
           throw new Error(
-            'Invalid configuration file, path_genesis invalid: ' +
+            'Invalid configuration file, path_keystore invalid (must end with .enc): ' +
               Main.pathConfig,
           );
         }
+        const keystoreDir = c.path_keystore.substring(
+          0,
+          c.path_keystore.lastIndexOf('/'),
+        );
+        if (
+          keystoreDir && !(await exists(keystoreDir, { isDirectory: true }))
+        ) {
+          throw new Error(
+            `Invalid configuration: Keystore directory ${keystoreDir} not found: ${Main.pathConfig}`,
+          );
+        }
+
+        Main.checkConfigPath(c, 'path_consensus');
+        Main.checkConfigPath(c, 'path_soc');
+        Main.checkConfigPath(c, 'path_soc_index');
+
+        if (
+          c.path_genesis_consensus &&
+          (!(await exists(c.path_genesis_consensus)) ||
+            !/\.json$/.test(c.path_genesis_consensus))
+        ) {
+          throw new Error(
+            'Invalid configuration file, path_genesis_consensus invalid: ' +
+              Main.pathConfig,
+          );
+        }
+
+        if (
+          !c.path_genesis_soc || !(await exists(c.path_genesis_soc)) ||
+          !/\.json$/.test(c.path_genesis_soc)
+        ) {
+          throw new Error(
+            'Invalid configuration file, path_genesis_chain invalid: ' +
+              Main.pathConfig,
+          );
+        }
+
         Log.info('Application configuration: ' + Main.pathConfig);
       }
     } catch (e: unknown) {
-      console.error('FATAL, INIT FAILED: ' + (e as Error).message);
+      if (typeof Log !== 'undefined') {
+        Log.fatal('FATAL, INIT FAILED: ' + (e as Error).message);
+      } else {
+        console.error('FATAL, INIT FAILED: ' + (e as Error).message);
+      }
       Deno.exit(1);
     }
 
-    return await Config.make(c);
+    return Config.make(c);
   }
 
   private static async checkConfigPath(c: Config, key: string) {

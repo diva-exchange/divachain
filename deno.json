@@ -8,23 +8,24 @@
   "tasks": {
     "dev-n0": "DIVA_ENV=dev PATH_CONFIG=test/data/dev/n0000000/config.json deno run --allow-all ./src/main.ts",
     "lint": "deno lint",
-    "test": "DIVA_ENV=dev PATH_CONFIG=test/data/dev/n0000000/config.json deno test --clean --coverage ./test/coverage/ ./test/src/"
+    "test": "DIVA_ENV=dev PATH_CONFIG=test/data/dev/n0000000/config.json deno test --allow-all --clean ./test/src/ && deno coverage ./test/coverage/ --exclude=test/helpers"
   },
   "imports": {
-    "@i2p/sam": "jsr:@i2p/sam@^6.1.0",
-    "@hono/hono": "jsr:@hono/hono@^4.12.15",
+    "@i2p/sam": "jsr:@i2p/sam@7.0.0",
+    "@hono/hono": "jsr:@hono/hono@^4.13.5",
+    "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/bytes": "jsr:@std/bytes@^1.0.6",
     "@std/crypto": "jsr:@std/crypto@^1.1.0",
-    "@std/encoding": "jsr:@std/encoding@^1.0.10",
-    "@std/fs": "jsr:@std/fs@^1.0.23",
+    "@std/encoding": "jsr:@std/encoding@^1.0.11",
+    "@std/fs": "jsr:@std/fs@^1.0.24",
     "@types/sodium-native": "npm:@types/sodium-native@^2.3.9",
     "ajv": "npm:ajv@^8.20.0",
     "level": "npm:level@^10.0.0",
-    "nanoid": "npm:nanoid@^5.1.9",
+    "nanoid": "npm:nanoid@^6.0.1",
     "pino": "npm:pino@^10.3.1",
-    "socks-proxy-agent": "npm:socks-proxy-agent@^10.0.0",
+    "socks-proxy-agent": "npm:socks-proxy-agent@^10.1.0",
     "sodium-native": "npm:sodium-native@5.1.0",
-    "ws": "npm:ws@^8.20.0"
+    "ws": "npm:ws@^8.21.3"
   },
   "lint": {
     "include": ["src/"],

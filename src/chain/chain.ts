@@ -1,54 +1,62 @@
 /**
  * Copyright (C) 2022-2026 diva.exchange
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * See /LICENSE file for details.
  *
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
 import { Level } from 'level';
 import path from 'node:path';
-import { COMMAND_DATA, CommandData, TxStruct } from './tx.ts';
+import {
+  COMMAND_DATA,
+  COMMAND_REPUTATION,
+  COMMAND_VALIDATORS,
+  CommandData,
+  CommandReputation,
+  CommandValidators,
+  ConsensusBlockStruct,
+  ReputationEntry,
+  SocBlockStruct,
+} from './block.ts';
+import { Namespace } from './namespace.ts';
 import { Server } from '../net/server.ts';
 import { Log } from '../logger.ts';
 import { Util } from './util.ts';
-import { toB32 } from '@i2p/sam';
+import { LIMIT_SOC_BYTES_HARD } from '../config.ts';
 
-export type Peer = {
-  publicKey: string;
-  http: string;
-  udp: string;
-};
+type KV = { key: string; value: string };
+type aKV = Array<{ key: string; value: string }>;
 
 export class Chain {
   private readonly server: Server;
-  private readonly publicKey: string;
-  private readonly mapDbChain: Map<string, Level<string, TxStruct>>;
-  private readonly dbState: Level<string, string>;
-  private readonly dbPeer: Level<string, Peer>;
+  private readonly nodeId: string;
+  private readonly primarySoc: string;
 
-  private mapHeight: Map<string, number>; // origin -> height
-  private mapTxs: Map<string, Map<number, TxStruct>>; // origin -> height
-  private mapLatestTx: Map<string, TxStruct>;
+  private readonly mapDbSoc: Map<string, Level<string, SocBlockStruct>>;
+  private mapHeight: Map<string, number>;
+  private mapSocBlocks: Map<string, Map<number, SocBlockStruct>>;
+  private mapLatestSocBlock: Map<string, SocBlockStruct>;
+  private readonly mapSocBytes: Map<string, number> = new Map();
+  private readonly mapSocQueue: Map<string, Promise<void>> = new Map();
 
-  private mapLock: Map<string, number> = new Map();
+  private dbConsensus: Level<string, ConsensusBlockStruct> = {} as Level<
+    string,
+    ConsensusBlockStruct
+  >;
+  private mapConsensusBlocks: Map<number, ConsensusBlockStruct>;
+  private latestConsensusBlock: ConsensusBlockStruct | null = null;
+  private consensusQueue: Promise<void> = Promise.resolve();
 
-  private mapPeer: Map<string, Peer>;
-  private mapHttp: Map<string, string>;
-  private mapUdp: Map<string, string>;
+  private dbReputation: Level<string, string> = {} as Level<
+    string,
+    string
+  >;
 
-  private countNodes: number;
+  private dbSocIndex: Level<string, string> = {} as Level<
+    string,
+    string
+  >;
 
   public static async make(server: Server): Promise<Chain> {
     const c: Chain = new Chain(server);
@@ -58,206 +66,315 @@ export class Chain {
 
   private constructor(server: Server) {
     this.server = server;
-    this.publicKey = this.server.getWallet().getPublicKey();
 
-    this.mapDbChain = new Map();
+    this.nodeId = this.server.getWallet().getNodePublicKey();
+    this.primarySoc = this.server.getWallet().getPublicKey();
 
-    const pathDbState: string = path.join(
-      this.server.config.path_state,
-      this.publicKey,
-    );
-    this.dbState = new Level(pathDbState, {
-      valueEncoding: 'utf8',
-      createIfMissing: true,
-      errorIfExists: false,
-    });
+    this.mapDbSoc = new Map();
+    this.mapHeight = new Map();
+    this.mapSocBlocks = new Map();
+    this.mapLatestSocBlock = new Map();
+    this.mapConsensusBlocks = new Map();
+  }
 
-    const pathDbPeer: string = path.join(
-      this.server.config.path_state,
-      this.publicKey + '-peer',
-    );
-    this.dbPeer = new Level(pathDbPeer, {
+  private async init(): Promise<void> {
+    this.dbConsensus = new Level(this.server.config.path_consensus, {
       valueEncoding: 'json',
       createIfMissing: true,
       errorIfExists: false,
     });
+    await this.dbConsensus.open();
 
-    this.mapHeight = new Map();
-    this.mapTxs = new Map();
-    this.mapLatestTx = new Map();
+    this.dbReputation = new Level(this.server.config.path_reputation, {
+      valueEncoding: 'utf8',
+      createIfMissing: true,
+      errorIfExists: false,
+    });
+    await this.dbReputation.open();
 
-    this.mapPeer = new Map();
-    this.mapHttp = new Map();
-    this.mapUdp = new Map();
+    const pathDbSocIndex: string = path.join(
+      this.server.config.path_soc_index,
+      'namespaces',
+    );
+    this.dbSocIndex = new Level(pathDbSocIndex, {
+      valueEncoding: 'utf8',
+      createIfMissing: true,
+      errorIfExists: false,
+    });
+    await this.dbSocIndex.open();
+    await this.dbSocIndex.clear();
+    await this.addSoc(this.nodeId);
 
-    this.countNodes = 0;
+    const localSocs = this.server.getWallet().getAllSocs();
+    for (const soc of localSocs) {
+      await this.addSoc(soc.publicKey);
+    }
+
+    await this.initConsensusStore();
   }
 
-  private async init(): Promise<void> {
-    const aPeer: Array<Peer> = await this.dbPeer.values().all();
-    if (aPeer.length) {
-      for (const peer of aPeer) {
-        try {
-          await this.addPeer(peer);
-        } catch (error) {
-          Log.warn(
-            `init/addPeer failed: ${JSON.stringify(error)} / ${
-              JSON.stringify(peer)
-            }`,
-          );
-        }
+  private async initConsensusStore(): Promise<void> {
+    const isEmpty =
+      (await this.dbConsensus.keys({ limit: 1 }).all()).length === 0;
+
+    if (isEmpty) {
+      if (this.server.config.path_genesis_consensus) {
+        Log.info('Consensus store empty. Loading local genesis block...');
+        const genesis = await Chain.loadGenesis<ConsensusBlockStruct>(
+          this.server.config.path_genesis_consensus,
+        );
+        await this.addConsensusBlock(genesis);
+      } else {
+        Log.info(
+          'Consensus store empty. Awaiting Trust Anchor via P2P sync...',
+        );
       }
     } else {
-      // FIXME if the Peer database is not available (corrupted, deleted...)
-      // all the local data gets dumped!
-      await this.loadSeed();
-    }
+      Log.trace('Updating cache for consensus store...');
+      for await (const block of this.dbConsensus.values()) {
+        this.updateConsensusCache(block);
 
-    await this.dbState.clear();
-    Log.trace(`Running ${this.mapDbChain.size} databases...`);
-    // TODO inefficency: all local chains are (re-)loaded from block 1
-    for (const [origin, db] of this.mapDbChain.entries()) {
-      Log.trace(`Updating cache for database ${origin}`);
-      for await (const tx of db.values()) {
-        this.updateCache(tx);
-        await this.processState(tx);
+        const stateKey = Namespace.validatorsForEpoch(block.e);
+        const hasState = await this.getReputationState(stateKey);
+        if (!hasState) {
+          await this.processConsensusState(block);
+        }
       }
     }
-  }
-
-  private async loadSeed(): Promise<void> {
-    let aPeer: Array<Peer> = [];
-    // load seed peers from file
-    try {
-      Log.trace(`Loading peers from ${this.server.config.path_peer_seed}`);
-      aPeer = JSON.parse(
-        await Deno.readTextFile(this.server.config.path_peer_seed),
-      );
-    } catch (error: unknown) {
-      throw error as Error;
-    }
-
-    // add local node
-    aPeer.unshift({
-      publicKey: this.publicKey,
-      http: this.server.config.http,
-      udp: this.server.config.udp,
-    });
-    aPeer.forEach(async (p: Peer) => {
-      await this.addPeer(p);
-    });
   }
 
   public async shutdown(): Promise<void> {
     try {
-      for (const db of this.mapDbChain.values()) {
+      for (const db of this.mapDbSoc.values()) {
         await db.close();
       }
-      await this.dbState.close();
-      await this.dbPeer.close();
-    } catch (error: unknown) {
-      // FIXME error handling
-      Log.error(JSON.stringify(error));
-      return;
+      await this.dbConsensus.close();
+      await this.dbReputation.close();
+      await this.dbSocIndex.close();
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      Log.error({ err }, 'shutdown() failed');
     }
   }
 
-  public async bootstrap(): Promise<void> {
-    const aBootstrap: Array<string> = this.server.config.bootstrap.split(',')
-      .map((s) => s.trim());
-    for await (const p of aBootstrap) {
-      if (!p.endsWith('.i2p')) {
+  public async getConsensusBlockByEpoch(
+    epoch: number,
+  ): Promise<[ConsensusBlockStruct | null, Error | null]> {
+    if (epoch < 1) {
+      return [null, new Error(`Invalid epoch: ${epoch}`)];
+    }
+
+    const cached = this.mapConsensusBlocks.get(epoch);
+    if (cached) return [cached, null];
+
+    try {
+      const block = await this.dbConsensus.get(String(epoch).padStart(16, '0'));
+      if (block === undefined) {
+        return [
+          null,
+          new Error(`Consensus block for epoch ${epoch} not found`),
+        ];
+      }
+      return [block, null];
+    } catch (e: unknown) {
+      return [null, e instanceof Error ? e : new Error(String(e))];
+    }
+  }
+
+  public addConsensusBlock(block: ConsensusBlockStruct): Promise<void> {
+    this.consensusQueue = this.consensusQueue.then(async () => {
+      const currentEpoch = this.getCurrentEpoch();
+      if (block.e <= currentEpoch) return;
+
+      if (
+        this.latestConsensusBlock && block.p !== this.latestConsensusBlock.ha
+      ) {
+        Log.error(
+          `CRITICAL: Chain break rejected in DB! Expected prev: ${this.latestConsensusBlock.ha}, got: ${block.p}`,
+        );
         return;
       }
 
-      // get network info, see api.ts
-      const r: Response | false = await this.server.fetchFromApi(
-        `http://${p}/network/`,
-      );
+      await this.dbConsensus.put(String(block.e).padStart(16, '0'), block);
+      this.updateConsensusCache(block);
+      await this.processConsensusState(block);
+      Log.trace(`New consensus block for epoch #${block.e}`);
+    }).catch((err) => {
+      Log.error({ err }, `Failed to add consensus block for epoch #${block.e}`);
+    });
 
-      const aPeer: Array<Peer> = r ? await r.json() : [];
-      aPeer.length && Log.trace(`Bootstrapping, using: http://${p}/network/`);
-      for await (const peer of aPeer) {
-        if (await this.addPeer(peer)) {
-          // send a join request to a peer
-          await this.server.fetchFromApi(
-            `http://${
-              toB32(peer.http)
-            }.b32.i2p/join/${this.publicKey}/${this.server.config.http}`,
-          );
-        }
+    return this.consensusQueue;
+  }
+
+  private updateConsensusCache(block: ConsensusBlockStruct): void {
+    this.latestConsensusBlock = block;
+
+    this.mapConsensusBlocks.set(block.e, block);
+    if (
+      this.mapConsensusBlocks.size >
+        this.server.config.chain_max_blocks_in_memory
+    ) {
+      this.mapConsensusBlocks.delete(
+        block.e - this.server.config.chain_max_blocks_in_memory,
+      );
+    }
+  }
+
+  public getCurrentEpoch(): number {
+    return this.latestConsensusBlock ? this.latestConsensusBlock.e : 0;
+  }
+
+  public getLatestConsensusBlock(): [ConsensusBlockStruct, null] | [
+    null,
+    Error,
+  ] {
+    if (!this.latestConsensusBlock) {
+      return [null, new Error('No consensus block available')];
+    }
+    return [this.latestConsensusBlock, null];
+  }
+
+  public async getConsensusRange(
+    gte: number,
+    lte: number,
+  ): Promise<Array<ConsensusBlockStruct>> {
+    const currentEpoch = this.getCurrentEpoch();
+    if (currentEpoch === 0 || gte > currentEpoch) return [];
+
+    gte = gte < 1 ? 1 : Math.floor(gte);
+    lte = lte < 0 ? gte : Math.floor(lte < 1 ? currentEpoch : lte);
+    lte = lte <= currentEpoch ? lte : currentEpoch;
+    gte = lte - gte > 0 ? gte : lte;
+    gte = lte - gte >= this.server.config.api_max_query_size
+      ? lte - this.server.config.api_max_query_size + 1
+      : gte;
+
+    const a: Array<ConsensusBlockStruct> = [];
+    for await (
+      const value of this.dbConsensus.values({
+        gte: String(gte).padStart(16, '0'),
+        lte: String(lte).padStart(16, '0'),
+      })
+    ) a.push(value);
+    return a;
+  }
+
+  public addSocBlock(origin: string, block: SocBlockStruct): Promise<void> {
+    const queue: Promise<void> = this.mapSocQueue.get(origin) ||
+      Promise.resolve();
+
+    const nextTask = queue.then(async () => {
+      const dbSoc = this.mapDbSoc.get(origin);
+      if (!dbSoc) throw new Error('Database not found'); // <- Statt stummem return
+
+      const [currentHeight] = this.getHeight(origin);
+      if (block.h <= currentHeight) return;
+
+      await dbSoc.put(String(block.h).padStart(16, '0'), block);
+      this.updateSocCache(origin, block);
+      await this.processSocIndex(origin, block);
+
+      const blockBytes = new TextEncoder().encode(JSON.stringify(block)).length;
+      const currentBytes = this.mapSocBytes.get(origin) || 0;
+      const newTotal = currentBytes + blockBytes;
+      this.mapSocBytes.set(origin, newTotal);
+
+      if (newTotal > LIMIT_SOC_BYTES_HARD) {
+        await this.enforceFifoPruning(origin, dbSoc);
+      }
+      Log.trace(`New chain block #${block.h} on chain ${origin}`);
+    });
+
+    this.mapSocQueue.set(origin, nextTask.catch(() => {}));
+
+    return nextTask;
+  }
+
+  public async addSoc(publicKey: string): Promise<void> {
+    if (this.mapDbSoc.has(publicKey)) {
+      return;
+    }
+
+    const pathDbSoc: string = path.join(this.server.config.path_soc, publicKey);
+    const dbSoc: Level<string, SocBlockStruct> = new Level(pathDbSoc, {
+      valueEncoding: 'json',
+      createIfMissing: true,
+      errorIfExists: false,
+    });
+    await dbSoc.open();
+    this.mapDbSoc.set(publicKey, dbSoc);
+
+    const isEmpty = (await dbSoc.keys({ limit: 1 }).all()).length === 0;
+
+    if (isEmpty) {
+      Log.trace(`Creating genesis for peer chain ${publicKey}...`);
+      const genesis = await Chain.loadGenesis<SocBlockStruct>(
+        this.server.config.path_genesis_soc,
+      );
+      (genesis.cs[0] as CommandData).d = publicKey;
+      genesis.ha = Util.hash(genesis);
+      await this.addSocBlock(publicKey, genesis);
+    } else {
+      Log.trace(`Loading existing chain for peer ${publicKey}...`);
+
+      let totalBytes = 0;
+      for await (const value of dbSoc.values()) {
+        totalBytes += new TextEncoder().encode(JSON.stringify(value)).length;
+      }
+      this.mapSocBytes.set(publicKey, totalBytes);
+
+      const recentBlocks = await dbSoc.values({
+        reverse: true,
+        limit: this.server.config.chain_max_blocks_in_memory,
+      }).all();
+
+      for (const block of recentBlocks.reverse()) {
+        this.updateSocCache(publicKey, block);
+        await this.processSocIndex(publicKey, block);
       }
     }
   }
 
-  private async clear(): Promise<void> {
-    for (const db of this.mapDbChain.values()) {
-      await db.clear();
-    }
-    await this.dbState.clear();
-    await this.dbPeer.clear();
-
-    this.mapHeight = new Map();
-    this.mapTxs = new Map();
-    this.mapLatestTx = new Map();
-    this.mapPeer = new Map();
+  public removeSoc(publicKey: string) {
+    this.mapSocQueue.delete(publicKey);
+    this.mapHeight.delete(publicKey);
+    this.mapLatestSocBlock.delete(publicKey);
+    this.mapSocBlocks.delete(publicKey);
+    this.mapSocBytes.delete(publicKey);
+    this.mapDbSoc.delete(publicKey);
   }
 
-  // FIXME IMPORTANT: this MUST NOT be a public method!
-  // FIXME IMPORTANT: there is no validation...
-  /**
-   * Add a new transaction to a chain
-   * @param tx TxStruct
-   */
-  public async addTx(tx: TxStruct): Promise<void> {
-    if (!this.mapPeer.has(tx.o)) {
-      throw new Error(`Unknown peer: ${tx.o}`);
-    }
+  private updateSocCache(origin: string, block: SocBlockStruct): void {
+    this.mapHeight.set(origin, block.h);
+    this.mapLatestSocBlock.set(origin, block);
 
-    if (this.mapLock.has(tx.o)) {
-      throw new Error(`Locked Chain: ${tx.o} #${tx.h}`);
+    const mT: Map<number, SocBlockStruct> = this.mapSocBlocks.get(origin) ||
+      new Map();
+    mT.set(block.h, block);
+    if (mT.size > this.server.config.chain_max_blocks_in_memory) {
+      mT.delete(block.h - this.server.config.chain_max_blocks_in_memory);
     }
-    this.mapLock.set(tx.o, tx.h);
-    const dbChain: Level<string, TxStruct> | undefined = this.mapDbChain.get(
-      tx.o,
-    );
-    if (dbChain) {
-      await dbChain.put(String(tx.h).padStart(16, '0'), tx);
-      this.updateCache(tx);
-      await this.processState(tx);
-    }
-    this.mapLock.delete(tx.o);
-
-    Log.trace(`New tx #${tx.h} on chain ${tx.o}`);
+    this.mapSocBlocks.set(origin, mT);
   }
 
-  private updateCache(tx: TxStruct): void {
-    this.mapHeight.set(tx.o, tx.h);
-    this.mapLatestTx.set(tx.o, tx);
-
-    // cache
-    const mT: Map<number, TxStruct> = this.mapTxs.get(tx.o) || new Map();
-    mT.set(tx.h, tx);
-    if (mT.size > this.server.config.chain_max_txs_in_memory) {
-      mT.delete(tx.h - this.server.config.chain_max_txs_in_memory);
-    }
-    this.mapTxs.set(tx.o, mT);
+  public getSocBytes(origin: string): number {
+    return this.mapSocBytes.get(origin) || 0;
   }
 
   public async getRange(
     gte: number,
     lte: number,
     origin: string,
-  ): Promise<Array<TxStruct> | undefined> {
+  ): Promise<Array<SocBlockStruct>> {
     const height: number | undefined = this.mapHeight.get(origin);
-    const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(origin);
-    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
-    if (!height || !mT || !db) {
-      return;
-    }
-    if (gte > height) {
-      return [];
-    }
+    const mT: Map<number, SocBlockStruct> | undefined = this.mapSocBlocks.get(
+      origin,
+    );
+    const db: Level<string, SocBlockStruct> | undefined = this.mapDbSoc.get(
+      origin,
+    );
+
+    if (!height || !mT || !db || gte > height) return [];
 
     gte = gte < 1 ? 1 : Math.floor(gte);
     lte = lte < 0 ? gte : Math.floor(lte < 1 ? height : lte);
@@ -267,253 +384,257 @@ export class Chain {
       ? lte - this.server.config.api_max_query_size + 1
       : gte;
 
-    // cache available?
     if (mT.has(gte) && mT.has(lte)) {
       const start: number = mT.size - height + gte - 1;
       const end: number = start + lte - gte + 1;
       return [...mT.values()].slice(start, end);
     }
 
-    const a: Array<TxStruct> = [];
+    const a: Array<SocBlockStruct> = [];
     for await (
       const value of db.values({
         gte: String(gte).padStart(16, '0'),
         lte: String(lte).padStart(16, '0'),
       })
-    ) {
-      a.push(value);
-    }
+    ) a.push(value);
     return a;
   }
 
-  public async getPage(
-    page: number,
-    size: number,
-    origin: string,
-  ): Promise<Array<TxStruct> | undefined> {
-    const height: number | undefined = this.mapHeight.get(origin);
-    if (!height) {
-      return;
-    }
-
-    page = page < 1 ? 1 : Math.floor(page);
-    size = size < 1 || size > this.server.config.api_max_query_size
-      ? this.server.config.api_max_query_size
-      : Math.floor(size);
-
-    let gte: number = height - page * size + 1;
-    if (gte + size - 1 < 1) {
-      return [];
-    }
-    gte = gte < 1 ? 1 : gte;
-
-    return await this.getRange(gte, gte + size - 1, origin);
-  }
-
-  public async search(
-    q: string,
-    origin: string,
-  ): Promise<Array<TxStruct> | undefined> {
-    // support only search strings with more than 2 characters
-    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(origin);
-    if (q.length < 3 || !db) {
-      return;
-    }
-
-    const a: Array<TxStruct> = [];
-    // FIXME this searches only the latest <api_max_query_size> records...
-    for await (
-      const value of db.values({
-        reverse: true,
-        limit: this.server.config.api_max_query_size,
-      })
-    ) {
-      try {
-        JSON.stringify(value).indexOf(q) > -1 && a.push(value);
-      } catch (e) {
-        Log.warn(`${this.server.config.port}: ${e}`);
-      }
-    }
-    return a.reverse();
-  }
-
-  public async getTx(
+  public async getSocBlock(
     height: number,
     origin?: string,
-  ): Promise<TxStruct | undefined> {
-    const mT: Map<number, TxStruct> | undefined = this.mapTxs.get(
-      origin || this.publicKey,
+  ): Promise<SocBlockStruct | undefined> {
+    origin = origin || this.primarySoc;
+    const mT: Map<number, SocBlockStruct> | undefined = this.mapSocBlocks.get(
+      origin,
     );
-    const db: Level<string, TxStruct> | undefined = this.mapDbChain.get(
-      origin || this.publicKey,
+    const db: Level<string, SocBlockStruct> | undefined = this.mapDbSoc.get(
+      origin,
     );
-    if (!mT || !db) {
-      return;
-    }
+    if (!mT || !db) return;
 
     try {
-      // cache or db
-      return mT.get(height) ||
-        ((await db.get(String(height).padStart(16, '0'))) as TxStruct);
-    } catch (_error) {
-      return;
+      const block = mT.get(height) ||
+        ((await db.get(String(height).padStart(16, '0'))) as SocBlockStruct);
+      return block;
+    } catch (e: unknown) {
+      Log.warn(
+        { err: e, height: height, origin: origin },
+        `getSocBlock() failed`,
+      );
+      return undefined;
     }
   }
 
-  public async getState(
-    key: string,
-  ): Promise<{ key: string; value: string } | false> {
-    const v = await this.dbState.get(key);
+  public getLatestSocBlock(
+    origin?: string,
+  ): [SocBlockStruct, null] | [null, Error] {
+    origin = origin || this.primarySoc;
+    const block: SocBlockStruct | undefined = this.mapLatestSocBlock.get(
+      origin,
+    );
+    if (!block) {
+      return [null, new Error('No chain block available for origin ' + origin)];
+    }
+    return [block, null];
+  }
+
+  public getHeight(origin?: string): [number, null] | [0, Error] {
+    origin = origin || this.primarySoc;
+    const h: number | undefined = this.mapHeight.get(origin);
+    if (!h) return [0, new Error(`getHeight(${origin}) No height available`)];
+    return [h, null];
+  }
+
+  public async getReputationState(key: string): Promise<KV | false> {
+    const v: string | undefined = await this.dbReputation.get(key);
     return v === undefined
       ? Promise.resolve(false)
       : Promise.resolve({ key: key, value: v.toString() });
   }
 
-  public async searchState(
-    search: string = '',
-  ): Promise<Array<{ key: string; value: string }>> {
-    const a: Array<{ key: string; value: string }> = [];
+  public async searchReputationState(search: string): Promise<aKV> {
+    const a: aKV = [];
+    let c: number = 0;
     for await (
-      const [key, value] of this.dbState.iterator({
-        reverse: true,
-        limit: this.server.config.api_max_query_size,
-      })
+      const [key, value] of this.dbReputation.iterator({ reverse: true })
     ) {
-      (!search.length || (key + value).indexOf(search) > -1) &&
+      if ((!search.length || (key + value).indexOf(search) > -1)) {
         a.push({ key: key, value: value });
+        c++;
+      }
+      if (c === this.server.config.api_max_query_size) break;
     }
     return a;
   }
 
-  // get latest local tx
-  public getLatestTx(origin?: string): TxStruct | undefined {
-    return this.mapLatestTx.get(origin || this.publicKey);
-  }
+  public async getLatestReputation(
+    origin?: string,
+  ): Promise<Array<ReputationEntry> | number | undefined> {
+    const epoch = this.getCurrentEpoch();
+    if (epoch === 0) return undefined;
 
-  public getHeight(origin?: string): number {
-    return this.mapHeight.get(origin || this.publicKey) || 0;
-  }
+    const state = await this.getReputationState(
+      Namespace.reputationForEpoch(epoch),
+    );
+    if (!state) return undefined;
 
-  public getMapPeer(): Map<string, Peer> {
-    return this.mapPeer;
-  }
-
-  public getListPeer(): Array<string> {
-    return [...this.mapPeer.keys()].sort();
-  }
-
-  public hasPeer(publicKey: string): boolean {
-    return this.mapPeer.has(publicKey);
-  }
-
-  // FIXME Peer might be an empty object
-  /**
-   * @param publicKey
-   * @returns Peer
-   */
-  public getPeer(publicKey: string): Peer {
-    return this.mapPeer.get(publicKey) || {} as Peer;
-  }
-
-  public hasNetworkHttp(http: string): boolean {
-    return this.mapHttp.has(http);
-  }
-
-  public async getPerformance(height: number): Promise<{ timestamp: number }> {
-    let ts: number;
     try {
-      ts = Number(
-        (await this.dbState.get('debug-performance-' + height)).toString(),
-      );
-    } catch (_error) {
-      ts = 0;
-    }
-    return { timestamp: ts };
-  }
-
-  public static async genesis(p: string): Promise<TxStruct> {
-    try {
-      return JSON.parse(await Deno.readTextFile(p));
-    } catch (error: unknown) {
-      throw error as Error;
+      const reputationList: Array<ReputationEntry> = JSON.parse(state.value);
+      if (origin) {
+        const entry: ReputationEntry | undefined = reputationList.find((r) =>
+          r.pk === origin
+        );
+        return entry ? entry.r : 0;
+      }
+      return reputationList;
+    } catch (_e) {
+      return undefined;
     }
   }
 
-  private async processState(tx: TxStruct): Promise<void> {
-    for (const c of tx.cs) {
+  private async processConsensusState(
+    block: ConsensusBlockStruct,
+  ): Promise<void> {
+    let hasReputationCmd = false;
+
+    for (const c of block.cs) {
       switch (c.c) {
-        case COMMAND_DATA:
-          await this.updateStateData(
-            [(c as CommandData).ns, tx.o].join(':'),
-            (c as CommandData).d,
+        case COMMAND_VALIDATORS: {
+          const command = c as CommandValidators;
+          await this.dbReputation.put(
+            Namespace.validatorsForEpoch(block.e),
+            JSON.stringify(command.d),
           );
           break;
-        default:
-          // TODO
+        }
+        case COMMAND_REPUTATION: {
+          hasReputationCmd = true;
+          const command = c as CommandReputation;
+          const prevRepState = await this.getReputationState(
+            Namespace.reputationForEpoch(block.e - 1),
+          );
+          const repMap = new Map<string, number>();
+
+          if (prevRepState) {
+            try {
+              const parsed: Array<ReputationEntry> = JSON.parse(
+                prevRepState.value,
+              );
+              parsed.forEach((item) => repMap.set(item.pk, item.r));
+            } catch (_e) { /* ignore */ }
+          }
+
+          for (const delta of command.d) {
+            if (delta.r !== undefined) {
+              if (delta.r > 0) repMap.set(delta.pk, delta.r);
+              else repMap.delete(delta.pk);
+            }
+          }
+
+          const consolidated: Array<ReputationEntry> = [...repMap.entries()]
+            .map(([pk, r]) => ({ pk, r }))
+            .sort((a, b) => (a.pk > b.pk ? 1 : -1));
+
+          await this.dbReputation.put(
+            Namespace.reputationForEpoch(block.e),
+            JSON.stringify(consolidated),
+          );
+          break;
+        }
+        default: {
+          const unknownCmd = c as { c?: string };
+          Log.warn(`Unknown consensus command: ${unknownCmd.c}`);
+          break;
+        }
+      }
+    }
+
+    if (!hasReputationCmd) {
+      if (block.e > 1) {
+        const prevRepState = await this.getReputationState(
+          Namespace.reputationForEpoch(block.e - 1),
+        );
+        await this.dbReputation.put(
+          Namespace.reputationForEpoch(block.e),
+          prevRepState ? prevRepState.value : '[]',
+        );
+      } else {
+        await this.dbReputation.put(
+          Namespace.reputationForEpoch(block.e),
+          '[]',
+        );
       }
     }
   }
 
-  public async addPeer(peer: Peer): Promise<boolean> {
-    if (this.mapPeer.has(peer.publicKey)) {
-      return false;
-    }
-    this.mapPeer.set(peer.publicKey, peer);
-
-    await this.dbPeer.put(peer.publicKey, peer);
-    const pathDb: string = path.join(
-      this.server.config.path_chain,
-      peer.publicKey,
-    );
-    const dbChain: Level<string, TxStruct> = new Level(pathDb, {
-      valueEncoding: 'json',
-      createIfMissing: true,
-      errorIfExists: false,
-    });
-    this.mapDbChain.set(peer.publicKey, dbChain);
-    this.mapHttp.set(peer.http, peer.publicKey);
-    this.mapUdp.set(peer.udp, peer.publicKey);
-
-    // initialize a peer
-    Log.trace(`Creating genesis for peer ${peer.publicKey}...`);
-    // genesis TX are reproducable for any given public key
-    // load genesis TX
-    const genesis: TxStruct = await Chain.genesis(
-      this.server.config.path_genesis,
-    );
-    // modify the genesis TX...
-    genesis.o = peer.publicKey;
-    genesis.ha = Util.hash(genesis);
-    await this.addTx(genesis);
-
-    this.countNodes++;
-
-    Log.trace(`Added new peer ${peer.publicKey}`);
-    Log.trace(`Knowing now ${this.countNodes} peers`);
-    return true;
+  public async getSocIndex(
+    key: string,
+  ): Promise<KV | false> {
+    const v: string | undefined = await this.dbSocIndex.get(key);
+    return v === undefined
+      ? Promise.resolve(false)
+      : Promise.resolve({ key: key, value: v.toString() });
   }
 
-  // FIXME trust the public key from the command?
-  private async removePeer(pk: string): Promise<void> {
-    // can't remove yourself
-    if (pk === this.publicKey) {
-      return;
+  public async searchSocIndex(
+    search: string,
+    limitOverride?: number,
+  ): Promise<aKV> {
+    const a: aKV = [];
+    let c: number = 0;
+    const max: number = limitOverride !== undefined
+      ? limitOverride
+      : this.server.config.api_max_query_size;
+
+    for await (
+      const [key, value] of this.dbSocIndex.iterator({ reverse: true })
+    ) {
+      if (!search.length || (key + value).indexOf(search) > -1) {
+        a.push({ key: key, value: value });
+        c++;
+        if (max !== -1 && c >= max) break;
+      }
     }
-
-    if (!this.mapPeer.has(pk)) {
-      return;
-    }
-    const peer: Peer = this.mapPeer.get(pk) as Peer;
-    this.countNodes--;
-
-    this.mapPeer.delete(pk);
-    this.mapHttp.delete(peer.http);
-    await this.dbPeer.del(pk);
-
-    this.mapDbChain.delete(pk);
+    return a;
   }
 
-  private async updateStateData(key: string, value: string): Promise<void> {
-    await this.dbState.put(key, value);
+  private async processSocIndex(
+    origin: string,
+    block: SocBlockStruct,
+  ): Promise<void> {
+    for (const c of block.cs) {
+      switch (c.c) {
+        case COMMAND_DATA:
+          await this.dbSocIndex.put(
+            [(c as CommandData).ns, origin].join(':'),
+            (c as CommandData).d,
+          );
+          break;
+        default:
+          Log.warn(`Unknown chain command: ${c.c}`);
+      }
+    }
+  }
+
+  public static async loadGenesis<T>(p: string): Promise<T> {
+    return JSON.parse(await Deno.readTextFile(p)) as T;
+  }
+
+  private async enforceFifoPruning(
+    origin: string,
+    db: Level<string, SocBlockStruct>,
+  ): Promise<void> {
+    const iterator = db.iterator({ gte: String(2).padStart(16, '0') });
+    let bytesFreed = 0;
+    const currentTotal = this.mapSocBytes.get(origin) || 0;
+
+    for await (const [key, value] of iterator) {
+      if (currentTotal - bytesFreed <= LIMIT_SOC_BYTES_HARD * 0.9) break;
+
+      bytesFreed += new TextEncoder().encode(JSON.stringify(value)).length;
+      await db.del(key);
+    }
+    this.mapSocBytes.set(origin, currentTotal - bytesFreed);
   }
 }

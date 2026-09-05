@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "/schema/message/soc-slashing-proof.json",
+  "type": "object",
+  "properties": {
+    "pk": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "h": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "v1": {
+      "type": "object",
+      "properties": {
+        "pow": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{48}$"
+        },
+        "pl": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "s": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{86}$"
+        }
+      },
+      "required": [
+        "pow",
+        "pl",
+        "s"
+      ],
+      "additionalProperties": false
+    },
+    "v2": {
+      "type": "object",
+      "properties": {
+        "pow": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{48}$"
+        },
+        "pl": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "s": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{86}$"
+        }
+      },
+      "required": [
+        "pow",
+        "pl",
+        "s"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "pk",
+    "h",
+    "v1",
+    "v2"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "/schema/message/validators.json",
+
+  "description": "Command to change validators",
+  "type": "object",
+  "properties": {
+    "c": {
+      "description": "Command",
+      "type": "string",
+      "pattern": "^validators$"
+    },
+    "ns": {
+      "description": "Namespace",
+      "type": "string",
+      "pattern": "^([A-Za-z0-9_-]{2,16}:){1,7}[A-Za-z0-9_-]{2,16}$"
+    },
+    "d": {
+      "type": "array",
+      "description": "Validator set with VRF proofs",
+      "items": {
+        "type": "object",
+        "properties": {
+          "pk": {
+            "description": "Validator public key",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "vrf": {
+            "description": "VRF proof",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{86}$"
+          }
+        },
+        "required": [
+          "pk",
+          "vrf"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 31,
+      "maxItems": 31,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "c",
+    "ns",
+    "d"
+  ]
+}

@@ -1,46 +1,71 @@
 /**
  * Copyright (C) 2021-2026 diva.exchange
  *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * See /LICENSE file for details.
  *
  * Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
  */
 
-import { join as joinPath } from 'node:path';
+import { dirname, isAbsolute, join as joinPath } from 'node:path';
 import { stdout } from 'node:process';
 import pino from 'pino';
 
-let _LoggerLog: pino.Logger = {} as pino.Logger;
+let _LoggerLog: pino.Logger = pino({
+  level: Deno.env.get('LOG_LEVEL') || 'silent',
+  timestamp: pino.stdTimeFunctions.isoTime,
+  serializers: {
+    err: pino.stdSerializers.err,
+  },
+});
+
+let _TelemetryLog: pino.Logger = pino({ level: 'silent' });
 
 export class Logger {
   public static make(pathLog: string, level: string = 'trace') {
     if (pathLog !== 'stdout') {
-      pathLog = joinPath(Deno.cwd(), pathLog);
+      if (!isAbsolute(pathLog)) {
+        pathLog = joinPath(Deno.cwd(), pathLog);
+      }
       if (!pathLog.endsWith('.log')) {
         pathLog = joinPath(pathLog, 'diva.log');
       }
     }
+
     _LoggerLog = pino(
       {
         level: level,
         timestamp: pino.stdTimeFunctions.isoTime,
+        serializers: {
+          err: pino.stdSerializers.err,
+        },
       },
       pino.destination(pathLog === 'stdout' ? stdout : pathLog),
     );
+
+    // Initialize dedicated Telemetry Logger
+    if (pathLog !== 'stdout') {
+      const dir = dirname(pathLog);
+      const telemetryPath = joinPath(dir, 'diva-telemetry.log');
+      _TelemetryLog = pino(
+        {
+          level: 'info',
+          timestamp: pino.stdTimeFunctions.isoTime,
+        },
+        pino.destination(telemetryPath),
+      );
+    } else {
+      _TelemetryLog = pino(
+        {
+          level: 'info',
+          timestamp: pino.stdTimeFunctions.isoTime,
+        },
+        pino.destination(stdout),
+      );
+    }
+
     _LoggerLog.info(`Application root: ${Deno.cwd()}`);
     _LoggerLog.info(`Application log (${level}): ${pathLog}`);
   }
 }
 
-export { _LoggerLog as 'Log' };
+export { _LoggerLog as 'Log', _TelemetryLog as 'Telemetry' };

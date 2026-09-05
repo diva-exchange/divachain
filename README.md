@@ -420,6 +420,15 @@ Example of such a transaction proposal, containing two commands:
 ]
 ```
 
+Curl example:
+
+```
+curl 'http://localhost:19468/tx/' \
+  -X PUT \
+  -H "diva-token-api: $(curl -s http://localhost:19468/testnet/token | jq -r '.token')" \
+  --data-raw '[{"c":"data","ns":"test:data","d":"data-1"}]'
+```
+
 ### Joining and Leaving the Network
 
 @TODO

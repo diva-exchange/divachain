@@ -1,0 +1,52 @@
+#
+# Copyright (C) 2026 diva.exchange
+#
+# See /LICENSE file for details.
+#
+# Author/Maintainer: DIVA.EXCHANGE Association, https://diva.exchange
+#
+
+services:
+  i2p-mock-tcp:
+    image: divax/i2p-mock-tcp:latest
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: i2p-mock-tcp
+    environment:
+      - ${SIMULATE_MODE:-NORMAL}
+      - ROUTES_FILE=/data/routes.json
+      - MOCK_PORT=4445
+      - SAM_PORT=7656
+    volumes:
+      - ../data/dev/routes.json:/data/routes.json:ro
+    command: ["deno", "run", "--allow-net", "--allow-read=/data", "--allow-env", "/app/tcp-mock.ts"]
+    networks:
+      divachain-net:
+        ipv4_address: 172.19.75.11
+
+  i2p-mock-udp:
+    image: divax/i2p-mock-udp:latest
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: i2p-mock-udp
+    environment:
+      - ${SIMULATE_MODE:-NORMAL}
+      - ROUTES_FILE=/data/routes.json
+      - MOCK_PORT=7655
+      - SAM_PORT=7656
+    volumes:
+      - ../data/dev/routes.json:/data/routes.json:ro
+    command: ["deno", "run", "--unstable-net", "--allow-net", "--allow-read=/data", "--allow-env", "/app/udp-mock.ts"]
+    networks:
+      divachain-net:
+        ipv4_address: 172.19.75.12
+
+networks:
+  divachain-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.19.75.0/24
+          gateway: 172.19.75.1

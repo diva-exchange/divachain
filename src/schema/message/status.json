@@ -4,18 +4,33 @@
 
   "type": "object",
   "properties": {
+    "e": {
+      "type": "integer",
+      "minimum": 1
+    },
     "t": {
       "type": "integer",
       "minimum": 1
     },
-    "h": {
-      "type": "integer",
-      "minimum": 1
+    "vrf": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$"
+    },
+    "rp": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{43}$"
+    },
+    "sig": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{86}$"
     }
   },
   "required": [
+    "e",
     "t",
-    "h"
+    "vrf",
+    "rp",
+    "sig"
   ],
   "additionalProperties": false
 }

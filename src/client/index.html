@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DivaChain Smart Client</title>
+    <style>
+        body { font-family: system-ui, sans-serif; max-width: 700px; margin: 2rem auto; background: #f4f4f5; }
+        .control-group { background: #fff; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ccc; }
+        .control-group h3 { margin-top: 0; margin-bottom: 1rem; color: #333; font-size: 1.1rem; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
+        .control-group label { display: block; margin-bottom: 0.5rem; }
+        input[type="number"], input[type="password"], input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 3px; }
+        button { padding: 10px 15px; font-size: 14px; cursor: pointer; background: #0070f3; color: white; border: none; border-radius: 4px; margin-right: 8px; margin-bottom: 8px; }
+        button.danger { background: #ef4444; }
+        button.secondary { background: #10b981; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        #log { background: #1e1e1e; color: #10b981; padding: 1rem; border-radius: 4px; font-family: monospace; white-space: pre-wrap; height: 350px; overflow-y: auto; margin-top: 1rem; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <h2>DivaChain Smart Client</h2>
+    
+    <!-- SECTION 1: Auth -->
+    <div class="control-group">
+        <h3>1. Authentication</h3>
+        <label>
+            <strong>Node Port:</strong> <input type="number" id="node-port" value="17468" style="width: 80px;">
+        </label>
+        <label style="margin-top: 10px;">
+            <strong>Keystore Password:</strong> <input type="password" id="keystore-password" placeholder="Passphrase...">
+        </label>
+        <button id="btn-unlock">Unlock Node</button>
+    </div>
+
+    <!-- SECTION 2: Standard Operations (Primary SOC) -->
+    <div class="control-group" id="panel-primary" style="opacity: 0.5;">
+        <h3>2. Standard Mode (Primary SOC)</h3>
+        <label style="display: inline-block;">
+            Message: <input type="text" id="payload-data" value="Hello DivaChain!" style="width: 250px;">
+        </label>
+        <br><br>
+        <button id="btn-write-primary" disabled>Write to Chain</button>
+        <button id="btn-checkpoint" class="danger" disabled>Force Pruning (Checkpoint)</button>
+    </div>
+
+    <!-- SECTION 3: Load Testing (Volatile SOC) -->
+    <div class="control-group" id="panel-volatile" style="opacity: 0.5;">
+        <h3>3. Spammer Mode (Volatile SOC)</h3>
+        <button id="btn-generate" class="secondary" disabled>Generate & Grind PoW Identity</button>
+        <br><br>
+        <label style="display: inline-block;">
+            Payload Blocks: <input type="number" id="block-count" value="5" min="1" max="100" style="width: 60px;">
+        </label>
+        <button id="btn-pump" class="danger" disabled>Pump Data</button>
+    </div>
+    
+    <div id="log">Waiting for action...</div>
+
+    <script type="module">
+        const logEl = document.getElementById('log');
+        const log = (msg) => { logEl.textContent += `\n${msg}`; logEl.scrollTop = logEl.scrollHeight; };
+        
+        let activeToken = '';
+        let activeDifficulty = 0;
+        let volatileSocKey = ''; 
+
+        function bufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+            return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        async function preHashPassword(password) {
+            const enc = new TextEncoder();
+            const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(password));
+            return bufferToBase64Url(hashBuffer);
+        }
+
+        function getBaseUrl() {
+            return `http://127.0.0.1:${document.getElementById('node-port').value}`;
+        }
+
+        function enablePanels() {
+            document.getElementById('panel-primary').style.opacity = '1';
+            document.getElementById('panel-volatile').style.opacity = '1';
+            document.getElementById('btn-write-primary').disabled = false;
+            document.getElementById('btn-checkpoint').disabled = false;
+            document.getElementById('btn-generate').disabled = false;
+        }
+
+        // --- AUTH ---
+        document.getElementById('btn-unlock').addEventListener('click', async () => {
+            const pwd = document.getElementById('keystore-password').value;
+            if (!pwd) return log('Error: Please enter a password.');
+            
+            document.getElementById('btn-unlock').disabled = true;
+            log('Unlocking Vault...');
+            
+            try {
+                const unlockKey = await preHashPassword(pwd);
+                const res = await fetch(`${getBaseUrl()}/keystore/unlock`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ unlockKey })
+                });
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                
+                activeToken = data.token;
+                activeDifficulty = data.difficulty;
+                
+                log(`Vault unlocked. Token acquired (PoW Difficulty: ${activeDifficulty}).`);
+                document.getElementById('keystore-password').value = '';
+                enablePanels();
+            } catch (err) {
+                log(`Unlock failed: ${err.message}`);
+                document.getElementById('btn-unlock').disabled = false;
+            }
+        });
+
+        // --- STANDARD MODE ---
+        document.getElementById('btn-write-primary').addEventListener('click', async () => {
+            const payloadString = document.getElementById('payload-data').value;
+            if (!payloadString) return log('Error: Payload empty.');
+
+            log(`Writing data to active local chain...`);
+            try {
+                const payload = bufferToBase64Url(new TextEncoder().encode(payloadString));
+                const commands = [{ c: 'data', ns: 'app:message', d: payload }];
+                
+                const res = await fetch(`${getBaseUrl()}/local/block`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'diva-token-api': activeToken },
+                    body: JSON.stringify(commands)
+                });
+                
+                if (res.ok) log(`Success: Block accepted by Node.`);
+                else if (res.status === 413) log(`REJECTED: 413 Payload Too Large. 1 MB Limit reached. You MUST send a Checkpoint!`);
+                else log(`Failed: HTTP ${res.status}`);
+            } catch (err) {
+                log(`Connection error: ${err.message}`);
+            }
+        });
+
+        document.getElementById('btn-checkpoint').addEventListener('click', async () => {
+            log(`Fetching Anchor Hash (Block 1)...`);
+            try {
+                const resBlock = await fetch(`${getBaseUrl()}/block/1`);
+                if (!resBlock.ok) throw new Error('Could not fetch Anchor Block');
+                const block1 = await resBlock.json();
+
+                log(`Sending sys:checkpoint (Anchor: ${block1.ha.substring(0,8)}...)...`);
+                const commands = [{ c: 'checkpoint', ns: 'sys:checkpoint', d: { ah: block1.ha, b: 0 } }];
+                
+                const res = await fetch(`${getBaseUrl()}/local/block`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'diva-token-api': activeToken },
+                    body: JSON.stringify(commands)
+                });
+                
+                if (res.ok) log(`Success: Checkpoint accepted. Chain pruned.`);
+                else log(`Failed: HTTP ${res.status}`);
+            } catch (err) {
+                log(`Checkpoint error: ${err.message}`);
+            }
+        });
+
+        // --- SPAMMER MODE ---
+        document.getElementById('btn-generate').addEventListener('click', async () => {
+            document.getElementById('btn-generate').disabled = true;
+            log('Requesting volatile identity...');
+            
+            try {
+                const resReq = await fetch(`${getBaseUrl()}/identity/request`, {
+                    method: 'POST',
+                    headers: { 'diva-token-api': activeToken }
+                });
+                
+                if (!resReq.ok) throw new Error(`Request failed: ${resReq.status}`);
+                const { pk } = await resReq.json();
+                volatileSocKey = pk;
+                
+                log(`Received volatile PK: ${pk.substring(0, 8)}... Spawning PoW Worker...`);
+
+                const worker = new Worker('pow-worker.js', { type: 'module' });
+                worker.postMessage({ pubKey: pk, targetZeros: activeDifficulty });
+
+                worker.onmessage = async (e) => {
+                    if (e.data.type === 'log') log(e.data.msg);
+                    if (e.data.type === 'success') {
+                        log(`PoW Found in ${e.data.time}s. Finalizing...`);
+                        
+                        const resFin = await fetch(`${getBaseUrl()}/identity/finalize`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'diva-token-api': activeToken },
+                            body: JSON.stringify({ pk, nonce: e.data.nonce })
+                        });
+                        
+                        if (resFin.ok) {
+                            log('Identity finalized! Note: API /local/block now targets this volatile SOC.');
+                            document.getElementById('btn-pump').disabled = false;
+                        } else {
+                            log(`Node rejected finalize: ${resFin.status}`);
+                        }
+                        worker.terminate();
+                    }
+                };
+            } catch (err) {
+                log(`Identity creation failed: ${err.message}`);
+                document.getElementById('btn-generate').disabled = false;
+            }
+        });
+
+        document.getElementById('btn-pump').addEventListener('click', async () => {
+            document.getElementById('btn-pump').disabled = true;
+            const blockCount = parseInt(document.getElementById('block-count').value, 10);
+            
+            log(`\nStarting Data Pumper for ${blockCount} blocks...`);
+
+            for (let i = 1; i <= blockCount; i++) {
+                try {
+                    const payload = bufferToBase64Url(new TextEncoder().encode(`Pumper payload #${i} - ${Date.now()}`));
+                    const commands = [{ c: 'data', ns: 'app:pumper', d: payload }];
+                    
+                    const res = await fetch(`${getBaseUrl()}/local/block`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', 'diva-token-api': activeToken },
+                        body: JSON.stringify(commands)
+                    });
+                    
+                    if (res.ok) log(`Block ${i} accepted.`);
+                    else if (res.status === 413) { log(`REJECTED: 1 MB Limit reached. Stop.`); break; }
+                    else { log(`Node rejected block: HTTP ${res.status}`); break; }
+                } catch (err) {
+                    log(`Connection error: ${err.message}`);
+                    break; 
+                }
+                await new Promise(r => setTimeout(r, 400));
+            }
+            log('--- Pumping Completed ---');
+            document.getElementById('btn-pump').disabled = false;
+        });
+    </script>
+</body>
+</html>
